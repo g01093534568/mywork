@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkLog | 개인 업무 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b1622;
+  --bg2: #111f30;
+  --bg3: #172840;
+  --card: #1a2f47;
+  --card2: #1e3550;
+  --accent: #e8a020;
+  --accent2: #f5c148;
+  --blue: #3d8ef0;
+  --green: #3bc98a;
+  --red: #e05555;
+  --purple: #9b72e8;
+  --t1: #e8f0fe;
+  --t2: #7a9bc0;
+  --t3: #3d5a7a;
+  --border: rgba(255,255,255,0.07);
+  --shadow: 0 8px 32px rgba(0,0,0,0.5);
+  --r: 12px;
+  --r2: 8px;
+  --tr: all 0.2s ease;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;overflow-x:hidden;word-break:keep-all;}
+a{color:inherit;text-decoration:none;}
+input,select,textarea{font-family:inherit;background:var(--bg2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);padding:10px 14px;font-size:14px;outline:none;transition:var(--tr);width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,0.12);}
+input::placeholder,textarea::placeholder{color:var(--t3);}
+select option{background:var(--bg2);}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:var(--tr);}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r2);font-size:13px;font-weight:600;letter-spacing:0.2px;}
+.btn-primary{background:var(--accent);color:#1a1000;}
+.btn-primary:hover{background:var(--accent2);transform:translateY(-1px);}
+.btn-secondary{background:var(--card2);color:var(--t1);}
+.btn-secondary:hover{background:var(--bg3);}
+.btn-danger{background:rgba(224,85,85,0.15);color:var(--red);border:1px solid rgba(224,85,85,0.3);}
+.btn-danger:hover{background:var(--red);color:#fff;}
+.btn-ghost{background:transparent;color:var(--t2);padding:6px 10px;}
+.btn-ghost:hover{color:var(--t1);background:var(--card);}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.tag{display:inline-block;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600;}
+.tag-high{background:rgba(224,85,85,0.15);color:var(--red);}
+.tag-mid{background:rgba(232,160,32,0.15);color:var(--accent);}
+.tag-low{background:rgba(61,142,240,0.15);color:var(--blue);}
+.tag-done{background:rgba(59,201,138,0.15);color:var(--green);}
+.tag-todo{background:rgba(122,155,192,0.1);color:var(--t2);}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:28px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;animation:slideUp 0.2s ease;}
+.modal h3{font-size:17px;font-weight:700;margin-bottom:20px;color:var(--t1);}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.divider{height:1px;background:var(--border);margin:20px 0;}
+/* ---- LOGIN ---- */
+#login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;}
+.login-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.login-bg-circle{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.12;}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:44px 40px;width:100%;max-width:420px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,0.6);}
+.login-logo{text-align:center;margin-bottom:32px;}
+.login-logo .logo-mark{width:52px;height:52px;background:var(--accent);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#1a1000;margin-bottom:12px;}
+.login-logo h1{font-family:'Nanum Myeongjo',serif;font-size:22px;color:var(--t1);letter-spacing:-0.5px;}
+.login-logo p{font-size:12px;color:var(--t2);margin-top:4px;}
+.login-box .form-group{margin-bottom:14px;}
+.login-btn{width:100%;padding:13px;font-size:15px;font-weight:700;background:var(--accent);color:#1a1000;border-radius:var(--r2);margin-top:8px;letter-spacing:0.3px;}
+.login-btn:hover{background:var(--accent2);}
+/* ---- APP LAYOUT ---- */
+#app-screen{display:none;min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:50;}
+.sidebar-logo{padding:22px 20px 18px;border-bottom:1px solid var(--border);}
+.sidebar-logo .logo-row{display:flex;align-items:center;gap:10px;}
+.sidebar-logo .logo-mark{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#1a1000;flex-shrink:0;}
+.sidebar-logo span{font-family:'Nanum Myeongjo',serif;font-size:16px;font-weight:700;}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r2);color:var(--t2);font-size:13px;font-weight:500;cursor:pointer;transition:var(--tr);margin-bottom:2px;}
+.nav-item:hover{background:var(--card);color:var(--t1);}
+.nav-item.active{background:rgba(232,160,32,0.12);color:var(--accent);}
+.nav-item .nav-icon{width:18px;text-align:center;font-size:15px;}
+.nav-label{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:10px 12px 4px;}
+.nav-item[style*="display:none"] { display: none !important; }
+.sidebar-user{padding:14px 16px;border-top:1px solid var(--border);}
+.user-info{display:flex;align-items:center;gap:10px;}
+.user-avatar{width:34px;height:34px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#1a1000;flex-shrink:0;}
+.user-detail{flex:1;min-width:0;}
+.user-name{font-size:13px;font-weight:600;truncate:ellipsis;white-space:nowrap;overflow:hidden;}
+.user-id{font-size:11px;color:var(--t2);}
+.logout-btn{background:transparent;color:var(--t3);padding:4px;border-radius:6px;font-size:14px;}
+.logout-btn:hover{color:var(--red);}
+.main-content{margin-left:220px;min-height:100vh;padding:28px 32px;}
+.page-section{display:none;}
+.page-section.active{display:block;}
+.page-header{margin-bottom:28px;}
+.page-header h2{font-size:22px;font-weight:700;letter-spacing:-0.5px;}
+.page-header p{font-size:13px;color:var(--t2);margin-top:4px;}
+/* ---- HOME ---- */
+.org-goals-wrap{margin-bottom:28px;}
+.section-title{font-size:13px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.goal-hierarchy{display:flex;flex-direction:column;align-items:center;gap:0;}
+.goal-level{display:flex;gap:12px;width:100%;justify-content:center;}
+.goal-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;text-align:center;flex:1;max-width:280px;position:relative;}
+.goal-card.mission{background:linear-gradient(135deg,rgba(232,160,32,0.15),rgba(232,160,32,0.05));border-color:rgba(232,160,32,0.3);}
+.goal-card.vision{background:linear-gradient(135deg,rgba(61,142,240,0.12),rgba(61,142,240,0.04));border-color:rgba(61,142,240,0.25);}
+.goal-card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.mission .goal-card-label{color:var(--accent);}
+.vision .goal-card-label{color:var(--blue);}
+.goal-card-text{font-size:14px;font-weight:600;line-height:1.5;word-break:keep-all;}
+.goal-arrow{text-align:center;color:var(--t3);font-size:18px;line-height:1;margin:8px 0;}
+.strategy-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.strategy-col{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+.strategy-col-title{font-size:12px;font-weight:700;color:var(--green);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:10px;}
+.strategy-task{font-size:12px;color:var(--t2);padding:5px 0;display:flex;align-items:flex-start;gap:6px;word-break:keep-all;}
+.strategy-task::before{content:'•';color:var(--accent);flex-shrink:0;margin-top:1px;}
+.personal-goals-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
+.kpi-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.kpi-card-title{font-size:14px;font-weight:600;}
+.kpi-tag{font-size:10px;background:rgba(155,114,232,0.15);color:var(--purple);padding:2px 8px;border-radius:100px;font-weight:600;}
+.kpi-detail{font-size:12px;color:var(--t2);line-height:1.6;}
+.kpi-linked{font-size:11px;color:var(--t3);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+/* ---- TODO ---- */
+.todo-toolbar{display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap;}
+.todo-toolbar input{flex:1;min-width:200px;}
+.todo-toolbar select{width:auto;flex:none;}
+.todo-container{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow-x:auto;}
+.todo-table-wrapper{min-width:800px;}
+.todo-table{width:100%;border-collapse:collapse;}
+.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.todo-table{width:100%;border-collapse:collapse;}
+.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.todo-table tr:hover td{background:rgba(255,255,255,0.02);}
+.todo-title-cell{max-width:240px;}
+.todo-title-text{font-weight:500;cursor:pointer;}
+.todo-title-text.done{text-decoration:line-through;color:var(--t3);}
+.todo-date{font-size:12px;color:var(--t2);}
+.todo-date.overdue{color:var(--red);}
+.todo-actions{display:flex;gap:4px;}
+.check-btn{width:22px;height:22px;border-radius:50%;border:2px solid var(--t3);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--tr);flex-shrink:0;}
+.check-btn.checked{background:var(--green);border-color:var(--green);}
+.check-btn.checked::after{content:'✓';font-size:11px;color:#fff;font-weight:700;}
+/* ---- DAILY ---- */
+.daily-date-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+.daily-date-bar input[type="date"]{width:auto;flex:none;}
+.daily-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:20px;}
+.daily-todo-list{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
+.daily-todo-list h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);}
+.daily-todo-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;}
+.daily-todo-item:last-child{border-bottom:none;}
+.activities-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
+.activities-panel h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);display:flex;justify-content:space-between;align-items:center;}
+.activity-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;position:relative;}
+.activity-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.activity-title{font-size:14px;font-weight:600;}
+.activity-time{font-size:12px;color:var(--accent);font-weight:600;}
+.activity-linked{font-size:11px;color:var(--blue);margin-bottom:6px;padding:3px 8px;background:rgba(61,142,240,0.1);border-radius:4px;display:inline-block;}
+.activity-content{font-size:13px;color:var(--t2);line-height:1.6;white-space:pre-wrap;}
+.activity-reflection{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--t3);font-style:italic;}
+.activity-reflection::before{content:'💭 ';font-style:normal;}
+/* ---- ADMIN ---- */
+.admin-tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border-radius:var(--r2);padding:4px;width:fit-content;}
+.admin-tab{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;color:var(--t2);cursor:pointer;transition:var(--tr);}
+.admin-tab.active{background:var(--accent);color:#1a1000;}
+.admin-panel{display:none;}
+.admin-panel.active{display:block;}
+.org-form-section{margin-bottom:24px;}
+.org-form-section h4{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
+.strategy-editor{display:flex;flex-direction:column;gap:12px;}
+.strategy-goal-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:16px;}
+.strategy-goal-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.strategy-goal-num{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;flex:1;}
+.strategy-tasks-label{font-size:11px;font-weight:700;color:var(--t3);margin:10px 0 6px;}
+.strategy-task-edit{display:flex;gap:6px;margin-bottom:6px;}
+.strategy-task-edit input{font-size:12px;}
+.user-table{width:100%;border-collapse:collapse;}
+.user-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.user-table td{padding:11px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);}
+/* ---- FACILITY GOALS ---- */
+.fg-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:12px;}
+.fg-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.fg-num{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;flex:1;}
+.fg-display-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:10px;}
+.fg-display-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.fg-linked{font-size:11px;color:var(--green);margin-top:6px;padding:2px 8px;background:rgba(59,201,138,0.1);border-radius:4px;display:inline-block;}
+.facility-goals-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:900px){.facility-goals-grid{grid-template-columns:1fr;}}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--t3);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--t2);}
+/* Notifications */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--card2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 18px;font-size:13px;font-weight:500;z-index:9999;animation:toastIn 0.25s ease;box-shadow:var(--shadow);}
+.toast.success{border-color:rgba(59,201,138,0.4);color:var(--green);}
+.toast.error{border-color:rgba(224,85,85,0.4);color:var(--red);}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+/* Empty state */
+.empty-state{text-align:center;padding:40px 20px;color:var(--t3);}
+.empty-state .icon{font-size:36px;margin-bottom:10px;}
+.empty-state p{font-size:14px;}
+/* Chips for KPI */
+.progress-bar-wrap{margin-top:8px;}
+.progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:2px;transition:width 0.5s ease;}
+/* Responsive basics */
+@media(max-width:900px){
+  .sidebar{width:64px;}
+  .sidebar-logo span,.nav-item span:last-child,.user-detail,.nav-label{display:none;}
+  .main-content{margin-left:64px;padding:20px 16px;}
+  .strategy-grid,.personal-goals-grid,.form-row{grid-template-columns:1fr;}
+  .daily-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen">
+  <div class="login-bg">
+    <div class="login-bg-circle" style="width:400px;height:400px;background:#e8a020;top:-100px;left:-100px;"></div>
+    <div class="login-bg-circle" style="width:300px;height:300px;background:#3d8ef0;bottom:-80px;right:-80px;"></div>
+  </div>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-mark">W</div>
+      <h1>WorkLog</h1>
+      <p>개인 업무 관리 시스템</p>
+    </div>
+    <div class="form-group">
+      <label>시설명</label>
+      <input type="text" id="l-facility" placeholder="시설명 입력" />
+    </div>
+    <div class="form-group">
+      <label>사원번호 (6자리)</label>
+      <input type="text" id="l-empno" maxlength="6" placeholder="000000" />
+    </div>
+    <div class="form-group">
+      <label>패스워드</label>
+      <input type="password" id="l-pw" placeholder="패스워드 입력" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+  </div>
+</div>
+
+<!-- ═══ APP SCREEN ═══ -->
+<div id="app-screen">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-row">
+        <div class="logo-mark">W</div>
+        <span>WorkLog</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">메뉴</div>
+      <div class="nav-item active" onclick="navigate('home')" id="nav-home">
+        <span class="nav-icon">🏠</span><span>홈 / 목표</span>
+      </div>
+      <div class="nav-item" onclick="navigate('todo')" id="nav-todo">
+        <span class="nav-icon">✅</span><span>할 일 목록</span>
+      </div>
+      <div class="nav-item" onclick="navigate('daily')" id="nav-daily">
+        <span class="nav-icon">📔</span><span>업무일지</span>
+      </div>
+      <div id="admin-nav-section" style="display:none">
+        <div class="nav-label">관리</div>
+        <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
+          <span class="nav-icon">⚙️</span><span>관리자</span>
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-detail">
+          <div class="user-name" id="user-name-display">-</div>
+          <div class="user-id" id="user-id-display">-</div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()" title="로그아웃">⏻</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- ── HOME PAGE ── -->
+    <div id="page-home" class="page-section active">
+      <div class="page-header">
+        <h2>홈 / 목표 현황</h2>
+        <p id="home-subtitle">오늘의 목표를 확인하고 성과를 향해 나아가세요</p>
+      </div>
+
+      <div class="section-title">📌 조직 목표 체계</div>
+      <div class="org-goals-wrap" id="org-goals-display">
+        <div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 아직 설정하지 않았습니다</p></div>
+      </div>
+
+      <div class="section-title" style="margin-top:28px;">🏢 시설 목표 <span id="home-facility-label" style="font-size:11px;color:var(--t2);font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px"></span></div>
+      <div class="facility-goals-grid" id="facility-goals-display" style="margin-bottom:28px;"></div>
+
+      <div class="section-title" style="margin-top:28px;">👤 개인 성과 목표 <button class="btn btn-sm btn-secondary" onclick="openPersonalGoalModal()" style="margin-left:8px">+ 목표 추가</button></div>
+      <div class="personal-goals-grid" id="personal-goals-display">
+        <div class="empty-state"><div class="icon">📊</div><p>개인 성과 목표를 추가해 보세요</p></div>
+      </div>
+    </div>
+
+    <!-- ── TODO PAGE ── -->
+    <div id="page-todo" class="page-section">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h2>할 일 목록</h2>
+          <p>업무를 계획하고 우선순위에 따라 관리하세요</p>
+        </div>
+        <button class="btn btn-primary" onclick="openTodoModal()">+ 할 일 추가</button>
+      </div>
+      <div class="todo-toolbar">
+        <input type="text" id="todo-search" placeholder="🔍  검색..." oninput="renderTodos()" style="max-width:260px" />
+        <select id="todo-filter-status" onchange="renderTodos()" style="width:120px">
+          <option value="all">전체 상태</option>
+          <option value="todo">미완료</option>
+          <option value="done">완료</option>
+          <option value="overdue">마감 초과</option>
+        </select>
+        <select id="todo-filter-category" onchange="renderTodos()" style="width:120px">
+          <option value="all">전체 분류</option>
+          <option value="업무">업무</option>
+          <option value="개인">개인</option>
+          <option value="기타">기타</option>
+        </select>
+        <select id="todo-filter-priority" onchange="renderTodos()" style="width:120px">
+          <option value="all">전체 우선순위</option>
+          <option value="high">높음</option>
+          <option value="mid">중간</option>
+          <option value="low">낮음</option>
+        </select>
+      </div>
+      <div class="todo-container">
+       <div class="todo-table-wrapper">
+        <table class="todo-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th>할 일</th>
+              <th style="width:70px">분류</th>
+              <th style="width:70px">우선순위</th>
+              <th style="width:80px">상태</th>
+              <th style="width:110px">시작일</th>
+              <th style="width:110px">마감일</th>
+              <th style="width:80px">작업</th>
+            </tr>
+          </thead>
+          <tbody id="todo-tbody"></tbody>
+        </table>
+       </div>
+        <div id="todo-empty" class="empty-state" style="display:none"><div class="icon">📋</div><p>할 일이 없습니다. 새 할 일을 추가해 보세요!</p></div>
+      </div>
+    </div>
+
+    <!-- ── DAILY LOG PAGE ── -->
+    <div id="page-daily" class="page-section">
+      <div class="page-header">
+        <h2>업무일지</h2>
+        <p>오늘의 업무 활동을 기록하고 성찰하세요</p>
+      </div>
+      <div class="daily-date-bar">
+        <button class="btn btn-secondary btn-sm" onclick="changeDate(-1)">◀ 이전</button>
+        <button class="btn btn-secondary btn-sm" onclick="changeDate(0)">오늘</button>
+        <button class="btn btn-secondary btn-sm" onclick="changeDate(1)">다음 ▶</button>
+        <input type="date" id="daily-date" onchange="renderDailyPage()" />
+        <span id="daily-day-label" style="font-size:14px;color:var(--t2);"></span>
+      </div>
+      <div class="daily-grid">
+        <div class="daily-todo-list">
+          <h4>📋 오늘의 할 일</h4>
+          <div id="daily-todo-list-content"></div>
+        </div>
+        <div class="activities-panel">
+          <h4>
+            오늘의 주요 활동
+            <button class="btn btn-sm btn-primary" onclick="openActivityModal()">+ 활동 추가</button>
+          </h4>
+          <div id="daily-activities-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ADMIN PAGE ── -->
+    <div id="page-admin" class="page-section">
+      <div class="page-header">
+        <h2>관리자</h2>
+        <p>조직 목표 설정 및 사용자 관리</p>
+      </div>
+      <div class="admin-tabs">
+        <div class="admin-tab active" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
+        <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
+        <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
+      </div>
+      <!-- Goals Tab -->
+      <div id="admin-goals" class="admin-panel active">
+        <div class="org-form-section">
+          <h4>미션 & 비전</h4>
+          <div class="form-row" style="margin-bottom:12px">
+            <div class="form-group">
+              <label>미션 (Mission)</label>
+              <input type="text" id="a-mission" placeholder="조직의 존재 목적" />
+            </div>
+            <div class="form-group">
+              <label>비전 (Vision)</label>
+              <input type="text" id="a-vision" placeholder="조직이 추구하는 미래상" />
+            </div>
+          </div>
+        </div>
+        <div class="org-form-section">
+          <h4>전략목표 & 전략과제</h4>
+          <p style="font-size:12px;color:var(--t2);margin-bottom:12px">전략목표 3개 및 각각의 전략과제를 입력하세요</p>
+          <div class="strategy-editor" id="strategy-editor"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveOrgGoals()">💾 조직 목표 저장</button>
+      </div>
+      <!-- Users Tab -->
+      <div id="admin-users" class="admin-panel">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="openUserModal()">+ 사용자 추가</button>
+          <button class="btn btn-secondary" onclick="exportUsersCSV()">📥 CSV 다운로드</button>
+          <label class="btn btn-secondary" style="cursor:pointer">
+            📤 CSV 업로드
+            <input type="file" accept=".csv" style="display:none" onchange="importUsersCSV(event)" />
+          </label>
+          <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>시설명</th>
+                <th>사원번호</th>
+                <th>권한</th>
+                <th style="width:100px">작업</th>
+              </tr>
+            </thead>
+            <tbody id="user-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Facility Goals Tab -->
+      <div id="admin-facility" class="admin-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">🏢 시설목표 관리</div>
+            <div style="font-size:12px;color:var(--t2);margin-top:2px" id="facility-goal-subtitle"></div>
+          </div>
+          <button class="btn btn-primary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>
+        </div>
+        <div style="font-size:12px;color:var(--t3);margin-bottom:16px;padding:10px 14px;background:var(--card);border-radius:var(--r2);border:1px solid var(--border);">
+          💡 시설목표는 조직의 전략목표·전략과제와 연계하여 설정합니다. 개인 성과 목표는 시설목표를 기반으로 수립됩니다.
+        </div>
+        <div id="admin-facility-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app-screen -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Todo Modal -->
+<div class="modal-overlay" id="todo-modal">
+  <div class="modal">
+    <h3 id="todo-modal-title">할 일 추가</h3>
+    <input type="hidden" id="todo-edit-id" />
+    <div class="form-group">
+      <label>제목 *</label>
+      <input type="text" id="tm-title" placeholder="할 일 제목" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>분류</label>
+        <select id="tm-category">
+          <option value="업무">📁 업무</option>
+          <option value="개인">👤 개인</option>
+          <option value="기타">✨ 기타</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>우선순위</label>
+        <select id="tm-priority">
+          <option value="high">🔴 높음</option>
+          <option value="mid" selected>🟡 중간</option>
+          <option value="low">🔵 낮음</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>상태</label>
+      <select id="tm-status">
+        <option value="todo">미완료</option>
+        <option value="done">완료</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작일</label>
+        <input type="date" id="tm-start" />
+      </div>
+      <div class="form-group">
+        <label>마감일</label>
+        <input type="date" id="tm-due" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>메모</label>
+      <textarea id="tm-memo" rows="3" placeholder="추가 메모 (선택)"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('todo-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveTodo()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Activity Modal -->
+<div class="modal-overlay" id="activity-modal">
+  <div class="modal">
+    <h3 id="activity-modal-title">활동 추가</h3>
+    <input type="hidden" id="am-edit-id" />
+    <input type="hidden" id="am-date" />
+    <div class="form-group">
+      <label>활동 제목 *</label>
+      <input type="text" id="am-title" placeholder="오늘 주요 활동 제목" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>시간</label>
+        <input type="text" id="am-time" placeholder="예: 09:00~10:30" />
+      </div>
+      <div class="form-group">
+        <label>전략과제 연계</label>
+        <select id="am-linked"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>주요 내용</label>
+      <textarea id="am-content" rows="4" placeholder="오늘 활동의 주요 내용을 작성하세요"></textarea>
+    </div>
+    <div class="form-group">
+      <label>💭 느낀 점 / 회고</label>
+      <textarea id="am-reflection" rows="3" placeholder="오늘 활동에서 느낀 점이나 개선할 점을 작성하세요"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('activity-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveActivity()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Personal Goal Modal -->
+<div class="modal-overlay" id="pg-modal">
+  <div class="modal">
+    <h3 id="pg-modal-title">개인 성과 목표 추가</h3>
+    <input type="hidden" id="pg-edit-id" />
+    <div class="form-group">
+      <label>성과 목표 *</label>
+      <input type="text" id="pg-goal" placeholder="개인 성과 목표 제목" />
+    </div>
+    <div class="form-group">
+      <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span>KPI (핵심성과지표)</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPgKpi()">+ KPI 추가</button>
+      </label>
+      <div id="pg-kpi-list"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>연계 시설목표</label>
+        <select id="pg-linked"></select>
+      </div>
+      <div class="form-group">
+        <label>달성률 (%)</label>
+        <input type="number" id="pg-progress" min="0" max="100" value="0" />
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('pg-modal')">취소</button>
+      <button class="btn btn-primary" onclick="savePersonalGoal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Facility Goal Modal -->
+<div class="modal-overlay" id="fg-modal">
+  <div class="modal">
+    <h3 id="fg-modal-title">시설목표 추가</h3>
+    <input type="hidden" id="fg-edit-id" />
+    <div class="form-group">
+      <label>시설목표 *</label>
+      <input type="text" id="fg-goal" placeholder="시설목표 제목 입력" />
+    </div>
+    <div class="form-group">
+      <label>연계 전략목표</label>
+      <select id="fg-strategy-goal" onchange="updateFgTaskOptions()"></select>
+    </div>
+    <div class="form-group">
+      <label>연계 전략과제</label>
+      <select id="fg-strategy-task"></select>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span>KPI (핵심성과지표)</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addFgKpi()">+ KPI 추가</button>
+      </label>
+      <div id="fg-kpi-list"></div>
+    </div>
+    <div class="form-group">
+      <label>달성률 (%)</label>
+      <input type="number" id="fg-progress" min="0" max="100" value="0" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('fg-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveFacilityGoal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <h3 id="user-modal-title">사용자 추가</h3>
+    <input type="hidden" id="um-edit-id" />
+    <div class="form-group">
+      <label>시설명 *</label>
+      <input type="text" id="um-facility" placeholder="시설명" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>사원번호 (6자리) *</label>
+        <input type="text" id="um-empno" maxlength="6" placeholder="000000" />
+      </div>
+      <div class="form-group">
+        <label>권한</label>
+        <select id="um-role">
+          <option value="user">일반 사용자</option>
+          <option value="admin">관리자</option>
+          <option value="facility-admin">시설 관리자</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>패스워드 *</label>
+      <input type="text" id="um-pw" placeholder="패스워드 설정" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('user-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveUser()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA DEFAULTS
+// ═══════════════════════════════════════════════
+const DEFAULT_USERS = [
+  { id:'u0', 시설명:'관리자', 사원번호:'091111', 패스워드:'1234', role:'admin' }
+];
+const DEFAULT_ORG = {
+  mission:'군민의 삶의 질 향상을 위한 공공시설 최적 운영',
+  vision:'지속가능한 공공시설 경영으로 군민 행복 실현',
+  전략목표:['안전하고 쾌적한 시설 운영','효율적 자원관리','군민 서비스 품질 향상'],
+  전략과제:[
+    {목표idx:0, 과제:'시설 안전점검 및 유지보수 강화'},
+    {목표idx:0, 과제:'캠핑장 환경 개선 추진'},
+    {목표idx:1, 과제:'예산 절감 및 효율화'},
+    {목표idx:1, 과제:'디지털 행정 시스템 구축'},
+    {목표idx:2, 과제:'고객 만족도 향상 프로그램 운영'},
+    {목표idx:2, 과제:'온라인 예약 서비스 개선'}
+  ]
+};
+
+// ═══════════════════════════════════════════════
+// DATABASE (localStorage)
+// ═══════════════════════════════════════════════
+const DB = {
+  getUsers(){ return JSON.parse(localStorage.getItem('wl_users')||'null')||DEFAULT_USERS; },
+  setUsers(u){ localStorage.setItem('wl_users',JSON.stringify(u)); },
+  getOrg(){ return JSON.parse(localStorage.getItem('wl_org')||'null')||DEFAULT_ORG; },
+  setOrg(o){ localStorage.setItem('wl_org',JSON.stringify(o)); },
+  getTodos(uid){ return JSON.parse(localStorage.getItem('wl_todos_'+uid)||'[]'); },
+  setTodos(uid,t){ localStorage.setItem('wl_todos_'+uid,JSON.stringify(t)); },
+  getDailyLogs(uid){ return JSON.parse(localStorage.getItem('wl_daily_'+uid)||'[]'); },
+  setDailyLogs(uid,d){ localStorage.setItem('wl_daily_'+uid,JSON.stringify(d)); },
+  getPersonalGoals(uid){ return JSON.parse(localStorage.getItem('wl_pg_'+uid)||'[]'); },
+  setPersonalGoals(uid,g){ localStorage.setItem('wl_pg_'+uid,JSON.stringify(g)); },
+  getFacilityGoals(facility){ return JSON.parse(localStorage.getItem('wl_fg_'+facility)||'[]'); },
+  setFacilityGoals(facility,g){ localStorage.setItem('wl_fg_'+facility,JSON.stringify(g)); },
+};
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let currentUser = null;
+let currentPage = 'home';
+let strategyDraft = [];
+let pgKpiDraft = [];
+let fgKpiDraft = [];
+
+function today(){ return new Date().toISOString().split('T')[0]; }
+function uid(){ return '_'+Math.random().toString(36).substr(2,9); }
+function fmtDate(d){ if(!d)return '-'; return d.replace(/-/g,'.'); }
+function dayLabel(d){
+  const days=['일','월','화','수','목','금','토'];
+  const dt=new Date(d+'T00:00:00');
+  return ['일','월','화','수','목','금','토'][dt.getDay()]+'요일';
+}
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+function doLogin(){
+  const facility = document.getElementById('l-facility').value.trim();
+  const empno = document.getElementById('l-empno').value.trim();
+  const pw = document.getElementById('l-pw').value;
+  if(!facility||!empno||!pw){ toast('모든 항목을 입력해주세요','error'); return; }
+  if(empno.length!==6||!/^\d+$/.test(empno)){ toast('사원번호는 6자리 숫자입니다','error'); return; }
+  const users = DB.getUsers();
+  const user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===pw);
+  if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
+  currentUser = user;
+  sessionStorage.setItem('wl_session', JSON.stringify(user));
+  enterApp();
+}
+
+function enterApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  // Setup user info
+  document.getElementById('user-name-display').textContent = currentUser.시설명;
+  document.getElementById('user-id-display').textContent = currentUser.사원번호;
+  document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
+  
+  const isAdmin = currentUser.role==='admin' || currentUser.role==='facility-admin';
+  document.getElementById('admin-nav-section').style.display = isAdmin ? 'block' : 'none';
+
+  // 역할에 따른 관리자 탭 가시성 설정
+  const goalsTab = document.getElementById('admin-tab-goals');
+  if(goalsTab){
+    goalsTab.style.display = currentUser.role === 'facility-admin' ? 'none' : '';
+  }
+
+  // Init pages
+  loadAdminGoalsForm();
+  document.getElementById('daily-date').value = today();
+  navigate('home');
+}
+
+function doLogout(){
+  sessionStorage.removeItem('wl_session');
+  currentUser=null;
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('l-pw').value='';
+}
+
+// Restore session
+(function(){
+  const s=sessionStorage.getItem('wl_session');
+  if(s){ try{ currentUser=JSON.parse(s); enterApp(); }catch(e){} }
+})();
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function navigate(page){
+  document.querySelectorAll('.page-section').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  const navEl=document.getElementById('nav-'+page);
+  if(navEl) navEl.classList.add('active');
+  currentPage=page;
+  if(page==='home') renderHome();
+  if(page==='todo') renderTodos();
+  if(page==='daily') renderDailyPage();
+  if(page==='admin'){
+    if(currentUser.role==='facility-admin') switchAdminTab('facility');
+    else switchAdminTab('goals');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// HOME PAGE
+// ═══════════════════════════════════════════════
+function renderHome(){
+  renderOrgGoals();
+  renderFacilityGoals();
+  renderPersonalGoals();
+  const d = today();
+  document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
+}
+
+function renderFacilityGoals(){
+  const goals = DB.getFacilityGoals(currentUser.시설명);
+  const cont = document.getElementById('facility-goals-display');
+  const label = document.getElementById('home-facility-label');
+  if(label) label.textContent = `(${currentUser.시설명})`;
+  if(!goals.length){
+    cont.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏢</div><p>시설 관리자가 시설목표를 설정하면 여기에 표시됩니다</p></div>';
+    return;
+  }
+  cont.innerHTML=goals.map(g=>`
+    <div class="fg-display-card">
+      <div class="fg-display-header">
+        <div style="font-size:14px;font-weight:600">${esc(g.goal)}</div>
+        <span style="font-size:13px;color:var(--accent);font-weight:700">${g.progress||0}%</span>
+      </div>
+      ${(()=>{const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);return kpis.length?`<div style="margin-bottom:8px">${kpis.map((k,ki)=>`<div style="font-size:12px;color:var(--t2)">📊 ${kpis.length>1?ki+1+'. ':''}${esc(k)}</div>`).join('')}</div>`:'';})()}
+      <div class="progress-bar-wrap">
+        <div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div>
+      </div>
+      ${g.linkedStrategyGoal?`<div class="fg-linked">↗ ${esc(g.linkedStrategyGoal)}${g.linkedStrategyTask?' › '+esc(g.linkedStrategyTask):''}</div>`:''}
+    </div>`).join('');
+}
+
+function renderOrgGoals(){
+  const org=DB.getOrg();
+  if(!org||!org.mission){ document.getElementById('org-goals-display').innerHTML='<div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 설정하면 여기에 표시됩니다</p></div>'; return; }
+  let html=`<div class="goal-hierarchy">
+    <div class="goal-level"><div class="goal-card mission"><div class="goal-card-label">Mission</div><div class="goal-card-text">${esc(org.mission)}</div></div></div>
+    <div class="goal-arrow">↓</div>
+    <div class="goal-level"><div class="goal-card vision"><div class="goal-card-label">Vision</div><div class="goal-card-text">${esc(org.vision)}</div></div></div>
+    <div class="goal-arrow">↓</div>
+    <div style="width:100%"><div class="strategy-grid">`;
+  (org.전략목표||[]).forEach((목표,i)=>{
+    const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
+    html+=`<div class="strategy-col"><div class="strategy-col-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
+    tasks.forEach(t=>{ html+=`<div class="strategy-task">${esc(t.과제)}</div>`; });
+    html+=`</div>`;
+  });
+  html+=`</div></div></div>`;
+  document.getElementById('org-goals-display').innerHTML=html;
+}
+
+function renderPersonalGoals(){
+  const goals=DB.getPersonalGoals(currentUser.사원번호);
+  const cont=document.getElementById('personal-goals-display');
+  if(!goals.length){ cont.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">📊</div><p>개인 성과 목표를 추가해 보세요</p></div>'; return; }
+  cont.innerHTML=goals.map(g=>`
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <div class="kpi-card-title">${esc(g.goal)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="kpi-tag">KPI</span>
+          <button class="btn-ghost btn btn-sm" onclick="openPersonalGoalModal('${g.id}')">✏️</button>
+          <button class="btn-ghost btn btn-sm" onclick="deletePersonalGoal('${g.id}')">🗑️</button>
+        </div>
+      </div>
+      <div class="kpi-detail">${(()=>{const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);return kpis.length?kpis.map((k,i)=>`<div>${kpis.length>1?`<span style="font-size:11px;color:var(--t3);margin-right:4px">${i+1}.</span>`:''}${esc(k)}</div>`).join(''):'<span style="color:var(--t3)">KPI 없음</span>';})()}</div>
+      <div class="progress-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:4px"><span>달성률</span><span style="color:var(--accent)">${g.progress||0}%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div>
+      </div>
+      ${g.linked?`<div class="kpi-linked">↗ 연계: ${esc(g.linked)}</div>`:''}
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════
+// PERSONAL GOALS MODAL
+// ═══════════════════════════════════════════════
+function renderPgKpis(){
+  const list=document.getElementById('pg-kpi-list');
+  if(!pgKpiDraft.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:6px 0">KPI가 없습니다. 위 버튼으로 추가하세요.</div>';
+    return;
+  }
+  list.innerHTML=pgKpiDraft.map((kpi,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input type="text" class="pg-kpi-input" data-idx="${i}" value="${esc(kpi)}" placeholder="KPI ${i+1} 입력 (예: 고객 만족도 90점 이상)" style="font-size:13px" />
+      <button type="button" class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="deletePgKpi(${i})">✕</button>
+    </div>`).join('');
+}
+
+function collectPgKpis(){
+  pgKpiDraft=pgKpiDraft.map((_,i)=>document.querySelector(`.pg-kpi-input[data-idx="${i}"]`)?.value??_);
+}
+
+function addPgKpi(){
+  collectPgKpis();
+  pgKpiDraft.push('');
+  renderPgKpis();
+  setTimeout(()=>{ const inputs=document.querySelectorAll('.pg-kpi-input'); if(inputs.length) inputs[inputs.length-1].focus(); },50);
+}
+
+function deletePgKpi(i){
+  collectPgKpis();
+  pgKpiDraft.splice(i,1);
+  renderPgKpis();
+}
+
+function openPersonalGoalModal(id){
+  const fgoals=DB.getFacilityGoals(currentUser.시설명);
+  const sel=document.getElementById('pg-linked');
+  sel.innerHTML='<option value="">연계 없음</option>'+fgoals.map(g=>`<option value="${esc(g.goal)}">${esc(g.goal)}</option>`).join('');
+  if(id){
+    const g=DB.getPersonalGoals(currentUser.사원번호).find(x=>x.id===id);
+    if(!g) return;
+    document.getElementById('pg-modal-title').textContent='개인 목표 수정';
+    document.getElementById('pg-edit-id').value=id;
+    document.getElementById('pg-goal').value=g.goal;
+    document.getElementById('pg-progress').value=g.progress||0;
+    sel.value=g.linked||'';
+    pgKpiDraft=Array.isArray(g.kpis)?[...g.kpis]:(g.kpi?[g.kpi]:[]);
+  } else {
+    document.getElementById('pg-modal-title').textContent='개인 성과 목표 추가';
+    document.getElementById('pg-edit-id').value='';
+    document.getElementById('pg-goal').value='';
+    document.getElementById('pg-progress').value=0;
+    sel.value='';
+    pgKpiDraft=[];
+  }
+  renderPgKpis();
+  openModal('pg-modal');
+}
+
+function savePersonalGoal(){
+  const goal=document.getElementById('pg-goal').value.trim();
+  if(!goal){ toast('목표 제목을 입력하세요','error'); return; }
+  collectPgKpis();
+  const kpis=pgKpiDraft.map(k=>k.trim()).filter(k=>k);
+  const data={
+    id:document.getElementById('pg-edit-id').value||uid(),
+    goal,
+    kpis,
+    kpi:kpis[0]||'',
+    progress:parseInt(document.getElementById('pg-progress').value)||0,
+    linked:document.getElementById('pg-linked').value
+  };
+  const goals=DB.getPersonalGoals(currentUser.사원번호);
+  const idx=goals.findIndex(g=>g.id===data.id);
+  if(idx>=0) goals[idx]=data; else goals.push(data);
+  DB.setPersonalGoals(currentUser.사원번호,goals);
+  closeModal('pg-modal');
+  renderPersonalGoals();
+  toast('개인 목표가 저장되었습니다');
+}
+
+function deletePersonalGoal(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  const goals=DB.getPersonalGoals(currentUser.사원번호).filter(g=>g.id!==id);
+  DB.setPersonalGoals(currentUser.사원번호,goals);
+  renderPersonalGoals();
+  toast('삭제되었습니다');
+}
+
+// ═══════════════════════════════════════════════
+// TODO LIST
+// ═══════════════════════════════════════════════
+function todayVisible(todo){
+  // Show if: not done, OR done today, OR past due and not done
+  const t=today();
+  if(todo.status==='todo'){
+    if(todo.startDate && todo.startDate > t) return false; // Not started yet
+    return true; // Ongoing or overdue
+  }
+  // done
+  if(todo.completedDate===t) return true; // completed today, show
+  return false; // completed before today, hide
+}
+
+function isOverdue(todo){
+  return todo.status==='todo' && todo.dueDate && todo.dueDate<today();
+}
+
+function renderTodos(){
+  const todos=DB.getTodos(currentUser.사원번호);
+  const search=document.getElementById('todo-search').value.toLowerCase();
+  const filterStatus=document.getElementById('todo-filter-status').value;
+  const filterCat=document.getElementById('todo-filter-category').value;
+  const filterPri=document.getElementById('todo-filter-priority').value;
+  const t=today();
+  let list=todos.filter(todo=>{
+    // Visibility rule
+    if(!todayVisible(todo)) return false;
+    if(search && !todo.title.toLowerCase().includes(search)) return false;
+    if(filterCat!=='all' && todo.category!==filterCat) return false;
+    if(filterStatus==='todo' && todo.status!=='todo') return false;
+    if(filterStatus==='done' && todo.status!=='done') return false;
+    if(filterStatus==='overdue' && !isOverdue(todo)) return false;
+    if(filterPri!=='all' && todo.priority!==filterPri) return false;
+    return true;
+  });
+  // Sort: overdue first, then priority, then due date
+  const priOrder={high:0,mid:1,low:2};
+  list.sort((a,b)=>{
+    if(isOverdue(a)!==isOverdue(b)) return isOverdue(a)?-1:1;
+    if(priOrder[a.priority]!==priOrder[b.priority]) return priOrder[a.priority]-priOrder[b.priority];
+    if(a.dueDate&&b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+    return 0;
+  });
+  const tbody=document.getElementById('todo-tbody');
+  const empty=document.getElementById('todo-empty');
+  if(!list.length){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML=list.map(todo=>{
+    const done=todo.status==='done';
+    const over=isOverdue(todo);
+    const priLabel={high:'높음',mid:'중간',low:'낮음'};
+    return `<tr>
+      <td><div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div></td>
+      <td class="todo-title-cell">
+        <div class="todo-title-text ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
+        ${todo.memo?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(todo.memo.substring(0,60))}${todo.memo.length>60?'…':''}</div>`:''}
+      </td>
+      <td><span class="tag tag-todo">${esc(todo.category||'업무')}</span></td>
+      <td><span class="tag tag-${todo.priority}">${priLabel[todo.priority]||'-'}</span></td>
+      <td><span class="tag ${done?'tag-done':'tag-todo'}">${done?'완료':'미완료'}</span></td>
+      <td><span class="todo-date">${fmtDate(todo.startDate)}</span></td>
+      <td><span class="todo-date ${over?'overdue':''}">${fmtDate(todo.dueDate)}${over?' ⚠️':''}</span></td>
+      <td><div class="todo-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTodo('${todo.id}')">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleTodoDone(id){
+  const todos=DB.getTodos(currentUser.사원번호);
+  const todo=todos.find(t=>t.id===id);
+  if(!todo) return;
+  if(todo.status==='todo'){ todo.status='done'; todo.completedDate=today(); }
+  else { todo.status='todo'; todo.completedDate=null; }
+  DB.setTodos(currentUser.사원번호,todos);
+  renderTodos();
+  if(currentPage==='daily') renderDailyTodos();
+}
+
+function openTodoModal(id){
+  if(id){
+    const todo=DB.getTodos(currentUser.사원번호).find(t=>t.id===id);
+    if(!todo) return;
+    document.getElementById('todo-modal-title').textContent='할 일 수정';
+    document.getElementById('todo-edit-id').value=id;
+    document.getElementById('tm-title').value=todo.title;
+    document.getElementById('tm-category').value=todo.category||'업무';
+    document.getElementById('tm-priority').value=todo.priority;
+    document.getElementById('tm-status').value=todo.status;
+    document.getElementById('tm-start').value=todo.startDate||'';
+    document.getElementById('tm-due').value=todo.dueDate||'';
+    document.getElementById('tm-memo').value=todo.memo||'';
+  } else {
+    document.getElementById('todo-modal-title').textContent='할 일 추가';
+    document.getElementById('todo-edit-id').value='';
+    document.getElementById('tm-title').value='';
+    document.getElementById('tm-category').value='업무';
+    document.getElementById('tm-category').value='업무';
+    document.getElementById('tm-priority').value='mid';
+    document.getElementById('tm-status').value='todo';
+    document.getElementById('tm-start').value=today();
+    document.getElementById('tm-due').value='';
+    document.getElementById('tm-memo').value='';
+  }
+  openModal('todo-modal');
+}
+
+function saveTodo(){
+  const title=document.getElementById('tm-title').value.trim();
+  if(!title){ toast('제목을 입력하세요','error'); return; }
+  const editId=document.getElementById('todo-edit-id').value;
+  const data={
+    id:editId||uid(),
+    title,
+    category:document.getElementById('tm-category').value,
+    priority:document.getElementById('tm-priority').value,
+    status:document.getElementById('tm-status').value,
+    startDate:document.getElementById('tm-start').value||null,
+    dueDate:document.getElementById('tm-due').value||null,
+    memo:document.getElementById('tm-memo').value.trim(),
+    completedDate:null,
+    createdAt:new Date().toISOString()
+  };
+  if(data.status==='done') data.completedDate=today();
+  const todos=DB.getTodos(currentUser.사원번호);
+  const idx=todos.findIndex(t=>t.id===data.id);
+  if(idx>=0){ data.completedDate=todos[idx].completedDate; todos[idx]=data; }
+  else todos.push(data);
+  DB.setTodos(currentUser.사원번호,todos);
+  closeModal('todo-modal');
+  renderTodos();
+  toast('저장되었습니다');
+}
+
+function deleteTodo(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  const todos=DB.getTodos(currentUser.사원번호).filter(t=>t.id!==id);
+  DB.setTodos(currentUser.사원번호,todos);
+  renderTodos();
+  toast('삭제되었습니다');
+}
+
+// ═══════════════════════════════════════════════
+// DAILY LOG
+// ═══════════════════════════════════════════════
+function changeDate(dir){
+  const input=document.getElementById('daily-date');
+  if(dir===0){ input.value=today(); }
+  else {
+    const d=new Date((input.value||today())+'T00:00:00');
+    d.setDate(d.getDate()+dir);
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const day=String(d.getDate()).padStart(2,'0');
+    input.value=`${y}-${m}-${day}`;
+  }
+  renderDailyPage();
+}
+
+function renderDailyPage(){
+  const date=document.getElementById('daily-date').value||today();
+  document.getElementById('daily-day-label').textContent=dayLabel(date);
+  renderDailyTodos(date);
+  renderDailyActivities(date);
+}
+
+function renderDailyTodos(date){
+  date=date||document.getElementById('daily-date').value||today();
+  const todos=DB.getTodos(currentUser.사원번호);
+  const relevant=todos.filter(t=>{
+    if(t.startDate && t.startDate>date) return false;
+    if(t.status==='done' && t.completedDate!==date) return false;
+    if(t.status==='todo' && t.dueDate && t.dueDate < date) return true; // Overdue
+    return true;
+  });
+  const cont=document.getElementById('daily-todo-list-content');
+  if(!relevant.length){ cont.innerHTML='<div style="color:var(--t3);font-size:13px;text-align:center;padding:20px">해당 날짜에 할 일이 없습니다</div>'; return; }
+  cont.innerHTML=relevant.map(t=>`
+    <div class="daily-todo-item">
+      <div class="check-btn ${t.status==='done'?'checked':''}" onclick="toggleTodoDone('${t.id}')"></div>
+      <span style="${t.status==='done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+      <span class="tag tag-${t.priority}" style="margin-left:auto">${{high:'높음',mid:'중간',low:'낮음'}[t.priority]}</span>
+    </div>`).join('');
+}
+
+function renderDailyActivities(date){
+  date=date||document.getElementById('daily-date').value||today();
+  const logs=DB.getDailyLogs(currentUser.사원번호);
+  const dayLog=logs.find(l=>l.date===date);
+  const activities=[...(dayLog?.activities||[])].sort((a,b)=>{
+    const ta=(a.time||'').match(/(\d{1,2}):(\d{2})/);
+    const tb=(b.time||'').match(/(\d{1,2}):(\d{2})/);
+    if(!ta&&!tb) return 0;
+    if(!ta) return 1;
+    if(!tb) return -1;
+    return (parseInt(ta[1])*60+parseInt(ta[2]))-(parseInt(tb[1])*60+parseInt(tb[2]));
+  });
+  const cont=document.getElementById('daily-activities-content');
+  if(!activities.length){ cont.innerHTML='<div class="empty-state"><div class="icon">📝</div><p>오늘의 주요 활동을 기록해 보세요</p></div>'; return; }
+  cont.innerHTML=activities.map(a=>`
+    <div class="activity-item">
+      <div class="activity-header">
+        <div class="activity-title">${esc(a.title)}</div>
+        <div style="display:flex;gap:4px;align-items:center">
+          ${a.time?`<span class="activity-time">${esc(a.time)}</span>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="openActivityModal('${date}','${a.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteActivity('${date}','${a.id}')">🗑</button>
+        </div>
+      </div>
+      ${a.linked?`<span class="activity-linked">↗ ${esc(a.linked)}</span>`:''}
+      ${a.content?`<div class="activity-content">${esc(a.content)}</div>`:''}
+      ${a.reflection?`<div class="activity-reflection">${esc(a.reflection)}</div>`:''}
+    </div>`).join('');
+}
+
+function openActivityModal(date, id){
+  date=date||document.getElementById('daily-date').value||today();
+  const org=DB.getOrg();
+  const tasks=(org.전략과제||[]).map(t=>t.과제);
+  const sel=document.getElementById('am-linked');
+  sel.innerHTML='<option value="">연계 전략과제 없음</option>'+tasks.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  document.getElementById('am-date').value=date;
+  if(id){
+    const logs=DB.getDailyLogs(currentUser.사원번호);
+    const dayLog=logs.find(l=>l.date===date);
+    const a=dayLog?.activities?.find(x=>x.id===id);
+    if(!a) return;
+    document.getElementById('activity-modal-title').textContent='활동 수정';
+    document.getElementById('am-edit-id').value=id;
+    document.getElementById('am-title').value=a.title;
+    document.getElementById('am-time').value=a.time||'';
+    sel.value=a.linked||'';
+    document.getElementById('am-content').value=a.content||'';
+    document.getElementById('am-reflection').value=a.reflection||'';
+  } else {
+    document.getElementById('activity-modal-title').textContent='활동 추가';
+    document.getElementById('am-edit-id').value='';
+    document.getElementById('am-title').value='';
+    document.getElementById('am-time').value='';
+    sel.value='';
+    document.getElementById('am-content').value='';
+    document.getElementById('am-reflection').value='';
+  }
+  openModal('activity-modal');
+}
+
+function saveActivity(){
+  const title=document.getElementById('am-title').value.trim();
+  if(!title){ toast('활동 제목을 입력하세요','error'); return; }
+  const date=document.getElementById('am-date').value;
+  const editId=document.getElementById('am-edit-id').value;
+  const data={
+    id:editId||uid(),
+    title,
+    time:document.getElementById('am-time').value.trim(),
+    linked:document.getElementById('am-linked').value,
+    content:document.getElementById('am-content').value.trim(),
+    reflection:document.getElementById('am-reflection').value.trim()
+  };
+  const logs=DB.getDailyLogs(currentUser.사원번호);
+  let dayLog=logs.find(l=>l.date===date);
+  if(!dayLog){ dayLog={date,activities:[]}; logs.push(dayLog); }
+  const idx=dayLog.activities.findIndex(a=>a.id===data.id);
+  if(idx>=0) dayLog.activities[idx]=data; else dayLog.activities.push(data);
+  DB.setDailyLogs(currentUser.사원번호,logs);
+  closeModal('activity-modal');
+  renderDailyActivities(date);
+  toast('활동이 저장되었습니다');
+}
+
+function deleteActivity(date,id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  const logs=DB.getDailyLogs(currentUser.사원번호);
+  const dayLog=logs.find(l=>l.date===date);
+  if(!dayLog) return;
+  dayLog.activities=dayLog.activities.filter(a=>a.id!==id);
+  DB.setDailyLogs(currentUser.사원번호,logs);
+  renderDailyActivities(date);
+  toast('삭제되었습니다');
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN - ORG GOALS
+// ═══════════════════════════════════════════════
+function loadAdminGoalsForm(){
+  const org=DB.getOrg();
+  document.getElementById('a-mission').value=org.mission||'';
+  document.getElementById('a-vision').value=org.vision||'';
+  const goals=org.전략목표||[];
+  const allTasks=org.전략과제||[];
+  strategyDraft=goals.map((g,i)=>({goal:g, tasks:allTasks.filter(t=>t.목표idx===i).map(t=>t.과제)}));
+  renderStrategyEditor();
+}
+
+function collectStrategyDraft(){
+  strategyDraft=strategyDraft.map((item,i)=>({
+    goal:(document.querySelector(`.s-goal-input[data-idx="${i}"]`)?.value??item.goal),
+    tasks:item.tasks.map((_,j)=>document.querySelector(`.s-task-input[data-goal="${i}"][data-task="${j}"]`)?.value??_)
+  }));
+}
+
+function renderStrategyEditor(){
+  const editor=document.getElementById('strategy-editor');
+  let html=strategyDraft.length
+    ? strategyDraft.map((item,i)=>`
+      <div class="strategy-goal-item">
+        <div class="strategy-goal-header">
+          <span class="strategy-goal-num">전략목표 ${i+1}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteStrategyGoal(${i})">🗑 삭제</button>
+        </div>
+        <input type="text" class="s-goal-input" data-idx="${i}" value="${esc(item.goal)}" placeholder="전략목표 ${i+1} 입력" />
+        <div class="strategy-tasks-label">전략과제</div>
+        ${item.tasks.map((task,j)=>`
+          <div class="strategy-task-edit">
+            <input type="text" class="s-task-input" data-goal="${i}" data-task="${j}" value="${esc(task)}" placeholder="전략과제 ${j+1}" />
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="deleteStrategyTask(${i},${j})">✕</button>
+          </div>`).join('')}
+        <button class="btn btn-secondary btn-sm" onclick="addStrategyTask(${i})" style="width:100%;margin-top:6px">+ 전략과제 추가</button>
+      </div>`).join('')
+    : `<div style="color:var(--t3);font-size:13px;padding:8px 0">전략목표가 없습니다. 아래 버튼으로 추가하세요.</div>`;
+  html+=`<div><button class="btn btn-secondary" onclick="addStrategyGoal()">+ 전략목표 추가</button></div>`;
+  editor.innerHTML=html;
+}
+
+function addStrategyGoal(){
+  collectStrategyDraft();
+  strategyDraft.push({goal:'',tasks:['']});
+  renderStrategyEditor();
+}
+
+function deleteStrategyGoal(i){
+  if(!confirm(`전략목표 ${i+1}과 관련 전략과제를 모두 삭제하시겠습니까?`)) return;
+  collectStrategyDraft();
+  strategyDraft.splice(i,1);
+  renderStrategyEditor();
+}
+
+function addStrategyTask(goalIdx){
+  collectStrategyDraft();
+  strategyDraft[goalIdx].tasks.push('');
+  renderStrategyEditor();
+}
+
+function deleteStrategyTask(goalIdx,taskIdx){
+  collectStrategyDraft();
+  strategyDraft[goalIdx].tasks.splice(taskIdx,1);
+  renderStrategyEditor();
+}
+
+function saveOrgGoals(){
+  const mission=document.getElementById('a-mission').value.trim();
+  const vision=document.getElementById('a-vision').value.trim();
+  if(!mission||!vision){ toast('미션과 비전을 입력하세요','error'); return; }
+  collectStrategyDraft();
+  const 전략목표=[], 전략과제=[];
+  strategyDraft.forEach((item,i)=>{
+    전략목표.push(item.goal.trim());
+    item.tasks.forEach(task=>{ const t=task.trim(); if(t) 전략과제.push({목표idx:i,과제:t}); });
+  });
+  DB.setOrg({mission,vision,전략목표,전략과제});
+  toast('조직 목표가 저장되었습니다');
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN - FACILITY GOALS
+// ═══════════════════════════════════════════════
+function renderAdminFacilityGoals(){
+  const facilityName = currentUser.시설명;
+  document.getElementById('facility-goal-subtitle').textContent = `${facilityName} 시설의 목표를 관리합니다`;
+  const goals = DB.getFacilityGoals(facilityName);
+  const cont = document.getElementById('admin-facility-list');
+  if(!goals.length){
+    cont.innerHTML='<div class="empty-state"><div class="icon">🏢</div><p>시설목표가 없습니다. 위 버튼으로 추가해 보세요.</p></div>';
+    return;
+  }
+  cont.innerHTML=goals.map((g,i)=>`
+    <div class="fg-item">
+      <div class="fg-header">
+        <span class="fg-num">시설목표 ${i+1}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️ 수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑 삭제</button>
+      </div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px">${esc(g.goal)}</div>
+      ${g.linkedStrategyGoal?`<div style="font-size:12px;color:var(--green);margin-bottom:3px">↗ 전략목표: ${esc(g.linkedStrategyGoal)}</div>`:''}
+      ${g.linkedStrategyTask?`<div style="font-size:12px;color:var(--blue);margin-bottom:8px">↗ 전략과제: ${esc(g.linkedStrategyTask)}</div>`:''}
+      ${(()=>{const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);return kpis.length?`<div style="margin-bottom:10px">${kpis.map((k,ki)=>`<div style="font-size:12px;color:var(--t2);margin-bottom:3px">📊 KPI ${kpis.length>1?ki+1+': ':''}${esc(k)}</div>`).join('')}</div>`:'';})()}
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="progress-bar" style="flex:1"><div class="progress-fill" style="width:${g.progress||0}%"></div></div>
+        <span style="font-size:13px;color:var(--accent);font-weight:700;flex-shrink:0;min-width:36px;text-align:right">${g.progress||0}%</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderFgKpis(){
+  const list=document.getElementById('fg-kpi-list');
+  if(!fgKpiDraft.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:6px 0">KPI가 없습니다. 위 버튼으로 추가하세요.</div>';
+    return;
+  }
+  list.innerHTML=fgKpiDraft.map((kpi,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input type="text" class="fg-kpi-input" data-idx="${i}" value="${esc(kpi)}" placeholder="KPI ${i+1} 입력 (예: 이용객 만족도 90점 이상)" style="font-size:13px" />
+      <button type="button" class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="deleteFgKpi(${i})">✕</button>
+    </div>`).join('');
+}
+
+function collectFgKpis(){
+  fgKpiDraft=fgKpiDraft.map((_,i)=>document.querySelector(`.fg-kpi-input[data-idx="${i}"]`)?.value??_);
+}
+
+function addFgKpi(){
+  collectFgKpis();
+  fgKpiDraft.push('');
+  renderFgKpis();
+  // Focus the new input
+  setTimeout(()=>{ const inputs=document.querySelectorAll('.fg-kpi-input'); if(inputs.length) inputs[inputs.length-1].focus(); },50);
+}
+
+function deleteFgKpi(i){
+  collectFgKpis();
+  fgKpiDraft.splice(i,1);
+  renderFgKpis();
+}
+
+function openFacilityGoalModal(id){
+  const org=DB.getOrg();
+  const goalSel=document.getElementById('fg-strategy-goal');
+  goalSel.innerHTML='<option value="">전략목표 연계 없음</option>'+(org.전략목표||[]).map((g,i)=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if(id){
+    const goals=DB.getFacilityGoals(currentUser.시설명);
+    const g=goals.find(x=>x.id===id);
+    if(!g) return;
+    document.getElementById('fg-modal-title').textContent='시설목표 수정';
+    document.getElementById('fg-edit-id').value=id;
+    document.getElementById('fg-goal').value=g.goal;
+    document.getElementById('fg-progress').value=g.progress||0;
+    goalSel.value=g.linkedStrategyGoal||'';
+    updateFgTaskOptions();
+    document.getElementById('fg-strategy-task').value=g.linkedStrategyTask||'';
+    // KPI: support both old (string) and new (array) format
+    fgKpiDraft = Array.isArray(g.kpis) ? [...g.kpis] : (g.kpi ? [g.kpi] : []);
+  } else {
+    document.getElementById('fg-modal-title').textContent='시설목표 추가';
+    document.getElementById('fg-edit-id').value='';
+    document.getElementById('fg-goal').value='';
+    document.getElementById('fg-progress').value=0;
+    goalSel.value='';
+    updateFgTaskOptions();
+    fgKpiDraft=[];
+  }
+  renderFgKpis();
+  openModal('fg-modal');
+}
+
+function updateFgTaskOptions(){
+  const org=DB.getOrg();
+  const goalVal=document.getElementById('fg-strategy-goal').value;
+  const goalIdx=(org.전략목표||[]).indexOf(goalVal);
+  const tasks=goalIdx>=0?(org.전략과제||[]).filter(t=>t.목표idx===goalIdx).map(t=>t.과제):[];
+  const sel=document.getElementById('fg-strategy-task');
+  sel.innerHTML='<option value="">전략과제 연계 없음</option>'+tasks.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+}
+
+function saveFacilityGoal(){
+  const goal=document.getElementById('fg-goal').value.trim();
+  if(!goal){ toast('시설목표 제목을 입력하세요','error'); return; }
+  collectFgKpis();
+  const kpis=fgKpiDraft.map(k=>k.trim()).filter(k=>k);
+  const data={
+    id:document.getElementById('fg-edit-id').value||uid(),
+    goal,
+    linkedStrategyGoal:document.getElementById('fg-strategy-goal').value,
+    linkedStrategyTask:document.getElementById('fg-strategy-task').value,
+    kpis,
+    kpi:kpis[0]||'', // backward compat
+    progress:parseInt(document.getElementById('fg-progress').value)||0
+  };
+  const goals=DB.getFacilityGoals(currentUser.시설명);
+  const idx=goals.findIndex(g=>g.id===data.id);
+  if(idx>=0) goals[idx]=data; else goals.push(data);
+  DB.setFacilityGoals(currentUser.시설명,goals);
+  closeModal('fg-modal');
+  renderAdminFacilityGoals();
+  toast('시설목표가 저장되었습니다');
+}
+
+function deleteFacilityGoal(id){
+  if(!confirm('시설목표를 삭제하시겠습니까?')) return;
+  DB.setFacilityGoals(currentUser.시설명,DB.getFacilityGoals(currentUser.시설명).filter(g=>g.id!==id));
+  renderAdminFacilityGoals();
+  toast('삭제되었습니다');
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN - USERS
+// ═══════════════════════════════════════════════
+function renderAdminUsers(){
+  let users=DB.getUsers();
+  // Facility admin can only see users from the same facility
+  if(currentUser.role === 'facility-admin') {
+    users = users.filter(u => u.시설명 === currentUser.시설명);
+  }
+  const tbody=document.getElementById('user-tbody');
+  // Define role mapping for display
+  const roleMap = {admin:'본사관리자', 'facility-admin':'시설관리자', user:'사용자'};
+
+  // Render users
+  tbody.innerHTML=users.map(u=>`<tr>
+    <td>${esc(u.시설명)}</td>
+    <td><span style="font-family:monospace;background:var(--bg);padding:2px 8px;border-radius:4px;font-size:12px">${u.사원번호}</span></td>
+    <td><span class="tag ${u.role==='admin'?'tag-high':(u.role==='facility-admin'?'tag-mid':'tag-todo')}">${roleMap[u.role]||'사용자'}</span></td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn btn-ghost btn-sm" onclick="openUserModal('${u.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">🗑</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function openUserModal(id){
+  if(id){
+    const u=DB.getUsers().find(x=>x.id===id);
+    if(!u) return;
+    document.getElementById('user-modal-title').textContent='사용자 수정';
+    document.getElementById('um-edit-id').value=id;
+    document.getElementById('um-facility').value=u.시설명;
+    if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
+    document.getElementById('um-empno').value=u.사원번호;
+    document.getElementById('um-pw').value=u.패스워드;
+    document.getElementById('um-role').value=u.role;
+  } else {
+    document.getElementById('user-modal-title').textContent='사용자 추가';
+    document.getElementById('um-edit-id').value='';
+    document.getElementById('um-facility').value = currentUser.role === 'facility-admin' ? currentUser.시설명 : '';
+    if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
+    document.getElementById('um-empno').value='';
+    document.getElementById('um-pw').value='';
+    document.getElementById('um-role').value='user';
+  }
+  openModal('user-modal');
+}
+
+function saveUser(){
+  const 시설명=document.getElementById('um-facility').value.trim();
+  const 사원번호=document.getElementById('um-empno').value.trim();
+  const 패스워드=document.getElementById('um-pw').value.trim();
+  if(!시설명||!사원번호||!패스워드){ toast('모든 항목을 입력하세요','error'); return; }
+  if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
+  const editId=document.getElementById('um-edit-id').value;
+  const data={id:editId||uid(), 시설명, 사원번호, 패스워드, role:document.getElementById('um-role').value};
+  const users=DB.getUsers();
+  const dup=users.find(u=>u.사원번호===사원번호 && u.id!==editId);
+  if(dup){ toast('이미 사용 중인 사원번호입니다','error'); return; }
+  const idx=users.findIndex(u=>u.id===data.id);
+  if(idx>=0) users[idx]=data; else users.push(data);
+  DB.setUsers(users);
+  closeModal('user-modal');
+  renderAdminUsers();
+  toast('저장되었습니다');
+}
+
+function deleteUser(id){
+  if(currentUser.id===id){ toast('자기 자신은 삭제할 수 없습니다','error'); return; }
+  if(!confirm('사용자를 삭제하시겠습니까?')) return;
+  DB.setUsers(DB.getUsers().filter(u=>u.id!==id));
+  renderAdminUsers();
+  toast('삭제되었습니다');
+}
+
+function exportUsersCSV(){
+  const users=DB.getUsers();
+  const rows=[['시설명','사원번호','패스워드','권한'],...users.map(u=>[u.시설명,u.사원번호,u.패스워드,u.role])];
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='users.csv'; a.click();
+}
+
+function importUsersCSV(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const lines=ev.target.result.split('\n').filter(l=>l.trim());
+    const rows=lines.map(l=>l.split(',').map(v=>v.trim().replace(/^"|"$/g,'').replace(/""/g,'"')));
+    const header=rows[0];
+    const data=rows.slice(1).map(r=>({
+      id:uid(),
+      시설명:r[0]||'',사원번호:r[1]||'',패스워드:r[2]||'',role:r[3]||'user'
+    })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
+    if(!data.length){ toast('유효한 데이터가 없습니다','error'); return; }
+    DB.setUsers(data);
+    renderAdminUsers();
+    toast(`${data.length}명 사용자가 업로드되었습니다`);
+  };
+  reader.readAsText(file,'UTF-8');
+  e.target.value='';
+}
+
+function switchAdminTab(tab){
+  ['goals','facility','users'].forEach(t=>{
+    const tabEl=document.getElementById('admin-tab-'+t);
+    const panelEl=document.getElementById('admin-'+t);
+    if(tabEl) tabEl.classList.toggle('active',t===tab);
+    if(panelEl) panelEl.classList.toggle('active',t===tab);
+  });
+  if(tab==='goals') loadAdminGoalsForm();
+  if(tab==='facility') renderAdminFacilityGoals();
+  if(tab==='users') renderAdminUsers();
+}
+
+// ═══════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════
+function openModal(id){ document.getElementById(id).classList.add('active'); }
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{ if(e.target===el) el.classList.remove('active'); });
+});
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function toast(msg, type='success'){
+  const el=document.createElement('div');
+  el.className=`toast ${type}`; el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); },2200);
+}
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.active').forEach(el=>el.classList.remove('active'));
+});
+</script>
+</body>
+</html>

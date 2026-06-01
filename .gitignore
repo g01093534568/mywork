@@ -1,0 +1,8 @@
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Local env and logs
+*.log
+.env
+.vscode/
