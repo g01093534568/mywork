@@ -651,7 +651,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <div style="font-size:14px;font-weight:700;color:var(--green)">💱 현재 환율</div>
             <div id="fx-last-updated" style="font-size:12px;color:var(--t2);margin-top:2px">환율 데이터를 불러오는 중...</div>
           </div>
-          <button class="btn btn-secondary" onclick="loadExchangeRates()">🔄 새로고침</button>
+          <button class="btn btn-secondary" id="fx-refresh-btn" onclick="loadExchangeRates()">🔄 환율 갱신</button>
         </div>
         <div id="fx-grid" class="fx-grid">
           <div class="fx-card"><div class="fx-pair">로딩 중...</div></div>
@@ -1445,7 +1445,7 @@ function navigate(page){
   document.getElementById('page-'+page).classList.add('active');
   const navEl=document.getElementById('nav-'+page);
   if(navEl) navEl.classList.add('active');
-  if(currentPage==='personal' && page!=='personal') stopStockAutoRefresh();
+  if(currentPage==='personal' && page!=='personal'){ stopStockAutoRefresh(); stopFxAutoRefresh(); }
   currentPage=page;
   if(page==='home') renderHome();
   if(page==='todo') renderTodos();
@@ -1656,8 +1656,8 @@ async function switchPersonalTab(tab){
   const tabEl=document.getElementById('personal-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
-  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); loadKospiChart(); loadExchangeRates(); }
-  else stopStockAutoRefresh();
+  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); startFxAutoRefresh(); loadKospiChart(); }
+  else { stopStockAutoRefresh(); stopFxAutoRefresh(); }
   if(tab==='annual') initAnnualGoalsTab();
 }
 
@@ -2256,7 +2256,10 @@ async function loadExchangeRates(){
     const ystData=ystRes.ok ? await ystRes.json() : null;
 
     const now=new Date();
-    if(statusEl) statusEl.textContent=`${todayData.date} 기준 (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 갱신)`;
+    if(statusEl) statusEl.textContent=`${todayData.date} 기준 (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 갱신 · 60초마다 자동 갱신)`;
+    fxCountdown=FX_REFRESH_SEC;
+    const btn=document.getElementById('fx-refresh-btn');
+    if(btn){ btn.disabled=false; }
 
     grid.innerHTML=currencies.map(cur=>{
       const todayRate=cur.mult/todayData.rates[cur.code];
@@ -2278,7 +2281,35 @@ async function loadExchangeRates(){
     console.error('[FX]',e);
     if(grid) grid.innerHTML=`<div class="fx-card" style="grid-column:1/-1"><div class="empty-state"><div class="icon">⚠️</div><p>환율 데이터를 불러오지 못했습니다</p></div></div>`;
     if(statusEl) statusEl.textContent='데이터 로드 실패 — 새로고침을 눌러주세요';
+    const btn=document.getElementById('fx-refresh-btn');
+    if(btn){ btn.disabled=false; btn.textContent='🔄 환율 갱신'; }
   }
+}
+
+// ── 환율 자동 갱신 (60초) ────────────────────────
+const FX_REFRESH_SEC=60;
+let fxRefreshTimer=null;
+let fxTickTimer=null;
+let fxCountdown=FX_REFRESH_SEC;
+
+function startFxAutoRefresh(){
+  stopFxAutoRefresh();
+  fxCountdown=FX_REFRESH_SEC;
+  loadExchangeRates();
+  fxRefreshTimer=setInterval(()=>{ loadExchangeRates(); fxCountdown=FX_REFRESH_SEC; },FX_REFRESH_SEC*1000);
+  fxTickTimer=setInterval(()=>{
+    fxCountdown--;
+    const btn=document.getElementById('fx-refresh-btn');
+    if(btn && !btn.disabled) btn.textContent=`🔄 ${fxCountdown}s`;
+    if(fxCountdown<=0) fxCountdown=FX_REFRESH_SEC;
+  },1000);
+}
+
+function stopFxAutoRefresh(){
+  if(fxRefreshTimer){ clearInterval(fxRefreshTimer); fxRefreshTimer=null; }
+  if(fxTickTimer){ clearInterval(fxTickTimer); fxTickTimer=null; }
+  const btn=document.getElementById('fx-refresh-btn');
+  if(btn){ btn.disabled=false; btn.textContent='🔄 환율 갱신'; }
 }
 
 // ═══════════════════════════════════════════════
