@@ -3107,6 +3107,7 @@ let gcalViewMonth = new Date().getMonth();
 let gcalEvents = [];
 let gcalPopupEl = null;
 let gcalAutoRefreshTimer = null;
+let gcalRenderGen = 0;
 
 function startGcalAutoRefresh() {
   stopGcalAutoRefresh();
@@ -3207,6 +3208,7 @@ async function renderCustomCalendar() {
   const wrap = document.getElementById('gcal-custom-view');
   if (!wrap) return;
 
+  const gen = ++gcalRenderGen;
   const y = gcalViewYear, m = gcalViewMonth;
   const monthLabel = `${y}년 ${m + 1}월`;
 
@@ -3228,10 +3230,13 @@ async function renderCustomCalendar() {
 
   try {
     const events = await fetchGcalEventsForMonth(y, m);
+    if (gen !== gcalRenderGen) return;
     gcalEvents = events;
     buildCalendarCells(y, m, events);
   } catch(e) {
-    document.getElementById('gcal-cells-loading').textContent = '일정을 불러오지 못했습니다.';
+    if (gen !== gcalRenderGen) return;
+    const loadEl = document.getElementById('gcal-cells-loading');
+    if (loadEl) loadEl.textContent = '일정을 불러오지 못했습니다.';
   }
 }
 
