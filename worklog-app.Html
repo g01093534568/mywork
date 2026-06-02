@@ -1604,7 +1604,7 @@ function updateAgProgressPreview(val){
 
 async function saveAnnualGoal(){
   const title=document.getElementById('agm-title').value.trim();
-  if(!title){showToast('목표 제목을 입력하세요','error');return;}
+  if(!title){toast('목표 제목을 입력하세요','error');return;}
   const editId=document.getElementById('agm-edit-id').value;
   const g={
     title,
@@ -1619,18 +1619,18 @@ async function saveAnnualGoal(){
   try{
     await DB.upsertAnnualGoal(currentUser.사원번호,g);
     closeModal('ag-modal');
-    showToast(editId?'목표가 수정되었습니다':'목표가 추가되었습니다','success');
     await renderAnnualGoals();
-  }catch(e){showToast('저장에 실패했습니다','error');console.error(e);}
+    toast(editId?'목표가 수정되었습니다':'목표가 추가되었습니다','success');
+  }catch(e){toast('저장에 실패했습니다','error');console.error(e);}
 }
 
 async function deleteAnnualGoal(id){
   if(!confirm('이 목표를 삭제하시겠습니까?')) return;
   try{
     await DB.deleteAnnualGoal(id);
-    showToast('목표가 삭제되었습니다','success');
+    toast('목표가 삭제되었습니다','success');
     await renderAnnualGoals();
-  }catch(e){showToast('삭제에 실패했습니다','error');console.error(e);}
+  }catch(e){toast('삭제에 실패했습니다','error');console.error(e);}
 }
 
 function fmtNum(n){ return Number(n).toLocaleString('ko-KR'); }
