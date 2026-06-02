@@ -3160,6 +3160,8 @@ async function addGcalEvent() {
     }
     closeModal('gcal-modal');
     toast('Google Calendar에 일정이 추가되었습니다 🎉');
+    const iframe = document.querySelector('#page-daily iframe');
+    if (iframe) { const s = iframe.src; iframe.src = ''; setTimeout(() => { iframe.src = s; }, 300); }
   } catch(e) {
     toast('네트워크 오류: ' + e.message, 'error');
   }
