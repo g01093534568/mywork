@@ -2271,9 +2271,9 @@ async function loadExchangeRates(){
       return `<div class="fx-card ${cls}">
         <div class="fx-flag">${cur.flag}</div>
         <div class="fx-pair">${cur.pair}</div>
-        <div class="fx-rate">${Math.round(todayRate).toLocaleString()}<span style="font-size:14px;color:var(--t2);font-weight:400"> 원</span></div>
+        <div class="fx-rate">${todayRate.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}<span style="font-size:14px;color:var(--t2);font-weight:400"> 원</span></div>
         <div class="fx-unit">${cur.unit} 기준</div>
-        <div class="fx-change ${cls}">${ystRate!=null?`${sign}${Math.round(diff).toLocaleString()}원 (${sign}${pct.toFixed(2)}%)`:'전일 데이터 없음'}</div>
+        <div class="fx-change ${cls}">${ystRate!=null?`${sign}${diff.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}원 (${sign}${pct.toFixed(2)}%)`:'전일 데이터 없음'}</div>
         <div class="fx-meta">전일 대비</div>
       </div>`;
     }).join('');
