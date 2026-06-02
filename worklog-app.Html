@@ -1008,9 +1008,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>제목 *</label>
       <input type="text" id="gcal-title" placeholder="일정 제목을 입력하세요" />
     </div>
-    <div class="form-group">
-      <label>날짜 *</label>
-      <input type="date" id="gcal-date" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작 날짜 *</label>
+        <input type="date" id="gcal-date" onchange="gcalSyncEndDate()" />
+      </div>
+      <div class="form-group">
+        <label>종료 날짜 *</label>
+        <input type="date" id="gcal-end-date" />
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1051,9 +1057,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>제목 *</label>
       <input type="text" id="gcal-edit-title" placeholder="일정 제목" />
     </div>
-    <div class="form-group">
-      <label>날짜 *</label>
-      <input type="date" id="gcal-edit-date" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작 날짜 *</label>
+        <input type="date" id="gcal-edit-date" onchange="gcalEditSyncEndDate()" />
+      </div>
+      <div class="form-group">
+        <label>종료 날짜 *</label>
+        <input type="date" id="gcal-edit-end-date" />
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3329,9 +3341,30 @@ function fillGcalCalSelect(selectId) {
   ).join('');
 }
 
+function gcalSyncEndDate() {
+  const s = document.getElementById('gcal-date').value;
+  const e = document.getElementById('gcal-end-date');
+  if (e && (!e.value || e.value < s)) e.value = s;
+}
+function gcalEditSyncEndDate() {
+  const s = document.getElementById('gcal-edit-date').value;
+  const e = document.getElementById('gcal-edit-end-date');
+  if (e && (!e.value || e.value < s)) e.value = s;
+}
+// 종일 이벤트: API end는 exclusive(+1일), 표시/입력은 inclusive
+function gcalEndDateToApi(dateStr) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+function gcalEndDateFromApi(dateStr) {
+  const d = new Date(dateStr); d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
 function openGcalAddForm(dateStr) {
   fillGcalCalSelect('gcal-cal-select');
   document.getElementById('gcal-date').value = dateStr;
+  document.getElementById('gcal-end-date').value = dateStr;
   document.getElementById('gcal-title').value = '';
   document.getElementById('gcal-start').value = '';
   document.getElementById('gcal-end').value = '';
@@ -3397,16 +3430,19 @@ function openEditGcalModal(eventId) {
   const ev = gcalEvents.find(x => x.id === eventId);
   if (!ev) return;
   const allDay = !!ev.start.date;
-  const date = allDay ? ev.start.date : ev.start.dateTime?.split('T')[0];
+  const startDate = allDay ? ev.start.date : ev.start.dateTime?.split('T')[0];
+  const rawEndDate = allDay ? ev.end?.date : ev.end?.dateTime?.split('T')[0];
+  // 종일 이벤트는 API end가 exclusive → 표시용으로 -1일
+  const endDate = allDay && rawEndDate ? gcalEndDateFromApi(rawEndDate) : (rawEndDate || startDate);
   const startT = allDay ? '' : ev.start.dateTime?.substring(11,16);
   const endT = allDay ? '' : ev.end?.dateTime?.substring(11,16);
   document.getElementById('gcal-edit-id').value = eventId;
   document.getElementById('gcal-edit-cal-id').value = ev._calId || 'primary';
-  // 캘린더 뱃지 표시
   const badge = document.getElementById('gcal-edit-cal-badge');
   if (badge) { badge.textContent = ev._calName || ''; badge.style.background = (ev._calColor || '#3d8ef0') + '33'; badge.style.color = ev._calColor || '#3d8ef0'; }
   document.getElementById('gcal-edit-title').value = ev.summary || '';
-  document.getElementById('gcal-edit-date').value = date || '';
+  document.getElementById('gcal-edit-date').value = startDate || '';
+  document.getElementById('gcal-edit-end-date').value = endDate || '';
   document.getElementById('gcal-edit-start').value = startT || '';
   document.getElementById('gcal-edit-end').value = endT || '';
   document.getElementById('gcal-edit-location').value = ev.location || '';
@@ -3418,25 +3454,30 @@ async function saveEditGcalEvent() {
   const eventId = document.getElementById('gcal-edit-id').value;
   const calId = document.getElementById('gcal-edit-cal-id').value || 'primary';
   const title = document.getElementById('gcal-edit-title').value.trim();
-  const date = document.getElementById('gcal-edit-date').value;
+  const startDate = document.getElementById('gcal-edit-date').value;
+  const endDate = document.getElementById('gcal-edit-end-date').value || startDate;
   const startTime = document.getElementById('gcal-edit-start').value;
   const endTime = document.getElementById('gcal-edit-end').value;
   const desc = document.getElementById('gcal-edit-desc').value.trim();
   const location = document.getElementById('gcal-edit-location').value.trim();
 
   if (!title) { toast('제목을 입력하세요.', 'error'); return; }
-  if (!date) { toast('날짜를 선택하세요.', 'error'); return; }
+  if (!startDate) { toast('시작 날짜를 선택하세요.', 'error'); return; }
+  if (endDate < startDate) { toast('종료 날짜가 시작 날짜보다 앞설 수 없습니다.', 'error'); return; }
 
   let start, end;
   if (startTime) {
-    start = { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' };
+    start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Asia/Seoul' };
     if (endTime) {
-      end = { dateTime: `${date}T${endTime}:00`, timeZone: 'Asia/Seoul' };
+      end = { dateTime: `${endDate}T${endTime}:00`, timeZone: 'Asia/Seoul' };
     } else {
       const [h, mm] = startTime.split(':').map(Number);
-      end = { dateTime: `${date}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
+      end = { dateTime: `${endDate}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
     }
-  } else { start = { date }; end = { date }; }
+  } else {
+    start = { date: startDate };
+    end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
+  }
 
   const body = { summary: title, ...(desc && { description: desc }), ...(location && { location }), start, end };
   try {
@@ -3474,25 +3515,30 @@ async function addGcalEvent() {
   if (!gcalToken) { toast('먼저 Google 연동을 해주세요.', 'error'); return; }
   const calId = document.getElementById('gcal-cal-select').value || 'primary';
   const title = document.getElementById('gcal-title').value.trim();
-  const date = document.getElementById('gcal-date').value;
+  const startDate = document.getElementById('gcal-date').value;
+  const endDate = document.getElementById('gcal-end-date').value || startDate;
   const startTime = document.getElementById('gcal-start').value;
   const endTime = document.getElementById('gcal-end').value;
   const desc = document.getElementById('gcal-desc').value.trim();
   const location = document.getElementById('gcal-location').value.trim();
 
   if (!title) { toast('제목을 입력하세요.', 'error'); return; }
-  if (!date) { toast('날짜를 선택하세요.', 'error'); return; }
+  if (!startDate) { toast('시작 날짜를 선택하세요.', 'error'); return; }
+  if (endDate < startDate) { toast('종료 날짜가 시작 날짜보다 앞설 수 없습니다.', 'error'); return; }
 
   let start, end;
   if (startTime) {
-    start = { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' };
+    start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Asia/Seoul' };
     if (endTime) {
-      end = { dateTime: `${date}T${endTime}:00`, timeZone: 'Asia/Seoul' };
+      end = { dateTime: `${endDate}T${endTime}:00`, timeZone: 'Asia/Seoul' };
     } else {
       const [h, mm] = startTime.split(':').map(Number);
-      end = { dateTime: `${date}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
+      end = { dateTime: `${endDate}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
     }
-  } else { start = { date }; end = { date }; }
+  } else {
+    start = { date: startDate };
+    end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
+  }
 
   const event = { summary: title, ...(desc && { description: desc }), ...(location && { location }), start, end };
   try {
