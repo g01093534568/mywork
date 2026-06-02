@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WorkLog | 개인 업무 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --bg: #0b1622;
@@ -435,6 +436,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="daily-activities-content"></div>
         </div>
       </div>
+
+      <!-- 구글 캘린더 -->
+      <div style="margin-top:24px;">
+        <div class="section-title">📅 구글 캘린더</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+          <iframe
+            src="https://calendar.google.com/calendar/embed?src=g01093534568%40gmail.com&ctz=Asia%2FSeoul&hl=ko&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0&mode=MONTH"
+            style="border:0;width:100%;height:600px;display:block;"
+            frameborder="0"
+            scrolling="no"
+          ></iframe>
+        </div>
+      </div>
     </div>
 
     <!-- ── PERSONAL PAGE ── -->
@@ -485,7 +499,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-secondary" id="stock-refresh-btn" onclick="refreshAllStocks()">🔄 시세 갱신</button>
-            <button class="btn btn-primary" onclick="openStockModal()">+ 주식 추가</button>
           </div>
         </div>
         <div id="stock-grid-container"></div>
@@ -802,18 +815,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <input type="number" id="sm-prev" placeholder="자동 또는 직접 입력" min="0" />
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>기준 수량 (주) <span style="font-size:10px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">매매일지 적용 전 보유량</span></label>
-        <input type="number" id="sm-qty" placeholder="0" min="0" value="0" />
-      </div>
-      <div class="form-group">
-        <label>기준 평균단가 (원) <span style="font-size:10px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">매매일지 적용 전</span></label>
-        <input type="number" id="sm-avgprice" placeholder="0" min="0" value="0" />
-      </div>
-    </div>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:4px;padding:8px 12px;background:rgba(61,142,240,0.06);border-radius:var(--r2);border:1px solid rgba(61,142,240,0.15)">
-      💡 실제 보유 수량·평균단가는 매매일지 기록에 따라 자동 계산됩니다
+    <div style="font-size:11px;color:var(--t3);padding:10px 14px;background:rgba(61,142,240,0.06);border-radius:var(--r2);border:1px solid rgba(61,142,240,0.15);margin-bottom:4px">
+      📋 보유 수량·평균단가는 하단 <strong style="color:var(--blue)">매매일지</strong> 기록으로 자동 계산됩니다
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeModal('stock-modal')">취소</button>
@@ -829,7 +832,21 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <input type="hidden" id="trd-edit-id" />
     <div class="form-group">
       <label>종목 *</label>
-      <select id="trd-stock"></select>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button type="button" id="trd-mode-existing" class="btn btn-secondary btn-sm" style="flex:1" onclick="setTradeStockMode('existing')">기존 종목 선택</button>
+        <button type="button" id="trd-mode-new" class="btn btn-ghost btn-sm" style="flex:1" onclick="setTradeStockMode('new')">+ 새 종목 입력</button>
+      </div>
+      <div id="trd-existing-wrap">
+        <select id="trd-stock"></select>
+      </div>
+      <div id="trd-new-wrap" style="display:none">
+        <input type="text" id="trd-new-name" placeholder="종목명 (예: 삼성전자)" style="margin-bottom:8px" />
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="trd-new-ticker" placeholder="종목코드 (예: 005930 또는 AAPL)" style="flex:1" oninput="smStatusHide()" />
+          <button type="button" class="btn btn-secondary btn-sm" onclick="fetchAndFillTradeStock()" style="flex-shrink:0;white-space:nowrap;padding:9px 14px">🔄 시세</button>
+        </div>
+        <div id="trd-fetch-status" style="font-size:12px;margin-top:6px;padding:8px 12px;border-radius:var(--r2);display:none;"></div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -905,11 +922,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
 <script>
 // ═══════════════════════════════════════════════
+// SUPABASE INIT
+// ═══════════════════════════════════════════════
+const SB = supabase.createClient(
+  'https://zbcnfixbkqtrjxvatvss.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpiY25maXhia3F0cmp4dmF0dnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODM1MjYsImV4cCI6MjA5NTk1OTUyNn0.r2W70mUhk0EaCVJaVZDHE3Yop_S66aLjPknWdpvdlDY'
+);
+
+// ═══════════════════════════════════════════════
 // DATA DEFAULTS
 // ═══════════════════════════════════════════════
-const DEFAULT_USERS = [
-  { id:'u0', 시설명:'관리자', 사원번호:'091111', 패스워드:'1234', role:'admin' }
-];
 const DEFAULT_ORG = {
   mission:'군민의 삶의 질 향상을 위한 공공시설 최적 운영',
   vision:'지속가능한 공공시설 경영으로 군민 행복 실현',
@@ -925,25 +947,72 @@ const DEFAULT_ORG = {
 };
 
 // ═══════════════════════════════════════════════
-// DATABASE (localStorage)
+// DATA CONVERTERS (App <-> Supabase)
+// ═══════════════════════════════════════════════
+function todoToDb(todo, 사원번호) {
+  return { id:todo.id, 사원번호, title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
+}
+function dbToTodo(r) {
+  return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
+}
+function activityToDb(a, 사원번호, date) {
+  return { id:a.id, 사원번호, log_date:date, title:a.title, time_range:a.time||'', linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
+}
+function dbToActivity(r) {
+  return { id:r.id, title:r.title, time:r.time_range||'', linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'' };
+}
+function pgToDb(g, 사원번호) {
+  return { id:g.id, 사원번호, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked:g.linked||'' };
+}
+function dbToPg(r) {
+  return { id:r.id, goal:r.goal, kpis:r.kpis||[], kpi:(r.kpis||[])[0]||'', progress:r.progress||0, linked:r.linked||'' };
+}
+function fgToDb(g, 시설명) {
+  return { id:g.id, 시설명, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked_strategy_goal:g.linkedStrategyGoal||'', linked_strategy_task:g.linkedStrategyTask||'' };
+}
+function dbToFg(r) {
+  return { id:r.id, goal:r.goal, kpis:r.kpis||[], kpi:(r.kpis||[])[0]||'', progress:r.progress||0, linkedStrategyGoal:r.linked_strategy_goal||'', linkedStrategyTask:r.linked_strategy_task||'' };
+}
+function stockToDb(s, 사원번호) {
+  return { id:s.id, 사원번호, name:s.name, ticker:s.ticker||'', current_price:s.currentPrice||0, prev_close:s.prevClose||0 };
+}
+function dbToStock(r) {
+  return { id:r.id, name:r.name, ticker:r.ticker||'', currentPrice:Number(r.current_price)||0, prevClose:Number(r.prev_close)||0 };
+}
+function tradeToDb(t, 사원번호) {
+  return { id:t.id, 사원번호, stock_id:t.stockId||'', stock_name:t.stockName, ticker:t.ticker||'', trade_date:t.date, type:t.type, qty:t.qty, price:t.price, memo:t.memo||'', created_at:t.createdAt||new Date().toISOString() };
+}
+function dbToTrade(r) {
+  return { id:r.id, stockId:r.stock_id||'', stockName:r.stock_name, ticker:r.ticker||'', date:r.trade_date, type:r.type, qty:Number(r.qty), price:Number(r.price), memo:r.memo||'', createdAt:r.created_at };
+}
+
+// ═══════════════════════════════════════════════
+// DATABASE (Supabase)
 // ═══════════════════════════════════════════════
 const DB = {
-  getUsers(){ return JSON.parse(localStorage.getItem('wl_users')||'null')||DEFAULT_USERS; },
-  setUsers(u){ localStorage.setItem('wl_users',JSON.stringify(u)); },
-  getOrg(){ return JSON.parse(localStorage.getItem('wl_org')||'null')||DEFAULT_ORG; },
-  setOrg(o){ localStorage.setItem('wl_org',JSON.stringify(o)); },
-  getTodos(uid){ return JSON.parse(localStorage.getItem('wl_todos_'+uid)||'[]'); },
-  setTodos(uid,t){ localStorage.setItem('wl_todos_'+uid,JSON.stringify(t)); },
-  getDailyLogs(uid){ return JSON.parse(localStorage.getItem('wl_daily_'+uid)||'[]'); },
-  setDailyLogs(uid,d){ localStorage.setItem('wl_daily_'+uid,JSON.stringify(d)); },
-  getPersonalGoals(uid){ return JSON.parse(localStorage.getItem('wl_pg_'+uid)||'[]'); },
-  setPersonalGoals(uid,g){ localStorage.setItem('wl_pg_'+uid,JSON.stringify(g)); },
-  getFacilityGoals(facility){ return JSON.parse(localStorage.getItem('wl_fg_'+facility)||'[]'); },
-  setFacilityGoals(facility,g){ localStorage.setItem('wl_fg_'+facility,JSON.stringify(g)); },
-  getStocks(uid){ return JSON.parse(localStorage.getItem('wl_stocks_'+uid)||'[]'); },
-  setStocks(uid,s){ localStorage.setItem('wl_stocks_'+uid,JSON.stringify(s)); },
-  getTrades(uid){ return JSON.parse(localStorage.getItem('wl_trades_'+uid)||'[]'); },
-  setTrades(uid,t){ localStorage.setItem('wl_trades_'+uid,JSON.stringify(t)); },
+  async getUsers(){ const {data,error}=await SB.from('users').select('*'); if(error){console.error(error);return[];} return data||[]; },
+  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role}); if(error)throw error; },
+  async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; },
+  async getOrg(){ const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return{...DEFAULT_ORG}; const d=data[0]; return{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]}; },
+  async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; },
+  async getTodos(uid){ const {data,error}=await SB.from('todos').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToTodo); },
+  async upsertTodo(uid,todo){ const {error}=await SB.from('todos').upsert(todoToDb(todo,uid)); if(error)throw error; },
+  async deleteTodo(id){ const {error}=await SB.from('todos').delete().eq('id',id); if(error)throw error; },
+  async getDailyActivities(uid,date){ const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date); if(error){console.error(error);return[];} return(data||[]).map(dbToActivity); },
+  async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; },
+  async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; },
+  async getPersonalGoals(uid){ const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToPg); },
+  async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; },
+  async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; },
+  async getFacilityGoals(facility){ const {data,error}=await SB.from('facility_goals').select('*').eq('시설명',facility); if(error){console.error(error);return[];} return(data||[]).map(dbToFg); },
+  async upsertFacilityGoal(facility,g){ const {error}=await SB.from('facility_goals').upsert(fgToDb(g,facility)); if(error)throw error; },
+  async deleteFacilityGoal(id){ const {error}=await SB.from('facility_goals').delete().eq('id',id); if(error)throw error; },
+  async getStocks(uid){ const {data,error}=await SB.from('stocks').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToStock); },
+  async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; },
+  async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; },
+  async getTrades(uid){ const {data,error}=await SB.from('trades').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToTrade); },
+  async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; },
+  async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; },
 };
 
 // ═══════════════════════════════════════════════
@@ -956,7 +1025,7 @@ let pgKpiDraft = [];
 let fgKpiDraft = [];
 
 function today(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function uid(){ return '_'+Math.random().toString(36).substr(2,9); }
+function uid(){ return (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():'_'+Math.random().toString(36).substr(2,9); }
 function fmtDate(d){ if(!d)return '-'; return d.replace(/-/g,'.'); }
 function dayLabel(d){
   const days=['일','월','화','수','목','금','토'];
@@ -967,41 +1036,78 @@ function dayLabel(d){
 // ═══════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════
-function doLogin(){
+async function doLogin(){
   const facility = document.getElementById('l-facility').value.trim();
   const empno = document.getElementById('l-empno').value.trim();
   const pw = document.getElementById('l-pw').value;
   if(!facility||!empno||!pw){ toast('모든 항목을 입력해주세요','error'); return; }
   if(empno.length!==6||!/^\d+$/.test(empno)){ toast('사원번호는 6자리 숫자입니다','error'); return; }
-  const users = DB.getUsers();
-  const user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===pw);
-  if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
-  currentUser = user;
-  sessionStorage.setItem('wl_session', JSON.stringify(user));
-  enterApp();
+  const btn = document.querySelector('.login-btn');
+  if(btn){ btn.disabled=true; btn.textContent='로그인 중...'; }
+  try{
+    const users = await DB.getUsers();
+    const user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===pw);
+    if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
+    currentUser = user;
+    sessionStorage.setItem('wl_session', JSON.stringify(user));
+    enterApp();
+  }catch(e){ toast('서버 연결에 실패했습니다','error'); console.error(e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='로그인'; } }
 }
 
-function enterApp(){
+async function enterApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
-  // Setup user info
   document.getElementById('user-name-display').textContent = currentUser.시설명;
   document.getElementById('user-id-display').textContent = currentUser.사원번호;
   document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
-  
+
   const isAdmin = currentUser.role==='admin' || currentUser.role==='facility-admin';
   document.getElementById('admin-nav-section').style.display = isAdmin ? 'block' : 'none';
-
-  // 역할에 따른 관리자 탭 가시성 설정
   const goalsTab = document.getElementById('admin-tab-goals');
-  if(goalsTab){
-    goalsTab.style.display = currentUser.role === 'facility-admin' ? 'none' : '';
-  }
+  if(goalsTab) goalsTab.style.display = currentUser.role === 'facility-admin' ? 'none' : '';
 
-  // Init pages
-  loadAdminGoalsForm();
   document.getElementById('daily-date').value = today();
+
+  // localStorage → Supabase 1회 자동 이전
+  await migrateLocalStorageToSupabase();
+
+  loadAdminGoalsForm();
   navigate('home');
+}
+
+async function migrateLocalStorageToSupabase(){
+  const mKey = 'wl_sb_migrated_v2_' + currentUser.사원번호;
+  if(localStorage.getItem(mKey)) return;
+  try{
+    // 조직 목표 — 항상 localStorage 데이터로 덮어씀
+    const orgRaw = localStorage.getItem('wl_org');
+    if(orgRaw){
+      const org = JSON.parse(orgRaw);
+      if(org.mission) await DB.setOrg(org);
+    }
+    // 할 일
+    const todosRaw = localStorage.getItem('wl_todos_'+currentUser.사원번호);
+    if(todosRaw){ const todos=JSON.parse(todosRaw); for(const t of todos) await DB.upsertTodo(currentUser.사원번호,t); }
+    // 업무일지
+    const dailyRaw = localStorage.getItem('wl_daily_'+currentUser.사원번호);
+    if(dailyRaw){ const logs=JSON.parse(dailyRaw); for(const l of logs) for(const a of (l.activities||[])) await DB.upsertActivity(currentUser.사원번호,l.date,a); }
+    // 개인 목표
+    const pgRaw = localStorage.getItem('wl_pg_'+currentUser.사원번호);
+    if(pgRaw){ const goals=JSON.parse(pgRaw); for(const g of goals) await DB.upsertPersonalGoal(currentUser.사원번호,g); }
+    // 시설 목표
+    const fgRaw = localStorage.getItem('wl_fg_'+currentUser.시설명);
+    if(fgRaw){ const goals=JSON.parse(fgRaw); for(const g of goals) await DB.upsertFacilityGoal(currentUser.시설명,g); }
+    // 주식
+    const stocksRaw = localStorage.getItem('wl_stocks_'+currentUser.사원번호);
+    if(stocksRaw){ const stocks=JSON.parse(stocksRaw); for(const s of stocks) await DB.upsertStock(currentUser.사원번호,s); }
+    // 매매일지
+    const tradesRaw = localStorage.getItem('wl_trades_'+currentUser.사원번호);
+    if(tradesRaw){ const trades=JSON.parse(tradesRaw); for(const t of trades) await DB.upsertTrade(currentUser.사원번호,t); }
+
+    localStorage.setItem(mKey,'1');
+    toast('기존 데이터를 Supabase로 이전했습니다 ✓');
+  }catch(e){ console.error('[Migration]',e); }
 }
 
 function doLogout(){
@@ -1037,21 +1143,20 @@ function navigate(page){
     if(currentUser.role==='facility-admin') switchAdminTab('facility');
     else switchAdminTab('goals');
   }
+
 }
 
 // ═══════════════════════════════════════════════
 // HOME PAGE
 // ═══════════════════════════════════════════════
-function renderHome(){
-  renderOrgGoals();
-  renderFacilityGoals();
-  renderPersonalGoals();
+async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
+  await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
 }
 
-function renderFacilityGoals(){
-  const goals = DB.getFacilityGoals(currentUser.시설명);
+async function renderFacilityGoals(){
+  const goals = await DB.getFacilityGoals(currentUser.시설명);
   const cont = document.getElementById('facility-goals-display');
   const label = document.getElementById('home-facility-label');
   if(label) label.textContent = `(${currentUser.시설명})`;
@@ -1073,10 +1178,9 @@ function renderFacilityGoals(){
     </div>`).join('');
 }
 
-function renderOrgGoals(){
-  const org=DB.getOrg();
+async function renderOrgGoals(){
+  const [org, facilityGoals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명)]);
   if(!org||!org.mission){ document.getElementById('org-goals-display').innerHTML='<div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 설정하면 여기에 표시됩니다</p></div>'; return; }
-  const facilityGoals=DB.getFacilityGoals(currentUser.시설명);
   let html=`<div class="goal-hierarchy">
     <div class="goal-level"><div class="goal-card mission"><div class="goal-card-label">Mission</div><div class="goal-card-text">${esc(org.mission)}</div></div></div>
     <div class="goal-arrow">↓</div>
@@ -1103,8 +1207,8 @@ function renderOrgGoals(){
   document.getElementById('org-goals-display').innerHTML=html;
 }
 
-function renderPersonalGoals(){
-  const goals=DB.getPersonalGoals(currentUser.사원번호);
+async function renderPersonalGoals(){
+  const goals=await DB.getPersonalGoals(currentUser.사원번호);
   const cont=document.getElementById('personal-goals-display');
   if(!goals.length){ cont.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">📊</div><p>개인 성과 목표를 추가해 보세요</p></div>'; return; }
   cont.innerHTML=goals.map(g=>`
@@ -1159,12 +1263,13 @@ function deletePgKpi(i){
   renderPgKpis();
 }
 
-function openPersonalGoalModal(id){
-  const fgoals=DB.getFacilityGoals(currentUser.시설명);
+async function openPersonalGoalModal(id){
+  const fgoals=await DB.getFacilityGoals(currentUser.시설명);
   const sel=document.getElementById('pg-linked');
   sel.innerHTML='<option value="">연계 없음</option>'+fgoals.map(g=>`<option value="${esc(g.goal)}">${esc(g.goal)}</option>`).join('');
   if(id){
-    const g=DB.getPersonalGoals(currentUser.사원번호).find(x=>x.id===id);
+    const goals=await DB.getPersonalGoals(currentUser.사원번호);
+    const g=goals.find(x=>x.id===id);
     if(!g) return;
     document.getElementById('pg-modal-title').textContent='개인 목표 수정';
     document.getElementById('pg-edit-id').value=id;
@@ -1184,51 +1289,49 @@ function openPersonalGoalModal(id){
   openModal('pg-modal');
 }
 
-function savePersonalGoal(){
+async function savePersonalGoal(){
   const goal=document.getElementById('pg-goal').value.trim();
   if(!goal){ toast('목표 제목을 입력하세요','error'); return; }
   collectPgKpis();
   const kpis=pgKpiDraft.map(k=>k.trim()).filter(k=>k);
   const data={
     id:document.getElementById('pg-edit-id').value||uid(),
-    goal,
-    kpis,
-    kpi:kpis[0]||'',
+    goal, kpis, kpi:kpis[0]||'',
     progress:parseInt(document.getElementById('pg-progress').value)||0,
     linked:document.getElementById('pg-linked').value
   };
-  const goals=DB.getPersonalGoals(currentUser.사원번호);
-  const idx=goals.findIndex(g=>g.id===data.id);
-  if(idx>=0) goals[idx]=data; else goals.push(data);
-  DB.setPersonalGoals(currentUser.사원번호,goals);
-  closeModal('pg-modal');
-  renderPersonalGoals();
-  toast('개인 목표가 저장되었습니다');
+  try{
+    await DB.upsertPersonalGoal(currentUser.사원번호,data);
+    closeModal('pg-modal');
+    await renderPersonalGoals();
+    toast('개인 목표가 저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deletePersonalGoal(id){
+async function deletePersonalGoal(id){
   if(!confirm('삭제하시겠습니까?')) return;
-  const goals=DB.getPersonalGoals(currentUser.사원번호).filter(g=>g.id!==id);
-  DB.setPersonalGoals(currentUser.사원번호,goals);
-  renderPersonalGoals();
-  toast('삭제되었습니다');
+  try{
+    await DB.deletePersonalGoal(id);
+    await renderPersonalGoals();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
 // PERSONAL PAGE
 // ═══════════════════════════════════════════════
-function renderPersonalPage(){
-  switchPersonalTab('stock');
+async function renderPersonalPage(){
+  await switchPersonalTab('stock');
 }
 
-function switchPersonalTab(tab){
+async function switchPersonalTab(tab){
   document.querySelectorAll('.personal-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.personal-tab').forEach(t=>t.classList.remove('active'));
   const panel=document.getElementById('personal-'+tab);
   const tabEl=document.getElementById('personal-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
-  if(tab==='stock'){ renderStocks(); renderTrades(); startStockAutoRefresh(); loadKospiChart(); }
+  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); loadKospiChart(); }
   else stopStockAutoRefresh();
 }
 
@@ -1375,14 +1478,35 @@ function renderKospiSvg(vals, dates, lineColor){
   }
 }
 
-function renderStocks(){
-  const stocks=DB.getStocks(currentUser.사원번호);
+function computeHoldings(stockId, trades){
+  const stockTrades=trades
+    .filter(t=>t.stockId===stockId)
+    .sort((a,b)=>(a.date+(a.createdAt||'')).localeCompare(b.date+(b.createdAt||'')));
+  let qty=0, totalCost=0;
+  for(const t of stockTrades){
+    const tQty=Number(t.qty)||0, tPrice=Number(t.price)||0;
+    if(t.type==='buy'){
+      totalCost+=tQty*tPrice; qty+=tQty;
+    } else {
+      const avg=qty>0?totalCost/qty:0;
+      totalCost-=avg*Math.min(tQty,qty);
+      qty=Math.max(0,qty-tQty);
+    }
+  }
+  return{qty:Math.round(qty*1000)/1000, avgPrice:qty>0?Math.round(totalCost/qty):0};
+}
+
+async function renderStocks(){
+  const [allStocks,trades]=await Promise.all([DB.getStocks(currentUser.사원번호),DB.getTrades(currentUser.사원번호)]);
   const cont=document.getElementById('stock-grid-container');
+  // 보유수량이 0인 종목은 카드에서 제외 (DB 레코드·매매기록은 유지)
+  const stocks=allStocks.map(s=>({...s,_h:computeHoldings(s.id,trades)})).filter(s=>s._h.qty>0);
   if(!stocks.length){
-    cont.innerHTML='<div class="empty-state" style="padding:60px 20px"><div class="icon">📈</div><p>보유 주식을 추가해 보세요</p></div>';
+    cont.innerHTML='<div class="empty-state" style="padding:60px 20px"><div class="icon">📈</div><p>매매일지에 매수 기록을 추가하면 여기에 표시됩니다</p></div>';
     return;
   }
   cont.innerHTML=`<div class="stock-grid">${stocks.map(s=>{
+    const h=s._h;
     const cur=Number(s.currentPrice)||0;
     const prev=Number(s.prevClose)||0;
     const diff=cur-prev;
@@ -1390,8 +1514,8 @@ function renderStocks(){
     const dir=diff>0?'up':diff<0?'down':'flat';
     const arrow=diff>0?'▲':diff<0?'▼':'─';
     const sign=diff>0?'+':'';
-    const qty=Number(s.qty)||0;
-    const avg=Number(s.avgPrice)||0;
+    const qty=h.qty;
+    const avg=h.avgPrice;
     const pnl=qty?(cur-avg)*qty:null;
     const pnlPct=avg&&qty?((cur-avg)/avg*100):null;
     const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'');
@@ -1406,7 +1530,7 @@ function renderStocks(){
       <div class="stock-card-price">${cur?'₩'+fmtNum(cur):'─'}</div>
       <div class="stock-card-change stock-${dir}">${cur&&prev?`${arrow} ${sign}${fmtNum(diff)}원 (${sign}${pct.toFixed(2)}%)`:'시세 없음 · 🔄 갱신 필요'}</div>
       <div class="stock-card-meta">
-        ${qty?`<div>${fmtNum(qty)}주 보유 · 평단 ₩${fmtNum(avg)}</div>`:''}
+        ${qty>0?`<div>${fmtNum(qty)}주 보유 · 평단 ₩${fmtNum(avg)}</div>`:`<div style="color:var(--t3)">매매일지에 기록 없음</div>`}
         ${pnl!==null?`<div>평가손익 <span class="${pnlClass}">${pnl>=0?'+':''}${fmtNum(Math.round(pnl))}원 (${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%)</span></div>`:''}
         <div style="margin-top:4px;opacity:0.5">📡 네이버 증권</div>
       </div>
@@ -1414,9 +1538,10 @@ function renderStocks(){
   }).join('')}</div>`;
 }
 
-function openStockModal(id){
+async function openStockModal(id){
   if(id){
-    const s=DB.getStocks(currentUser.사원번호).find(x=>x.id===id);
+    const stocks=await DB.getStocks(currentUser.사원번호);
+    const s=stocks.find(x=>x.id===id);
     if(!s) return;
     document.getElementById('stock-modal-title').textContent='주식 수정';
     document.getElementById('sm-edit-id').value=id;
@@ -1424,8 +1549,6 @@ function openStockModal(id){
     document.getElementById('sm-ticker').value=s.ticker||'';
     document.getElementById('sm-current').value=s.currentPrice||0;
     document.getElementById('sm-prev').value=s.prevClose||0;
-    document.getElementById('sm-qty').value=s.tradeBaseQty??s.qty??0;
-    document.getElementById('sm-avgprice').value=s.tradeBaseAvgPrice??s.avgPrice??0;
   } else {
     document.getElementById('stock-modal-title').textContent='주식 추가';
     document.getElementById('sm-edit-id').value='';
@@ -1433,47 +1556,36 @@ function openStockModal(id){
     document.getElementById('sm-ticker').value='';
     document.getElementById('sm-current').value='';
     document.getElementById('sm-prev').value='';
-    document.getElementById('sm-qty').value=0;
-    document.getElementById('sm-avgprice').value=0;
   }
   openModal('stock-modal');
 }
 
-function saveStock(){
+async function saveStock(){
   const name=document.getElementById('sm-name').value.trim();
   if(!name){ toast('종목명을 입력하세요','error'); return; }
-  const cur=parseFloat(document.getElementById('sm-current').value)||0;
-  const prev=parseFloat(document.getElementById('sm-prev').value)||0;
-  const baseQty=parseFloat(document.getElementById('sm-qty').value)||0;
-  const baseAvg=parseFloat(document.getElementById('sm-avgprice').value)||0;
+  const editId=document.getElementById('sm-edit-id').value;
   const data={
-    id:document.getElementById('sm-edit-id').value||uid(),
+    id:editId||uid(),
     name,
     ticker:document.getElementById('sm-ticker').value.trim(),
-    currentPrice:cur,
-    prevClose:prev,
-    tradeBaseQty:baseQty,
-    tradeBaseAvgPrice:baseAvg,
-    qty:baseQty,
-    avgPrice:baseAvg
+    currentPrice:parseFloat(document.getElementById('sm-current').value)||0,
+    prevClose:parseFloat(document.getElementById('sm-prev').value)||0,
   };
-  const trades=DB.getTrades(currentUser.사원번호);
-  recomputeStockFromTrades(data,trades);
-  const stocks=DB.getStocks(currentUser.사원번호);
-  const idx=stocks.findIndex(s=>s.id===data.id);
-  if(idx>=0) stocks[idx]=data; else stocks.push(data);
-  DB.setStocks(currentUser.사원번호,stocks);
-  closeModal('stock-modal');
-  renderStocks();
-  renderTrades();
-  toast('저장되었습니다');
+  try{
+    await DB.upsertStock(currentUser.사원번호,data);
+    closeModal('stock-modal');
+    await Promise.all([renderStocks(),renderTrades()]);
+    toast('저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteStock(id){
+async function deleteStock(id){
   if(!confirm('삭제하시겠습니까?')) return;
-  DB.setStocks(currentUser.사원번호,DB.getStocks(currentUser.사원번호).filter(s=>s.id!==id));
-  renderStocks();
-  toast('삭제되었습니다');
+  try{
+    await DB.deleteStock(id);
+    await renderStocks();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1546,30 +1658,27 @@ async function fetchAndFillStock(){
 }
 
 async function refreshAllStocks(silent=false){
-  const snapshot=DB.getStocks(currentUser.사원번호);
+  const snapshot=await DB.getStocks(currentUser.사원번호);
   if(!snapshot.length){ if(!silent) toast('보유 주식이 없습니다','error'); return; }
   if(!snapshot.some(s=>s.ticker)){ if(!silent) toast('종목코드가 있는 주식이 없습니다','error'); return; }
   const btn=document.getElementById('stock-refresh-btn');
   if(btn){ btn.disabled=true; btn.textContent='갱신 중...'; }
   let ok=0, fail=0;
-  // 시세만 Map으로 수집 (ticker → {currentPrice, prevClose, source})
   const priceMap=new Map();
   for(const s of snapshot){
     if(!s.ticker){ fail++; continue; }
     try{
       const q=await fetchStockQuote(s.ticker);
-      priceMap.set(s.ticker,{currentPrice:q.currentPrice,prevClose:q.prevClose,source:q.source});
+      priceMap.set(s.ticker,{currentPrice:q.currentPrice,prevClose:q.prevClose});
       ok++;
     }catch(e){ fail++; }
   }
-  // 비동기 작업 완료 후 최신 DB를 다시 읽어 시세만 병합 → 삭제·수정 내용 보존
-  const current=DB.getStocks(currentUser.사원번호);
+  const current=await DB.getStocks(currentUser.사원번호);
   for(const s of current){
     const p=priceMap.get(s.ticker);
-    if(p){ s.currentPrice=p.currentPrice; s.prevClose=p.prevClose; s.source=p.source; }
+    if(p){ s.currentPrice=p.currentPrice; s.prevClose=p.prevClose; await DB.upsertStock(currentUser.사원번호,s); }
   }
-  DB.setStocks(currentUser.사원번호,current);
-  renderStocks();
+  await renderStocks();
   // 마지막 업데이트 시각
   const now=new Date();
   const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
@@ -1590,9 +1699,7 @@ let stockCountdown=STOCK_REFRESH_SEC;
 function startStockAutoRefresh(){
   stopStockAutoRefresh();
   stockCountdown=STOCK_REFRESH_SEC;
-  // 즉시 1회 갱신 (종목코드 있는 항목이 있을 때만)
-  const stocks=DB.getStocks(currentUser.사원번호);
-  if(stocks.length && stocks.some(s=>s.ticker)) refreshAllStocks(true);
+  (async()=>{ const stocks=await DB.getStocks(currentUser.사원번호); if(stocks.length&&stocks.some(s=>s.ticker)) refreshAllStocks(true); })();
   // 30초 주기 갱신
   stockRefreshTimer=setInterval(()=>{ refreshAllStocks(true); stockCountdown=STOCK_REFRESH_SEC; },STOCK_REFRESH_SEC*1000);
   // 1초마다 버튼 카운트다운 업데이트
@@ -1614,32 +1721,9 @@ function stopStockAutoRefresh(){
 // ═══════════════════════════════════════════════
 // TRADE LOG (매매일지)
 // ═══════════════════════════════════════════════
-function recomputeStockFromTrades(stock, trades){
-  const stockTrades=trades
-    .filter(t=>t.stockId===stock.id)
-    .sort((a,b)=>(a.date+(a.createdAt||'')).localeCompare(b.date+(b.createdAt||'')));
-  let qty=Number(stock.tradeBaseQty)||0;
-  let totalCost=qty*(Number(stock.tradeBaseAvgPrice)||0);
-  for(const t of stockTrades){
-    const tQty=Number(t.qty)||0;
-    const tPrice=Number(t.price)||0;
-    if(t.type==='buy'){
-      totalCost+=tQty*tPrice;
-      qty+=tQty;
-    } else {
-      const avg=qty>0?totalCost/qty:0;
-      totalCost-=avg*Math.min(tQty,qty);
-      qty=Math.max(0,qty-tQty);
-    }
-  }
-  stock.qty=Math.round(qty*1000)/1000;
-  stock.avgPrice=qty>0?Math.round(totalCost/qty):(Number(stock.tradeBaseAvgPrice)||0);
-}
-
-function renderTrades(){
-  const trades=DB.getTrades(currentUser.사원번호)
-    .sort((a,b)=>b.date.localeCompare(a.date)||(b.createdAt||'').localeCompare(a.createdAt||''));
-  const stocks=DB.getStocks(currentUser.사원번호);
+async function renderTrades(){
+  const [allTrades,stocks]=await Promise.all([DB.getTrades(currentUser.사원번호),DB.getStocks(currentUser.사원번호)]);
+  const trades=allTrades.sort((a,b)=>b.date.localeCompare(a.date)||(b.createdAt||'').localeCompare(a.createdAt||''));
   const tbody=document.getElementById('trade-tbody');
   const empty=document.getElementById('trade-empty');
   const summary=document.getElementById('trade-summary');
@@ -1684,19 +1768,61 @@ function renderTrades(){
   }).join('');
 }
 
-function openTradeModal(stockId, tradeId){
-  const stocks=DB.getStocks(currentUser.사원번호);
-  if(!stocks.length){ toast('먼저 보유 주식을 추가하세요','error'); return; }
+function setTradeStockMode(mode){
+  const isNew=mode==='new';
+  document.getElementById('trd-existing-wrap').style.display=isNew?'none':'';
+  document.getElementById('trd-new-wrap').style.display=isNew?'':'none';
+  document.getElementById('trd-mode-existing').className=isNew?'btn btn-ghost btn-sm':'btn btn-secondary btn-sm';
+  document.getElementById('trd-mode-new').className=isNew?'btn btn-secondary btn-sm':'btn btn-ghost btn-sm';
+  document.getElementById('trd-mode-existing').style.flex='1';
+  document.getElementById('trd-mode-new').style.flex='1';
+  if(isNew){ const el=document.getElementById('trd-fetch-status'); if(el) el.style.display='none'; }
+}
+
+async function fetchAndFillTradeStock(){
+  const ticker=document.getElementById('trd-new-ticker').value.trim();
+  if(!ticker){ toast('종목코드를 입력하세요','error'); return; }
+  const status=document.getElementById('trd-fetch-status');
+  status.style.display='block';
+  status.style.background='rgba(61,142,240,0.1)'; status.style.color='var(--blue)';
+  status.textContent='⏳ 시세를 불러오는 중...';
+  try{
+    const q=await fetchStockQuote(ticker);
+    document.getElementById('trd-new-ticker').value=q.ticker;
+    if(!document.getElementById('trd-new-name').value.trim())
+      document.getElementById('trd-new-name').value=q.name;
+    document.getElementById('trd-price').value=q.currentPrice;
+    updateTradeTotal();
+    status.style.background='rgba(59,201,138,0.1)'; status.style.color='var(--green)';
+    status.textContent=`✓ ${q.name} · 현재가 ₩${fmtNum(q.currentPrice)} — 📡 네이버 증권`;
+  }catch(e){
+    status.style.background='rgba(224,85,85,0.1)'; status.style.color='var(--red)';
+    status.textContent='✕ '+e.message;
+  }
+}
+
+async function openTradeModal(stockId, tradeId){
+  const [stocks,trades]=await Promise.all([DB.getStocks(currentUser.사원번호),DB.getTrades(currentUser.사원번호)]);
   const stockSel=document.getElementById('trd-stock');
-  stockSel.innerHTML=stocks.map(s=>`<option value="${s.id}">${esc(s.name)}${s.ticker?' ('+esc(s.ticker)+')':''}</option>`).join('');
+  stockSel.innerHTML=stocks.length
+    ? stocks.map(s=>`<option value="${s.id}">${esc(s.name)}${s.ticker?' ('+esc(s.ticker)+')':''}</option>`).join('')
+    : '<option value="">등록된 종목 없음</option>';
   if(tradeId){
-    const t=DB.getTrades(currentUser.사원번호).find(x=>x.id===tradeId);
+    const t=trades.find(x=>x.id===tradeId);
     if(!t) return;
     document.getElementById('trade-modal-title').textContent='매매 기록 수정';
     document.getElementById('trd-edit-id').value=tradeId;
     document.getElementById('trd-date').value=t.date;
     document.getElementById('trd-type').value=t.type;
-    stockSel.value=t.stockId;
+    const existsInStocks=stocks.some(s=>s.id===t.stockId);
+    if(existsInStocks){
+      setTradeStockMode('existing');
+      stockSel.value=t.stockId;
+    } else {
+      setTradeStockMode('new');
+      document.getElementById('trd-new-name').value=t.stockName||'';
+      document.getElementById('trd-new-ticker').value=t.ticker||'';
+    }
     document.getElementById('trd-qty').value=t.qty;
     document.getElementById('trd-price').value=t.price;
     document.getElementById('trd-memo').value=t.memo||'';
@@ -1705,10 +1831,20 @@ function openTradeModal(stockId, tradeId){
     document.getElementById('trd-edit-id').value='';
     document.getElementById('trd-date').value=today();
     document.getElementById('trd-type').value='buy';
-    stockSel.value=stockId||(stocks[0]?.id||'');
     document.getElementById('trd-qty').value='';
     document.getElementById('trd-price').value='';
     document.getElementById('trd-memo').value='';
+    document.getElementById('trd-new-name').value='';
+    document.getElementById('trd-new-ticker').value='';
+    if(stockId && stocks.some(s=>s.id===stockId)){
+      setTradeStockMode('existing');
+      stockSel.value=stockId;
+    } else if(!stocks.length){
+      setTradeStockMode('new');
+    } else {
+      setTradeStockMode('existing');
+      stockSel.value=stocks[0]?.id||'';
+    }
   }
   updateTradeTotal();
   openModal('trade-modal');
@@ -1721,58 +1857,61 @@ function updateTradeTotal(){
   if(el) el.textContent='₩'+fmtNum(qty*price);
 }
 
-function saveTrade(){
-  const stockId=document.getElementById('trd-stock').value;
+async function saveTrade(){
+  const isNewMode=document.getElementById('trd-new-wrap').style.display!=='none';
   const date=document.getElementById('trd-date').value;
   const type=document.getElementById('trd-type').value;
   const qty=parseFloat(document.getElementById('trd-qty').value)||0;
   const price=parseFloat(document.getElementById('trd-price').value)||0;
   const memo=document.getElementById('trd-memo').value.trim();
   const editId=document.getElementById('trd-edit-id').value;
-  if(!stockId){ toast('종목을 선택하세요','error'); return; }
   if(!date){ toast('날짜를 입력하세요','error'); return; }
   if(qty<=0){ toast('수량을 입력하세요','error'); return; }
   if(price<=0){ toast('단가를 입력하세요','error'); return; }
-  const stocks=DB.getStocks(currentUser.사원번호);
-  const stock=stocks.find(s=>s.id===stockId);
-  if(!stock){ toast('종목을 찾을 수 없습니다','error'); return; }
-  const prevTrades=DB.getTrades(currentUser.사원번호);
+
+  let stockId, stockName, ticker;
+  const allStocks=await DB.getStocks(currentUser.사원번호);
+
+  if(isNewMode){
+    stockName=document.getElementById('trd-new-name').value.trim();
+    ticker=document.getElementById('trd-new-ticker').value.trim();
+    if(!stockName){ toast('종목명을 입력하세요','error'); return; }
+    const dup=allStocks.find(s=>s.name===stockName||(ticker&&s.ticker===ticker));
+    if(dup){ stockId=dup.id; stockName=dup.name; ticker=dup.ticker||ticker; }
+    else {
+      const newStock={id:uid(),name:stockName,ticker,currentPrice:0,prevClose:0};
+      await DB.upsertStock(currentUser.사원번호,newStock);
+      stockId=newStock.id;
+      toast(`"${stockName}" 종목이 보유 현황에 추가되었습니다`);
+    }
+  } else {
+    stockId=document.getElementById('trd-stock').value;
+    if(!stockId){ toast('종목을 선택하세요','error'); return; }
+    const stock=allStocks.find(s=>s.id===stockId);
+    if(!stock){ toast('종목을 찾을 수 없습니다','error'); return; }
+    stockName=stock.name; ticker=stock.ticker||'';
+  }
+
+  const prevTrades=await DB.getTrades(currentUser.사원번호);
   const data={
-    id:editId||uid(),
-    stockId,
-    stockName:stock.name,
-    ticker:stock.ticker||'',
-    date,type,qty,price,memo,
+    id:editId||uid(), stockId, stockName, ticker, date, type, qty, price, memo,
     createdAt:editId?(prevTrades.find(t=>t.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString()
   };
-  const tIdx=prevTrades.findIndex(t=>t.id===data.id);
-  if(tIdx>=0) prevTrades[tIdx]=data; else prevTrades.push(data);
-  DB.setTrades(currentUser.사원번호,prevTrades);
-  const allStocks=DB.getStocks(currentUser.사원번호);
-  for(const s of allStocks){
-    if(!('tradeBaseQty' in s)){ s.tradeBaseQty=s.qty||0; s.tradeBaseAvgPrice=s.avgPrice||0; }
-    recomputeStockFromTrades(s,prevTrades);
-  }
-  DB.setStocks(currentUser.사원번호,allStocks);
-  closeModal('trade-modal');
-  renderStocks();
-  renderTrades();
-  toast('매매 기록이 저장되었습니다');
+  try{
+    await DB.upsertTrade(currentUser.사원번호,data);
+    closeModal('trade-modal');
+    await Promise.all([renderStocks(),renderTrades()]);
+    toast('매매 기록이 저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteTrade(id){
-  if(!confirm('매매 기록을 삭제하시겠습니까?\n보유 수량과 평균 단가가 업데이트됩니다.')) return;
-  let trades=DB.getTrades(currentUser.사원번호).filter(t=>t.id!==id);
-  DB.setTrades(currentUser.사원번호,trades);
-  const stocks=DB.getStocks(currentUser.사원번호);
-  for(const s of stocks){
-    if(!('tradeBaseQty' in s)){ s.tradeBaseQty=s.qty||0; s.tradeBaseAvgPrice=s.avgPrice||0; }
-    recomputeStockFromTrades(s,trades);
-  }
-  DB.setStocks(currentUser.사원번호,stocks);
-  renderStocks();
-  renderTrades();
-  toast('삭제되었습니다');
+async function deleteTrade(id){
+  if(!confirm('매매 기록을 삭제하시겠습니까?')) return;
+  try{
+    await DB.deleteTrade(id);
+    await Promise.all([renderStocks(),renderTrades()]);
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1812,8 +1951,8 @@ function setRecurringDays(days){
 }
 
 
-function renderTodos(){
-  const todos=DB.getTodos(currentUser.사원번호);
+async function renderTodos(){
+  const todos=await DB.getTodos(currentUser.사원번호);
   const search=document.getElementById('todo-search').value.toLowerCase();
   const filterStatus=document.getElementById('todo-filter-status').value;
   const filterCat=document.getElementById('todo-filter-category').value;
@@ -1871,8 +2010,8 @@ function renderTodos(){
   }).join('');
 }
 
-function toggleTodoDone(id, date){
-  const todos=DB.getTodos(currentUser.사원번호);
+async function toggleTodoDone(id, date){
+  const todos=await DB.getTodos(currentUser.사원번호);
   const todo=todos.find(t=>t.id===id);
   if(!todo) return;
   const doneDate=date||today();
@@ -1885,14 +2024,15 @@ function toggleTodoDone(id, date){
     if(todo.status==='todo'){ todo.status='done'; todo.completedDate=doneDate; }
     else { todo.status='todo'; todo.completedDate=null; }
   }
-  DB.setTodos(currentUser.사원번호,todos);
-  renderTodos();
-  if(currentPage==='daily') renderDailyTodos(date);
+  await DB.upsertTodo(currentUser.사원번호,todo);
+  await renderTodos();
+  if(currentPage==='daily') await renderDailyTodos(date);
 }
 
-function openTodoModal(id){
+async function openTodoModal(id){
   if(id){
-    const todo=DB.getTodos(currentUser.사원번호).find(t=>t.id===id);
+    const todos=await DB.getTodos(currentUser.사원번호);
+    const todo=todos.find(t=>t.id===id);
     if(!todo) return;
     document.getElementById('todo-modal-title').textContent='할 일 수정';
     document.getElementById('todo-edit-id').value=id;
@@ -1919,49 +2059,49 @@ function openTodoModal(id){
   openModal('todo-modal');
 }
 
-function saveTodo(){
+async function saveTodo(){
   const title=document.getElementById('tm-title').value.trim();
   if(!title){ toast('제목을 입력하세요','error'); return; }
   const editId=document.getElementById('todo-edit-id').value;
   const recurringDays=getRecurringDays();
   const isRecurring=recurringDays.length>0;
   const data={
-    id:editId||uid(),
-    title,
+    id:editId||uid(), title,
     category:document.getElementById('tm-category').value,
     priority:document.getElementById('tm-priority').value,
     status:isRecurring?'todo':document.getElementById('tm-status').value,
     startDate:isRecurring?null:document.getElementById('tm-start').value||null,
     dueDate:isRecurring?null:document.getElementById('tm-due').value||null,
     memo:document.getElementById('tm-memo').value.trim(),
-    isRecurring,
-    recurringDays,
-    completedDate:null,
-    completedDates:[],
+    isRecurring, recurringDays,
+    completedDate:null, completedDates:[],
     createdAt:new Date().toISOString()
   };
-  const todos=DB.getTodos(currentUser.사원번호);
-  const idx=todos.findIndex(t=>t.id===data.id);
-  if(idx>=0){
-    if(isRecurring) data.completedDates=todos[idx].completedDates||[];
-    else data.completedDate=todos[idx].completedDate;
-    todos[idx]=data;
+  if(editId){
+    const todos=await DB.getTodos(currentUser.사원번호);
+    const existing=todos.find(t=>t.id===editId);
+    if(existing){
+      data.completedDates=isRecurring?(existing.completedDates||[]):[];
+      data.completedDate=isRecurring?null:existing.completedDate;
+    }
   } else {
     if(!isRecurring && data.status==='done') data.completedDate=today();
-    todos.push(data);
   }
-  DB.setTodos(currentUser.사원번호,todos);
-  closeModal('todo-modal');
-  renderTodos();
-  toast('저장되었습니다');
+  try{
+    await DB.upsertTodo(currentUser.사원번호,data);
+    closeModal('todo-modal');
+    await renderTodos();
+    toast('저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteTodo(id){
+async function deleteTodo(id){
   if(!confirm('삭제하시겠습니까?')) return;
-  const todos=DB.getTodos(currentUser.사원번호).filter(t=>t.id!==id);
-  DB.setTodos(currentUser.사원번호,todos);
-  renderTodos();
-  toast('삭제되었습니다');
+  try{
+    await DB.deleteTodo(id);
+    await renderTodos();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1981,22 +2121,15 @@ function changeDate(dir){
   renderDailyPage();
 }
 
-function renderDailyPage(){
-  const t=today();
-  const todos=DB.getTodos(currentUser.사원번호);
-  const cleaned=todos.filter(todo=>!(
-    !todo.isRecurring && todo.dueDate && todo.dueDate<t && todo.status!=='done'
-  ));
-  if(cleaned.length!==todos.length) DB.setTodos(currentUser.사원번호, cleaned);
-  const date=document.getElementById('daily-date').value||t;
+async function renderDailyPage(){
+  const date=document.getElementById('daily-date').value||today();
   document.getElementById('daily-day-label').textContent=dayLabel(date);
-  renderDailyTodos(date);
-  renderDailyActivities(date);
+  await Promise.all([renderDailyTodos(date), renderDailyActivities(date)]);
 }
 
-function renderDailyTodos(date){
+async function renderDailyTodos(date){
   date=date||document.getElementById('daily-date').value||today();
-  const todos=DB.getTodos(currentUser.사원번호);
+  const todos=await DB.getTodos(currentUser.사원번호);
   const relevant=todos.filter(t=>{
     if(!todayVisible(t, date)) return false;
     if(!t.isRecurring && t.startDate && t.startDate>date) return false;
@@ -2036,11 +2169,9 @@ function renderDailyTodos(date){
   cont.innerHTML=statsHtml+bodyHtml;
 }
 
-function renderDailyActivities(date){
+async function renderDailyActivities(date){
   date=date||document.getElementById('daily-date').value||today();
-  const logs=DB.getDailyLogs(currentUser.사원번호);
-  const dayLog=logs.find(l=>l.date===date);
-  const activities=[...(dayLog?.activities||[])].sort((a,b)=>{
+  const activities=[...(await DB.getDailyActivities(currentUser.사원번호,date))].sort((a,b)=>{
     const ta=(a.time||'').match(/(\d{1,2}):(\d{2})/);
     const tb=(b.time||'').match(/(\d{1,2}):(\d{2})/);
     if(!ta&&!tb) return 0;
@@ -2066,17 +2197,16 @@ function renderDailyActivities(date){
     </div>`).join('');
 }
 
-function openActivityModal(date, id){
+async function openActivityModal(date, id){
   date=date||document.getElementById('daily-date').value||today();
-  const org=DB.getOrg();
+  const org=await DB.getOrg();
   const tasks=(org.전략과제||[]).map(t=>t.과제);
   const sel=document.getElementById('am-linked');
   sel.innerHTML='<option value="">연계 전략과제 없음</option>'+tasks.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
   document.getElementById('am-date').value=date;
   if(id){
-    const logs=DB.getDailyLogs(currentUser.사원번호);
-    const dayLog=logs.find(l=>l.date===date);
-    const a=dayLog?.activities?.find(x=>x.id===id);
+    const activities=await DB.getDailyActivities(currentUser.사원번호,date);
+    const a=activities.find(x=>x.id===id);
     if(!a) return;
     document.getElementById('activity-modal-title').textContent='활동 수정';
     document.getElementById('am-edit-id').value=id;
@@ -2097,46 +2227,40 @@ function openActivityModal(date, id){
   openModal('activity-modal');
 }
 
-function saveActivity(){
+async function saveActivity(){
   const title=document.getElementById('am-title').value.trim();
   if(!title){ toast('활동 제목을 입력하세요','error'); return; }
   const date=document.getElementById('am-date').value;
   const editId=document.getElementById('am-edit-id').value;
   const data={
-    id:editId||uid(),
-    title,
+    id:editId||uid(), title,
     time:document.getElementById('am-time').value.trim(),
     linked:document.getElementById('am-linked').value,
     content:document.getElementById('am-content').value.trim(),
     reflection:document.getElementById('am-reflection').value.trim()
   };
-  const logs=DB.getDailyLogs(currentUser.사원번호);
-  let dayLog=logs.find(l=>l.date===date);
-  if(!dayLog){ dayLog={date,activities:[]}; logs.push(dayLog); }
-  const idx=dayLog.activities.findIndex(a=>a.id===data.id);
-  if(idx>=0) dayLog.activities[idx]=data; else dayLog.activities.push(data);
-  DB.setDailyLogs(currentUser.사원번호,logs);
-  closeModal('activity-modal');
-  renderDailyActivities(date);
-  toast('활동이 저장되었습니다');
+  try{
+    await DB.upsertActivity(currentUser.사원번호,date,data);
+    closeModal('activity-modal');
+    await renderDailyActivities(date);
+    toast('활동이 저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteActivity(date,id){
+async function deleteActivity(date,id){
   if(!confirm('삭제하시겠습니까?')) return;
-  const logs=DB.getDailyLogs(currentUser.사원번호);
-  const dayLog=logs.find(l=>l.date===date);
-  if(!dayLog) return;
-  dayLog.activities=dayLog.activities.filter(a=>a.id!==id);
-  DB.setDailyLogs(currentUser.사원번호,logs);
-  renderDailyActivities(date);
-  toast('삭제되었습니다');
+  try{
+    await DB.deleteActivity(id);
+    await renderDailyActivities(date);
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
 // ADMIN - ORG GOALS
 // ═══════════════════════════════════════════════
-function loadAdminGoalsForm(){
-  const org=DB.getOrg();
+async function loadAdminGoalsForm(){
+  const org=await DB.getOrg();
   document.getElementById('a-mission').value=org.mission||'';
   document.getElementById('a-vision').value=org.vision||'';
   const goals=org.전략목표||[];
@@ -2200,7 +2324,7 @@ function deleteStrategyTask(goalIdx,taskIdx){
   renderStrategyEditor();
 }
 
-function saveOrgGoals(){
+async function saveOrgGoals(){
   const mission=document.getElementById('a-mission').value.trim();
   const vision=document.getElementById('a-vision').value.trim();
   if(!mission||!vision){ toast('미션과 비전을 입력하세요','error'); return; }
@@ -2210,17 +2334,19 @@ function saveOrgGoals(){
     전략목표.push(item.goal.trim());
     item.tasks.forEach(task=>{ const t=task.trim(); if(t) 전략과제.push({목표idx:i,과제:t}); });
   });
-  DB.setOrg({mission,vision,전략목표,전략과제});
-  toast('조직 목표가 저장되었습니다');
+  try{
+    await DB.setOrg({mission,vision,전략목표,전략과제});
+    toast('조직 목표가 저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
 // ADMIN - FACILITY GOALS
 // ═══════════════════════════════════════════════
-function renderAdminFacilityGoals(){
+async function renderAdminFacilityGoals(){
   const facilityName = currentUser.시설명;
   document.getElementById('facility-goal-subtitle').textContent = `${facilityName} 시설의 목표를 관리합니다`;
-  const goals = DB.getFacilityGoals(facilityName);
+  const goals = await DB.getFacilityGoals(facilityName);
   const cont = document.getElementById('admin-facility-list');
   if(!goals.length){
     cont.innerHTML='<div class="empty-state"><div class="icon">🏢</div><p>시설목표가 없습니다. 위 버튼으로 추가해 보세요.</p></div>';
@@ -2275,12 +2401,12 @@ function deleteFgKpi(i){
   renderFgKpis();
 }
 
-function openFacilityGoalModal(id){
-  const org=DB.getOrg();
+async function openFacilityGoalModal(id){
+  const org=await DB.getOrg();
   const goalSel=document.getElementById('fg-strategy-goal');
   goalSel.innerHTML='<option value="">전략목표 연계 없음</option>'+(org.전략목표||[]).map((g,i)=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
   if(id){
-    const goals=DB.getFacilityGoals(currentUser.시설명);
+    const goals=await DB.getFacilityGoals(currentUser.시설명);
     const g=goals.find(x=>x.id===id);
     if(!g) return;
     document.getElementById('fg-modal-title').textContent='시설목표 수정';
@@ -2288,7 +2414,7 @@ function openFacilityGoalModal(id){
     document.getElementById('fg-goal').value=g.goal;
     document.getElementById('fg-progress').value=g.progress||0;
     goalSel.value=g.linkedStrategyGoal||'';
-    updateFgTaskOptions();
+    await updateFgTaskOptions(org);
     document.getElementById('fg-strategy-task').value=g.linkedStrategyTask||'';
     // KPI: support both old (string) and new (array) format
     fgKpiDraft = Array.isArray(g.kpis) ? [...g.kpis] : (g.kpi ? [g.kpi] : []);
@@ -2298,15 +2424,15 @@ function openFacilityGoalModal(id){
     document.getElementById('fg-goal').value='';
     document.getElementById('fg-progress').value=0;
     goalSel.value='';
-    updateFgTaskOptions();
+    await updateFgTaskOptions(org);
     fgKpiDraft=[];
   }
   renderFgKpis();
   openModal('fg-modal');
 }
 
-function updateFgTaskOptions(){
-  const org=DB.getOrg();
+async function updateFgTaskOptions(org){
+  if(!org) org=await DB.getOrg();
   const goalVal=document.getElementById('fg-strategy-goal').value;
   const goalIdx=(org.전략목표||[]).indexOf(goalVal);
   const tasks=goalIdx>=0?(org.전략과제||[]).filter(t=>t.목표idx===goalIdx).map(t=>t.과제):[];
@@ -2314,7 +2440,7 @@ function updateFgTaskOptions(){
   sel.innerHTML='<option value="">전략과제 연계 없음</option>'+tasks.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
 }
 
-function saveFacilityGoal(){
+async function saveFacilityGoal(){
   const goal=document.getElementById('fg-goal').value.trim();
   if(!goal){ toast('시설목표 제목을 입력하세요','error'); return; }
   collectFgKpis();
@@ -2324,32 +2450,31 @@ function saveFacilityGoal(){
     goal,
     linkedStrategyGoal:document.getElementById('fg-strategy-goal').value,
     linkedStrategyTask:document.getElementById('fg-strategy-task').value,
-    kpis,
-    kpi:kpis[0]||'', // backward compat
+    kpis, kpi:kpis[0]||'',
     progress:parseInt(document.getElementById('fg-progress').value)||0
   };
-  const goals=DB.getFacilityGoals(currentUser.시설명);
-  const idx=goals.findIndex(g=>g.id===data.id);
-  if(idx>=0) goals[idx]=data; else goals.push(data);
-  DB.setFacilityGoals(currentUser.시설명,goals);
-  closeModal('fg-modal');
-  renderAdminFacilityGoals();
-  toast('시설목표가 저장되었습니다');
+  try{
+    await DB.upsertFacilityGoal(currentUser.시설명,data);
+    closeModal('fg-modal');
+    await renderAdminFacilityGoals();
+    toast('시설목표가 저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteFacilityGoal(id){
+async function deleteFacilityGoal(id){
   if(!confirm('시설목표를 삭제하시겠습니까?')) return;
-  DB.setFacilityGoals(currentUser.시설명,DB.getFacilityGoals(currentUser.시설명).filter(g=>g.id!==id));
-  renderAdminFacilityGoals();
-  toast('삭제되었습니다');
+  try{
+    await DB.deleteFacilityGoal(id);
+    await renderAdminFacilityGoals();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
 // ADMIN - USERS
 // ═══════════════════════════════════════════════
-function renderAdminUsers(){
-  let users=DB.getUsers();
-  // Facility admin can only see users from the same facility
+async function renderAdminUsers(){
+  let users=await DB.getUsers();
   if(currentUser.role === 'facility-admin') {
     users = users.filter(u => u.시설명 === currentUser.시설명);
   }
@@ -2369,9 +2494,10 @@ function renderAdminUsers(){
   </tr>`).join('');
 }
 
-function openUserModal(id){
+async function openUserModal(id){
   if(id){
-    const u=DB.getUsers().find(x=>x.id===id);
+    const users=await DB.getUsers();
+    const u=users.find(x=>x.id===id);
     if(!u) return;
     document.getElementById('user-modal-title').textContent='사용자 수정';
     document.getElementById('um-edit-id').value=id;
@@ -2392,7 +2518,7 @@ function openUserModal(id){
   openModal('user-modal');
 }
 
-function saveUser(){
+async function saveUser(){
   const 시설명=document.getElementById('um-facility').value.trim();
   const 사원번호=document.getElementById('um-empno').value.trim();
   const 패스워드=document.getElementById('um-pw').value.trim();
@@ -2400,27 +2526,29 @@ function saveUser(){
   if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
   const editId=document.getElementById('um-edit-id').value;
   const data={id:editId||uid(), 시설명, 사원번호, 패스워드, role:document.getElementById('um-role').value};
-  const users=DB.getUsers();
+  const users=await DB.getUsers();
   const dup=users.find(u=>u.사원번호===사원번호 && u.id!==editId);
   if(dup){ toast('이미 사용 중인 사원번호입니다','error'); return; }
-  const idx=users.findIndex(u=>u.id===data.id);
-  if(idx>=0) users[idx]=data; else users.push(data);
-  DB.setUsers(users);
-  closeModal('user-modal');
-  renderAdminUsers();
-  toast('저장되었습니다');
+  try{
+    await DB.upsertUser(data);
+    closeModal('user-modal');
+    await renderAdminUsers();
+    toast('저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-function deleteUser(id){
+async function deleteUser(id){
   if(currentUser.id===id){ toast('자기 자신은 삭제할 수 없습니다','error'); return; }
   if(!confirm('사용자를 삭제하시겠습니까?')) return;
-  DB.setUsers(DB.getUsers().filter(u=>u.id!==id));
-  renderAdminUsers();
-  toast('삭제되었습니다');
+  try{
+    await DB.deleteUser(id);
+    await renderAdminUsers();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
-function exportUsersCSV(){
-  const users=DB.getUsers();
+async function exportUsersCSV(){
+  const users=await DB.getUsers();
   const rows=[['시설명','사원번호','패스워드','권한'],...users.map(u=>[u.시설명,u.사원번호,u.패스워드,u.role])];
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -2430,7 +2558,7 @@ function exportUsersCSV(){
 function importUsersCSV(e){
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     const lines=ev.target.result.split('\n').filter(l=>l.trim());
     const rows=lines.map(l=>l.split(',').map(v=>v.trim().replace(/^"|"$/g,'').replace(/""/g,'"')));
     const header=rows[0];
@@ -2439,24 +2567,24 @@ function importUsersCSV(e){
       시설명:r[0]||'',사원번호:r[1]||'',패스워드:r[2]||'',role:r[3]||'user'
     })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
     if(!data.length){ toast('유효한 데이터가 없습니다','error'); return; }
-    DB.setUsers(data);
-    renderAdminUsers();
+    for(const u of data) await DB.upsertUser(u);
+    await renderAdminUsers();
     toast(`${data.length}명 사용자가 업로드되었습니다`);
   };
   reader.readAsText(file,'UTF-8');
   e.target.value='';
 }
 
-function switchAdminTab(tab){
+async function switchAdminTab(tab){
   ['goals','facility','users'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
     if(tabEl) tabEl.classList.toggle('active',t===tab);
     if(panelEl) panelEl.classList.toggle('active',t===tab);
   });
-  if(tab==='goals') loadAdminGoalsForm();
-  if(tab==='facility') renderAdminFacilityGoals();
-  if(tab==='users') renderAdminUsers();
+  if(tab==='goals') await loadAdminGoalsForm();
+  if(tab==='facility') await renderAdminFacilityGoals();
+  if(tab==='users') await renderAdminUsers();
 }
 
 // ═══════════════════════════════════════════════
