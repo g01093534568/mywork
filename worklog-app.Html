@@ -3299,16 +3299,7 @@ function buildCalendarCells(y, m, events) {
     }
   });
 
-  let cells = '';
-  for (let i = 0; i < firstDay; i++) {
-    const d = prevDays - firstDay + 1 + i;
-    cells += `<div class="gcal-cell other-month"><div class="gcal-date-num">${d}</div></div>`;
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const cellDate = new Date(y, m, d);
-    const isToday = cellDate.getTime() === today.getTime();
-    const dayEvs = eventsByDate[dateStr] || [];
+  const renderChips = (dayEvs) => {
     const chips = dayEvs.slice(0, 3).map(ev => {
       const allDay = !!ev.start.date;
       const timeStr = allDay ? '' : ev.start.dateTime?.substring(11,16) || '';
@@ -3321,12 +3312,36 @@ function buildCalendarCells(y, m, events) {
       return `<div class="gcal-chip" style="background:${bg};color:${fg};${opacity}" onclick="onGcalEventClick(event,'${ev.id}')" title="${esc(ev._calName||'')} · ${esc(ev.summary||'')}">${esc(label)}</div>`;
     }).join('');
     const more = dayEvs.length > 3 ? `<div class="gcal-more">+${dayEvs.length - 3}개</div>` : '';
+    return chips + more;
+  };
+
+  const prevYear = m === 0 ? y - 1 : y;
+  const prevMonth = m === 0 ? 11 : m - 1;
+  const nextYear = m === 11 ? y + 1 : y;
+  const nextMonth = m === 11 ? 0 : m + 1;
+
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) {
+    const d = prevDays - firstDay + 1 + i;
+    const dateStr = `${prevYear}-${String(prevMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvs = eventsByDate[dateStr] || [];
+    cells += `<div class="gcal-cell other-month" onclick="onGcalDateClick('${dateStr}',event)">
+      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs)}</div>`;
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cellDate = new Date(y, m, d);
+    const isToday = cellDate.getTime() === today.getTime();
+    const dayEvs = eventsByDate[dateStr] || [];
     cells += `<div class="gcal-cell${isToday?' today':''}" onclick="onGcalDateClick('${dateStr}',event)">
-      <div class="gcal-date-num">${d}</div>${chips}${more}</div>`;
+      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs)}</div>`;
   }
   const remaining = (7 - (firstDay + daysInMonth) % 7) % 7;
   for (let i = 1; i <= remaining; i++) {
-    cells += `<div class="gcal-cell other-month"><div class="gcal-date-num">${i}</div></div>`;
+    const dateStr = `${nextYear}-${String(nextMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    const dayEvs = eventsByDate[dateStr] || [];
+    cells += `<div class="gcal-cell other-month" onclick="onGcalDateClick('${dateStr}',event)">
+      <div class="gcal-date-num">${i}</div>${renderChips(dayEvs)}</div>`;
   }
   grid.insertAdjacentHTML('beforeend', cells);
 }
