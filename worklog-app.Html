@@ -134,11 +134,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .todo-container{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow-x:auto;}
 .todo-table-wrapper{min-width:800px;}
 .todo-table{width:100%;border-collapse:collapse;}
-.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
-.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
+.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;text-align:center;}
 .todo-table{width:100%;border-collapse:collapse;}
-.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
-.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
+.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;text-align:center;}
 .todo-table tr:hover td{background:rgba(255,255,255,0.02);}
 .todo-title-cell{max-width:240px;}
 .todo-title-text{font-weight:500;cursor:pointer;}
@@ -2310,7 +2310,7 @@ async function renderTodos(){
       ?`<div style="font-size:11px;color:var(--accent);margin-top:2px">🔁 ${todo.recurringDays.sort((a,b)=>a===0?7:a-(b===0?7:b)).map(d=>dayNames[d]).join('·')}</div>`:'';
     return `<tr>
       <td><div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div></td>
-      <td class="todo-title-cell">
+      <td class="todo-title-cell" style="text-align:left">
         <div class="todo-title-text ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
         ${recurringLabel}
         ${todo.memo?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(todo.memo.substring(0,60))}${todo.memo.length>60?'…':''}</div>`:''}
@@ -2320,7 +2320,7 @@ async function renderTodos(){
       <td><span class="tag ${done?'tag-done':'tag-todo'}">${done?'완료':'미완료'}</span></td>
       <td><span class="todo-date">${todo.isRecurring?'-':fmtDate(todo.startDate)}</span></td>
       <td><span class="todo-date ${over?'overdue':''}">${todo.isRecurring?'-':fmtDate(todo.dueDate)}${over?' ⚠️':''}</span></td>
-      <td><div class="todo-actions">
+      <td><div class="todo-actions" style="justify-content:center">
         <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTodo('${todo.id}')">🗑</button>
       </div></td>
