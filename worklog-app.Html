@@ -236,9 +236,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .stock-card-change.stock-up{color:var(--red);}
 .stock-card-change.stock-down{color:#3d8ef0;}
 .stock-card-change.stock-flat{color:var(--t2);}
-.stock-card-meta{font-size:11px;color:var(--t3);padding-top:10px;border-top:1px solid var(--border);line-height:1.8;}
+.stock-card-meta{padding-top:12px;border-top:1px solid var(--border);}
+.stock-card-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-bottom:10px;}
+.stock-meta-item{display:flex;flex-direction:column;gap:2px;}
+.stock-meta-label{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.4px;}
+.stock-meta-value{font-size:13px;font-weight:700;color:var(--t2);}
+.stock-pnl-row{background:var(--bg);border-radius:6px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;}
+.stock-pnl-label{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.4px;}
+.stock-pnl-value{font-size:13px;font-weight:700;}
 .stock-card-meta .pnl-pos{color:var(--red);}
 .stock-card-meta .pnl-neg{color:#3d8ef0;}
+.stock-card-meta .pnl-flat{color:var(--t2);}
 .stock-card-actions{position:absolute;top:10px;right:10px;display:flex;gap:3px;opacity:0;transition:var(--tr);}
 .stock-card:hover .stock-card-actions{opacity:1;}
 /* Responsive basics */
@@ -1808,7 +1816,7 @@ async function renderStocks(){
     const avg=h.avgPrice;
     const pnl=qty?(cur-avg)*qty:null;
     const pnlPct=avg&&qty?((cur-avg)/avg*100):null;
-    const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'');
+    const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'pnl-flat');
     return `<div class="stock-card stock-${dir}">
       <div class="stock-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="openTradeModal('${s.id}')" title="매매 기록">📋</button>
@@ -1820,9 +1828,29 @@ async function renderStocks(){
       <div class="stock-card-price">${cur?'₩'+fmtNum(cur):'─'}</div>
       <div class="stock-card-change stock-${dir}">${cur&&prev?`${arrow} ${sign}${fmtNum(diff)}원 (${sign}${pct.toFixed(2)}%)`:'시세 없음 · 🔄 갱신 필요'}</div>
       <div class="stock-card-meta">
-        ${qty>0?`<div>${fmtNum(qty)}주 보유 · 평단 ₩${fmtNum(avg)}</div>`:`<div style="color:var(--t3)">매매일지에 기록 없음</div>`}
-        ${pnl!==null?`<div>평가손익 <span class="${pnlClass}">${pnl>=0?'+':''}${fmtNum(Math.round(pnl))}원 (${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%)</span></div>`:''}
-        <div style="margin-top:4px;opacity:0.5">📡 네이버 증권</div>
+        <div class="stock-card-meta-grid">
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">보유수량</span>
+            <span class="stock-meta-value" style="color:var(--t1)">${qty>0?fmtNum(qty)+'주':'─'}</span>
+          </div>
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">평균단가</span>
+            <span class="stock-meta-value" style="color:var(--t1)">${avg?'₩'+fmtNum(Math.round(avg)):'─'}</span>
+          </div>
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">평가금액</span>
+            <span class="stock-meta-value">${cur&&qty?'₩'+fmtNum(Math.round(cur*qty)):'─'}</span>
+          </div>
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">매입금액</span>
+            <span class="stock-meta-value">${avg&&qty?'₩'+fmtNum(Math.round(avg*qty)):'─'}</span>
+          </div>
+        </div>
+        ${pnl!==null?`
+        <div class="stock-pnl-row">
+          <span class="stock-pnl-label">평가손익</span>
+          <span class="stock-pnl-value ${pnlClass}">${pnl>=0?'+':''}${fmtNum(Math.round(pnl))}원&nbsp;<span style="font-size:11px;opacity:0.85">(${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%)</span></span>
+        </div>`:''}
       </div>
     </div>`;
   }).join('')}</div>`;
