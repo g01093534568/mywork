@@ -268,6 +268,24 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .trade-table tr:hover td{background:rgba(255,255,255,0.02);}
 .tag-buy{background:rgba(224,85,85,0.15);color:var(--red);}
 .tag-sell{background:rgba(61,142,240,0.15);color:var(--blue);}
+/* ── EXCHANGE RATE ── */
+.fx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.fx-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden;transition:var(--tr);}
+.fx-card:hover{border-color:rgba(255,255,255,0.15);transform:translateY(-2px);}
+.fx-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.fx-card.fx-up::before{background:var(--red);}
+.fx-card.fx-down::before{background:var(--blue);}
+.fx-card.fx-flat::before{background:var(--t3);}
+.fx-flag{font-size:22px;margin-bottom:6px;}
+.fx-pair{font-size:12px;font-weight:700;color:var(--t2);letter-spacing:0.5px;margin-bottom:8px;}
+.fx-rate{font-size:24px;font-weight:700;color:var(--t1);letter-spacing:-0.5px;line-height:1;}
+.fx-unit{font-size:11px;color:var(--t3);margin:4px 0 10px;}
+.fx-change{font-size:13px;font-weight:600;}
+.fx-change.fx-up{color:var(--red);}
+.fx-change.fx-down{color:var(--blue);}
+.fx-change.fx-flat{color:var(--t2);}
+.fx-meta{font-size:10px;color:var(--t3);margin-top:4px;}
+@media(max-width:900px){.fx-grid{grid-template-columns:1fr;}}
 /* ---- ANNUAL GOALS ---- */
 .ag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px;}
 @media(max-width:900px){.ag-grid{grid-template-columns:1fr;}}
@@ -626,6 +644,21 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <p>매매 기록이 없습니다. 매매 기록을 추가해 보세요!</p>
           </div>
         </div>
+
+        <!-- ── 현재 환율 ── -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:32px;margin-bottom:14px">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--green)">💱 현재 환율</div>
+            <div id="fx-last-updated" style="font-size:12px;color:var(--t2);margin-top:2px">환율 데이터를 불러오는 중...</div>
+          </div>
+          <button class="btn btn-secondary" onclick="loadExchangeRates()">🔄 새로고침</button>
+        </div>
+        <div id="fx-grid" class="fx-grid">
+          <div class="fx-card"><div class="fx-pair">로딩 중...</div></div>
+          <div class="fx-card"><div class="fx-pair">로딩 중...</div></div>
+          <div class="fx-card"><div class="fx-pair">로딩 중...</div></div>
+        </div>
+
       </div>
     </div>
 
@@ -1623,7 +1656,7 @@ async function switchPersonalTab(tab){
   const tabEl=document.getElementById('personal-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
-  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); loadKospiChart(); }
+  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); loadKospiChart(); loadExchangeRates(); }
   else stopStockAutoRefresh();
   if(tab==='annual') initAnnualGoalsTab();
 }
@@ -2192,6 +2225,60 @@ function stopStockAutoRefresh(){
   if(stockTickTimer){ clearInterval(stockTickTimer); stockTickTimer=null; }
   const btn=document.getElementById('stock-refresh-btn');
   if(btn){ btn.disabled=false; btn.textContent='🔄 시세 갱신'; }
+}
+
+// ═══════════════════════════════════════════════
+// EXCHANGE RATE (환율)
+// ═══════════════════════════════════════════════
+function fxYesterdayStr(){
+  const d=new Date(); d.setDate(d.getDate()-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function loadExchangeRates(){
+  const grid=document.getElementById('fx-grid');
+  const statusEl=document.getElementById('fx-last-updated');
+  if(!grid) return;
+
+  const currencies=[
+    {code:'USD', flag:'🇺🇸', name:'미국 달러', pair:'USD / KRW', unit:'1 달러', mult:1},
+    {code:'JPY', flag:'🇯🇵', name:'일본 엔',   pair:'JPY / KRW', unit:'100 엔', mult:100},
+    {code:'EUR', flag:'🇪🇺', name:'유로',      pair:'EUR / KRW', unit:'1 유로', mult:1},
+  ];
+
+  try{
+    const [todayRes, ystRes]=await Promise.all([
+      fetch('https://api.frankfurter.app/latest?from=KRW&to=USD,EUR,JPY'),
+      fetch(`https://api.frankfurter.app/${fxYesterdayStr()}?from=KRW&to=USD,EUR,JPY`)
+    ]);
+    if(!todayRes.ok) throw new Error('API error');
+    const todayData=await todayRes.json();
+    const ystData=ystRes.ok ? await ystRes.json() : null;
+
+    const now=new Date();
+    if(statusEl) statusEl.textContent=`${todayData.date} 기준 (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 갱신)`;
+
+    grid.innerHTML=currencies.map(cur=>{
+      const todayRate=cur.mult/todayData.rates[cur.code];
+      const ystRate=(ystData&&ystData.rates&&ystData.rates[cur.code])?(cur.mult/ystData.rates[cur.code]):null;
+      const diff=ystRate!=null?todayRate-ystRate:0;
+      const pct=ystRate!=null?(diff/ystRate*100):0;
+      const cls=diff>0.5?'fx-up':diff<-0.5?'fx-down':'fx-flat';
+      const sign=diff>=0?'+':'';
+      return `<div class="fx-card ${cls}">
+        <div class="fx-flag">${cur.flag}</div>
+        <div class="fx-pair">${cur.pair}</div>
+        <div class="fx-rate">${Math.round(todayRate).toLocaleString()}<span style="font-size:14px;color:var(--t2);font-weight:400"> 원</span></div>
+        <div class="fx-unit">${cur.unit} 기준</div>
+        <div class="fx-change ${cls}">${ystRate!=null?`${sign}${Math.round(diff).toLocaleString()}원 (${sign}${pct.toFixed(2)}%)`:'전일 데이터 없음'}</div>
+        <div class="fx-meta">전일 대비</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    console.error('[FX]',e);
+    if(grid) grid.innerHTML=`<div class="fx-card" style="grid-column:1/-1"><div class="empty-state"><div class="icon">⚠️</div><p>환율 데이터를 불러오지 못했습니다</p></div></div>`;
+    if(statusEl) statusEl.textContent='데이터 로드 실패 — 새로고침을 눌러주세요';
+  }
 }
 
 // ═══════════════════════════════════════════════
