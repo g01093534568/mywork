@@ -1005,11 +1005,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>제목 *</label>
       <input type="text" id="gcal-title" placeholder="일정 제목을 입력하세요" />
     </div>
+    <div class="form-group">
+      <label>날짜 *</label>
+      <input type="date" id="gcal-date" />
+    </div>
     <div class="form-row">
-      <div class="form-group">
-        <label>날짜 *</label>
-        <input type="date" id="gcal-date" />
-      </div>
       <div class="form-group">
         <label>시작 시간</label>
         <input type="time" id="gcal-start" />
@@ -1043,11 +1043,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>제목 *</label>
       <input type="text" id="gcal-edit-title" placeholder="일정 제목" />
     </div>
+    <div class="form-group">
+      <label>날짜 *</label>
+      <input type="date" id="gcal-edit-date" />
+    </div>
     <div class="form-row">
-      <div class="form-group">
-        <label>날짜 *</label>
-        <input type="date" id="gcal-edit-date" />
-      </div>
       <div class="form-group">
         <label>시작 시간</label>
         <input type="time" id="gcal-edit-start" />
@@ -3311,11 +3311,14 @@ function onGcalEventClick(e, eventId) {
     </div>`;
   document.body.appendChild(gcalPopupEl);
 
-  const popW = 240, popH = 120;
-  let left = rect.left + window.scrollX;
-  let top = rect.bottom + window.scrollY + 4;
-  if (left + popW > window.innerWidth) left = window.innerWidth - popW - 8;
-  if (top + popH > window.innerHeight + window.scrollY) top = rect.top + window.scrollY - popH - 4;
+  const popW = 240, popH = 110;
+  // position:fixed 기준 → scrollX/Y 더하지 않음
+  let left = rect.left;
+  // 기본은 칩 위쪽에 표시 (아래 공간이 부족한 경우 많음)
+  let top = rect.top - popH - 6;
+  if (top < 8) top = rect.bottom + 4; // 위도 부족하면 아래로
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
   gcalPopupEl.style.left = left + 'px';
   gcalPopupEl.style.top = top + 'px';
 
