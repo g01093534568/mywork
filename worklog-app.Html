@@ -2248,8 +2248,8 @@ async function loadExchangeRates(){
 
   try{
     const [todayRes, ystRes]=await Promise.all([
-      fetch('https://api.frankfurter.app/latest?from=KRW&to=USD,EUR,JPY'),
-      fetch(`https://api.frankfurter.app/${fxYesterdayStr()}?from=KRW&to=USD,EUR,JPY`)
+      fetch('https://api.frankfurter.dev/v1/latest?from=KRW&to=USD,EUR,JPY'),
+      fetch(`https://api.frankfurter.dev/v1/${fxYesterdayStr()}?from=KRW&to=USD,EUR,JPY`)
     ]);
     if(!todayRes.ok) throw new Error('API error');
     const todayData=await todayRes.json();
