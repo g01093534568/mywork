@@ -6,6 +6,7 @@
 <title>WorkLog | 개인 업무 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root {
   --bg: #0b1622;
@@ -351,11 +352,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="nav-item" onclick="navigate('personal')" id="nav-personal">
         <span class="nav-icon">🙋</span><span>개인</span>
       </div>
-      <div id="admin-nav-section" style="display:none">
-        <div class="nav-label">관리</div>
-        <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
-          <span class="nav-icon">⚙️</span><span>관리자</span>
-        </div>
+      <div class="nav-label">설정</div>
+      <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
+        <span class="nav-icon">⚙️</span><span>설정</span>
       </div>
     </nav>
     <div class="sidebar-user">
@@ -475,7 +474,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
       <!-- 구글 캘린더 -->
       <div style="margin-top:24px;">
-        <div class="section-title">📅 구글 캘린더</div>
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📅 구글 캘린더</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="gcal-status-badge" style="display:none;font-size:11px;font-weight:600;color:var(--green);background:rgba(59,201,138,0.12);padding:3px 10px;border-radius:100px;">✓ 연동됨</span>
+            <button id="gcal-connect-btn" class="btn btn-sm btn-secondary" onclick="connectGoogleCalendar()" title="Google 계정 연동 후 일정 추가 가능">🔗 Google 연동</button>
+            <button id="gcal-add-btn" class="btn btn-sm btn-primary" onclick="openGcalModal()" style="display:none;">+ 일정 추가</button>
+          </div>
+        </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <iframe
             src="https://calendar.google.com/calendar/embed?src=g01093534568%40gmail.com&ctz=Asia%2FSeoul&hl=ko&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0&mode=MONTH"
@@ -611,13 +617,31 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <!-- ── ADMIN PAGE ── -->
     <div id="page-admin" class="page-section">
       <div class="page-header">
-        <h2>관리자</h2>
-        <p>조직 목표 설정 및 사용자 관리</p>
+        <h2>설정</h2>
+        <p>계정 설정 및 관리 기능</p>
       </div>
       <div class="admin-tabs">
-        <div class="admin-tab active" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
+        <div class="admin-tab active" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
+        <div class="admin-tab" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
         <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
         <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
+      </div>
+      <!-- Google 계정 Tab -->
+      <div id="admin-google" class="admin-panel active">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🔗 Google Calendar 연동</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google 계정을 입력하면 업무 페이지의 캘린더와 자동으로 연동됩니다.</div>
+          <div class="form-group">
+            <label>Google 계정 (Gmail 주소)</label>
+            <input type="email" id="gcal-account-email" placeholder="example@gmail.com" oninput="onGcalEmailInput()" />
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:16px;">
+            <button id="gcal-settings-connect-btn" class="btn btn-primary" onclick="connectGoogleCalendarWithEmail()" disabled>🔗 연동하기</button>
+            <span id="gcal-settings-status" style="font-size:12px;font-weight:600;color:var(--green);display:none;">✓ 연동됨</span>
+            <button id="gcal-settings-disconnect-btn" class="btn btn-sm btn-danger" onclick="disconnectGoogleCalendar()" style="display:none;">연동 해제</button>
+          </div>
+          <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
+        </div>
       </div>
       <!-- Goals Tab -->
       <div id="admin-goals" class="admin-panel active">
@@ -957,6 +981,43 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- Google Calendar Event Modal -->
+<div class="modal-overlay" id="gcal-modal">
+  <div class="modal" style="max-width:480px;">
+    <h3>📅 Google 캘린더에 일정 추가</h3>
+    <div class="form-group">
+      <label>제목 *</label>
+      <input type="text" id="gcal-title" placeholder="일정 제목을 입력하세요" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>날짜 *</label>
+        <input type="date" id="gcal-date" />
+      </div>
+      <div class="form-group">
+        <label>시작 시간</label>
+        <input type="time" id="gcal-start" />
+      </div>
+      <div class="form-group">
+        <label>종료 시간</label>
+        <input type="time" id="gcal-end" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>장소</label>
+      <input type="text" id="gcal-location" placeholder="장소 (선택)" />
+    </div>
+    <div class="form-group">
+      <label>설명</label>
+      <textarea id="gcal-desc" rows="3" placeholder="일정 설명 (선택)"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('gcal-modal')">취소</button>
+      <button class="btn btn-primary" onclick="addGcalEvent()">캘린더에 추가</button>
+    </div>
+  </div>
+</div>
+
 <!-- Annual Goal Modal -->
 <div class="modal-overlay" id="ag-modal">
   <div class="modal">
@@ -1196,10 +1257,18 @@ async function enterApp(){
   document.getElementById('user-id-display').textContent = currentUser.사원번호;
   document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
 
-  const isAdmin = currentUser.role==='admin' || currentUser.role==='facility-admin';
-  document.getElementById('admin-nav-section').style.display = isAdmin ? 'block' : 'none';
-  const goalsTab = document.getElementById('admin-tab-goals');
-  if(goalsTab) goalsTab.style.display = currentUser.role === 'facility-admin' ? 'none' : '';
+  const isAdmin = currentUser.role === 'admin';
+  const isFacilityAdmin = currentUser.role === 'facility-admin';
+  document.getElementById('admin-tab-goals').style.display = isAdmin ? '' : 'none';
+  document.getElementById('admin-tab-facility').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
+  document.getElementById('admin-tab-users').style.display = isAdmin ? '' : 'none';
+
+  // 저장된 Google 계정 복원
+  const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
+  if (savedGcalEmail) {
+    document.getElementById('gcal-account-email').value = savedGcalEmail;
+    document.getElementById('gcal-settings-connect-btn').disabled = false;
+  }
 
   document.getElementById('daily-date').value = today();
 
@@ -1274,8 +1343,9 @@ function navigate(page){
   if(page==='daily') renderDailyPage();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
-    if(currentUser.role==='facility-admin') switchAdminTab('facility');
-    else switchAdminTab('goals');
+    if(currentUser.role==='admin') switchAdminTab('goals');
+    else if(currentUser.role==='facility-admin') switchAdminTab('facility');
+    else switchAdminTab('google');
   }
 
 }
@@ -2894,7 +2964,7 @@ function importUsersCSV(e){
 }
 
 async function switchAdminTab(tab){
-  ['goals','facility','users'].forEach(t=>{
+  ['google','goals','facility','users'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
     if(tabEl) tabEl.classList.toggle('active',t===tab);
@@ -2933,6 +3003,163 @@ function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape') document.querySelectorAll('.modal-overlay.active').forEach(el=>el.classList.remove('active'));
 });
+
+// ═══════════════════════════════════════════════
+// GOOGLE CALENDAR INTEGRATION
+// ═══════════════════════════════════════════════
+const GCAL_CLIENT_ID = '863929651334-h5n9gn5b83hge7jmr3dt6hnco22ogj2v.apps.googleusercontent.com'; // ← Google Cloud에서 발급받은 OAuth 클라이언트 ID로 교체
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+let gcalTokenClient = null;
+let gcalToken = null;
+
+function initGcal() {
+  if (!window.google?.accounts?.oauth2) {
+    setTimeout(initGcal, 500);
+    return;
+  }
+  gcalTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    callback: (resp) => {
+      if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
+      gcalToken = resp.access_token;
+      updateGcalConnectionUI(true, document.getElementById('gcal-account-email')?.value || '');
+      toast('Google Calendar 연동 완료');
+    }
+  });
+}
+
+function updateGcalConnectionUI(connected, email) {
+  // 업무 페이지 버튼
+  const connectBtn = document.getElementById('gcal-connect-btn');
+  const statusBadge = document.getElementById('gcal-status-badge');
+  const addBtn = document.getElementById('gcal-add-btn');
+  if (connectBtn) connectBtn.style.display = connected ? 'none' : 'inline-flex';
+  if (statusBadge) statusBadge.style.display = connected ? 'inline' : 'none';
+  if (addBtn) addBtn.style.display = connected ? 'inline-flex' : 'none';
+  // 설정 페이지
+  const settingsStatus = document.getElementById('gcal-settings-status');
+  const disconnectBtn = document.getElementById('gcal-settings-disconnect-btn');
+  const connectedEmail = document.getElementById('gcal-connected-email');
+  if (settingsStatus) settingsStatus.style.display = connected ? 'inline' : 'none';
+  if (disconnectBtn) disconnectBtn.style.display = connected ? 'inline-flex' : 'none';
+  if (connectedEmail) { connectedEmail.style.display = connected && email ? 'block' : 'none'; connectedEmail.textContent = connected && email ? `연동된 계정: ${email}` : ''; }
+}
+
+function connectGoogleCalendar() {
+  if (GCAL_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
+    toast('Google OAuth 클라이언트 ID를 설정해야 합니다. GCAL_CLIENT_ID를 확인하세요.', 'error');
+    return;
+  }
+  if (!gcalTokenClient) { toast('Google API 초기화 중입니다. 잠시 후 다시 시도하세요.', 'error'); return; }
+  gcalTokenClient.requestAccessToken();
+}
+
+function onGcalEmailInput() {
+  const email = document.getElementById('gcal-account-email').value.trim();
+  document.getElementById('gcal-settings-connect-btn').disabled = !email;
+}
+
+function connectGoogleCalendarWithEmail() {
+  if (GCAL_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
+    toast('Google OAuth 클라이언트 ID를 설정해야 합니다.', 'error');
+    return;
+  }
+  const email = document.getElementById('gcal-account-email').value.trim();
+  if (!email) { toast('Gmail 주소를 입력하세요.', 'error'); return; }
+  if (!window.google?.accounts?.oauth2) { toast('Google API 로딩 중입니다. 잠시 후 다시 시도하세요.', 'error'); return; }
+
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    login_hint: email,
+    callback: (resp) => {
+      if (resp.error) { toast('연동 실패: ' + resp.error, 'error'); return; }
+      gcalToken = resp.access_token;
+      if (currentUser) localStorage.setItem('gcal_email_' + currentUser.사원번호, email);
+      updateGcalConnectionUI(true, email);
+      toast('Google Calendar 연동 완료!');
+    }
+  });
+  tokenClient.requestAccessToken();
+}
+
+function disconnectGoogleCalendar() {
+  gcalToken = null;
+  if (currentUser) localStorage.removeItem('gcal_email_' + currentUser.사원번호);
+  updateGcalConnectionUI(false, '');
+  toast('Google Calendar 연동이 해제되었습니다.');
+}
+
+function openGcalModal() {
+  if (!gcalToken) { toast('먼저 Google 연동 버튼을 눌러 연결하세요.', 'error'); return; }
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('gcal-date').value = today;
+  document.getElementById('gcal-title').value = '';
+  document.getElementById('gcal-start').value = '';
+  document.getElementById('gcal-end').value = '';
+  document.getElementById('gcal-location').value = '';
+  document.getElementById('gcal-desc').value = '';
+  openModal('gcal-modal');
+}
+
+async function addGcalEvent() {
+  if (!gcalToken) { toast('먼저 Google 연동을 해주세요.', 'error'); return; }
+  const title = document.getElementById('gcal-title').value.trim();
+  const date = document.getElementById('gcal-date').value;
+  const startTime = document.getElementById('gcal-start').value;
+  const endTime = document.getElementById('gcal-end').value;
+  const desc = document.getElementById('gcal-desc').value.trim();
+  const location = document.getElementById('gcal-location').value.trim();
+
+  if (!title) { toast('제목을 입력하세요.', 'error'); return; }
+  if (!date) { toast('날짜를 선택하세요.', 'error'); return; }
+
+  let start, end;
+  if (startTime) {
+    start = { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' };
+    if (endTime) {
+      end = { dateTime: `${date}T${endTime}:00`, timeZone: 'Asia/Seoul' };
+    } else {
+      const [h, m] = startTime.split(':').map(Number);
+      const endH = String((h + 1) % 24).padStart(2, '0');
+      end = { dateTime: `${date}T${endH}:${String(m).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
+    }
+  } else {
+    start = { date };
+    end = { date };
+  }
+
+  const event = { summary: title, ...(desc && { description: desc }), ...(location && { location }), start, end };
+
+  try {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('[GCal] API 오류:', res.status, err);
+      if (res.status === 401) {
+        gcalToken = null;
+        updateGcalConnectionUI(false, '');
+        toast(`401 인증 오류: Google Cloud에서 Calendar API가 활성화되어 있는지 확인하세요.`, 'error');
+      } else if (res.status === 403) {
+        toast(`403 권한 오류: Calendar API가 비활성화 상태입니다. Google Cloud 콘솔을 확인하세요.`, 'error');
+      } else {
+        toast(`오류 ${res.status}: ` + (err.error?.message || JSON.stringify(err)), 'error');
+      }
+      return;
+    }
+    closeModal('gcal-modal');
+    toast('Google Calendar에 일정이 추가되었습니다 🎉');
+  } catch(e) {
+    toast('네트워크 오류: ' + e.message, 'error');
+  }
+}
+
+window.addEventListener('load', () => { setTimeout(initGcal, 300); });
 </script>
 </body>
 </html>
