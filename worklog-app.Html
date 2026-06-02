@@ -259,6 +259,34 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .trade-table tr:hover td{background:rgba(255,255,255,0.02);}
 .tag-buy{background:rgba(224,85,85,0.15);color:var(--red);}
 .tag-sell{background:rgba(61,142,240,0.15);color:var(--blue);}
+/* ---- ANNUAL GOALS ---- */
+.ag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px;}
+@media(max-width:900px){.ag-grid{grid-template-columns:1fr;}}
+.ag-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;position:relative;}
+.ag-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+.ag-card-title{font-size:14px;font-weight:700;flex:1;margin-right:8px;line-height:1.4;}
+.ag-card-actions{display:flex;gap:3px;opacity:0;transition:var(--tr);}
+.ag-card:hover .ag-card-actions{opacity:1;}
+.ag-card-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:2px 8px;border-radius:100px;margin-bottom:8px;display:inline-block;}
+.ag-card-desc{font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;}
+.ag-card-target{font-size:11px;color:var(--t3);margin-bottom:10px;}
+.ag-progress-wrap{margin-bottom:6px;}
+.ag-progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px;}
+.ag-progress-bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;}
+.ag-progress-fill{height:100%;border-radius:3px;transition:width 0.5s ease;}
+.ag-status-진행중 .ag-progress-fill{background:linear-gradient(90deg,var(--blue),var(--purple));}
+.ag-status-완료 .ag-progress-fill{background:linear-gradient(90deg,var(--accent),var(--green));}
+.ag-status-중단 .ag-progress-fill{background:var(--t3);}
+.ag-cat-업무{background:rgba(61,142,240,0.15);color:var(--blue);}
+.ag-cat-자기계발{background:rgba(155,114,232,0.15);color:var(--purple);}
+.ag-cat-건강{background:rgba(59,201,138,0.15);color:var(--green);}
+.ag-cat-재정{background:rgba(232,160,32,0.15);color:var(--accent);}
+.ag-cat-관계{background:rgba(224,85,85,0.15);color:var(--red);}
+.ag-cat-기타{background:rgba(122,155,192,0.1);color:var(--t2);}
+.ag-summary{display:flex;gap:20px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px 18px;margin-bottom:20px;}
+.ag-summary-item{display:flex;flex-direction:column;gap:2px;}
+.ag-summary-num{font-size:22px;font-weight:700;}
+.ag-summary-label{font-size:11px;color:var(--t2);}
 </style>
 </head>
 <body>
@@ -458,10 +486,45 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <p>개인 공간을 관리하세요</p>
       </div>
       <div class="personal-tabs">
-        <div class="personal-tab active" id="personal-tab-stock" onclick="switchPersonalTab('stock')">📈 증권</div>
+        <div class="personal-tab active" id="personal-tab-annual" onclick="switchPersonalTab('annual')">🎯 연간목표</div>
+        <div class="personal-tab" id="personal-tab-stock" onclick="switchPersonalTab('stock')">📈 증권</div>
       </div>
+      <!-- Annual Goals Panel -->
+      <div id="personal-annual" class="personal-panel active">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:700;color:var(--t1);">🎯 연간 목표 관리</span>
+            <select id="ag-year-select" onchange="renderAnnualGoals()" style="width:100px;padding:6px 10px;font-size:13px;"></select>
+          </div>
+          <button class="btn btn-primary" onclick="openAnnualGoalModal()">+ 목표 추가</button>
+        </div>
+        <div id="ag-summary" class="ag-summary" style="display:none;"></div>
+        <div id="ag-filter-bar" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <select id="ag-filter-cat" onchange="renderAnnualGoals()" style="width:120px;font-size:13px;">
+            <option value="all">전체 카테고리</option>
+            <option value="업무">업무</option>
+            <option value="자기계발">자기계발</option>
+            <option value="건강">건강</option>
+            <option value="재정">재정</option>
+            <option value="관계">관계</option>
+            <option value="기타">기타</option>
+          </select>
+          <select id="ag-filter-status" onchange="renderAnnualGoals()" style="width:120px;font-size:13px;">
+            <option value="all">전체 상태</option>
+            <option value="진행중">진행중</option>
+            <option value="완료">완료</option>
+            <option value="중단">중단</option>
+          </select>
+        </div>
+        <div id="ag-grid" class="ag-grid"></div>
+        <div id="ag-empty" class="empty-state" style="display:none;">
+          <div class="icon">🎯</div>
+          <p>이 연도에 등록된 목표가 없습니다. 목표를 추가해 보세요!</p>
+        </div>
+      </div>
+
       <!-- Stock Panel -->
-      <div id="personal-stock" class="personal-panel active">
+      <div id="personal-stock" class="personal-panel">
 
         <!-- KOSPI 차트 -->
         <div id="kospi-section" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px">
@@ -886,6 +949,66 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- Annual Goal Modal -->
+<div class="modal-overlay" id="ag-modal">
+  <div class="modal">
+    <h3 id="ag-modal-title">연간 목표 추가</h3>
+    <input type="hidden" id="agm-edit-id" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>연도 *</label>
+        <input type="number" id="agm-year" min="2020" max="2040" placeholder="2026" />
+      </div>
+      <div class="form-group">
+        <label>카테고리 *</label>
+        <select id="agm-category">
+          <option value="업무">업무</option>
+          <option value="자기계발">자기계발</option>
+          <option value="건강">건강</option>
+          <option value="재정">재정</option>
+          <option value="관계">관계</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>목표 제목 *</label>
+      <input type="text" id="agm-title" placeholder="달성하고 싶은 목표를 입력하세요" />
+    </div>
+    <div class="form-group">
+      <label>목표 설명</label>
+      <textarea id="agm-desc" rows="3" placeholder="목표에 대한 상세 내용을 입력하세요"></textarea>
+    </div>
+    <div class="form-group">
+      <label>목표치 / 기준</label>
+      <input type="text" id="agm-target" placeholder="예: 10kg 감량, 월 100만원 저축, 책 24권" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>진행률 (0 ~ 100%)</label>
+        <input type="number" id="agm-progress" min="0" max="100" value="0" oninput="updateAgProgressPreview(this.value)" />
+      </div>
+      <div class="form-group">
+        <label>상태</label>
+        <select id="agm-status">
+          <option value="진행중">진행중</option>
+          <option value="완료">완료</option>
+          <option value="중단">중단</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="ag-progress-bar" style="height:8px;border-radius:4px;">
+        <div id="agm-progress-preview" class="ag-progress-fill" style="width:0%;background:linear-gradient(90deg,var(--blue),var(--purple));"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('ag-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveAnnualGoal()">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- User Modal -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal">
@@ -1013,6 +1136,9 @@ const DB = {
   async getTrades(uid){ const {data,error}=await SB.from('trades').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToTrade); },
   async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; },
   async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; },
+  async getAnnualGoals(uid){ const {data,error}=await SB.from('annual_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToAg); },
+  async upsertAnnualGoal(uid,g){ const {error}=await SB.from('annual_goals').upsert(agToDb(g,uid)); if(error)throw error; },
+  async deleteAnnualGoal(id){ const {error}=await SB.from('annual_goals').delete().eq('id',id); if(error)throw error; },
 };
 
 // ═══════════════════════════════════════════════
@@ -1321,7 +1447,7 @@ async function deletePersonalGoal(id){
 // PERSONAL PAGE
 // ═══════════════════════════════════════════════
 async function renderPersonalPage(){
-  await switchPersonalTab('stock');
+  await switchPersonalTab('annual');
 }
 
 async function switchPersonalTab(tab){
@@ -1333,6 +1459,170 @@ async function switchPersonalTab(tab){
   if(tabEl) tabEl.classList.add('active');
   if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); loadKospiChart(); }
   else stopStockAutoRefresh();
+  if(tab==='annual') initAnnualGoalsTab();
+}
+
+// ═══════════════════════════════════════════════
+// ANNUAL GOALS
+// ═══════════════════════════════════════════════
+function dbToAg(d){
+  return {
+    id: d.id,
+    year: d.year||new Date().getFullYear(),
+    category: d.category||'기타',
+    title: d.title||'',
+    desc: d.description||'',
+    target: d.target||'',
+    progress: d.progress||0,
+    status: d.status||'진행중',
+  };
+}
+function agToDb(g,uid){
+  const obj={사원번호:uid,year:g.year,category:g.category,title:g.title,description:g.desc||'',target:g.target||'',progress:g.progress||0,status:g.status||'진행중',updated_at:new Date().toISOString()};
+  if(g.id) obj.id=g.id;
+  return obj;
+}
+
+let _agGoals=[];
+
+function initAnnualGoalsTab(){
+  const sel=document.getElementById('ag-year-select');
+  if(!sel) return;
+  const cur=new Date().getFullYear();
+  if(!sel.options.length){
+    for(let y=cur+1;y>=cur-3;y--){
+      const o=document.createElement('option');
+      o.value=y; o.textContent=y+'년';
+      if(y===cur) o.selected=true;
+      sel.appendChild(o);
+    }
+  }
+  renderAnnualGoals();
+}
+
+async function renderAnnualGoals(){
+  _agGoals=await DB.getAnnualGoals(currentUser.사원번호);
+  const year=parseInt(document.getElementById('ag-year-select')?.value)||new Date().getFullYear();
+  const catFilter=document.getElementById('ag-filter-cat')?.value||'all';
+  const statusFilter=document.getElementById('ag-filter-status')?.value||'all';
+  let list=_agGoals.filter(g=>g.year===year);
+  if(catFilter!=='all') list=list.filter(g=>g.category===catFilter);
+  if(statusFilter!=='all') list=list.filter(g=>g.status===statusFilter);
+
+  // Summary (all goals of this year, no filter)
+  const yearAll=_agGoals.filter(g=>g.year===year);
+  const summaryEl=document.getElementById('ag-summary');
+  if(yearAll.length){
+    const done=yearAll.filter(g=>g.status==='완료').length;
+    const inprog=yearAll.filter(g=>g.status==='진행중').length;
+    const avg=yearAll.length?Math.round(yearAll.reduce((s,g)=>s+(g.progress||0),0)/yearAll.length):0;
+    summaryEl.style.display='flex';
+    summaryEl.innerHTML=`
+      <div class="ag-summary-item"><span class="ag-summary-num" style="color:var(--t1)">${yearAll.length}</span><span class="ag-summary-label">전체 목표</span></div>
+      <div class="ag-summary-item"><span class="ag-summary-num" style="color:var(--green)">${done}</span><span class="ag-summary-label">완료</span></div>
+      <div class="ag-summary-item"><span class="ag-summary-num" style="color:var(--blue)">${inprog}</span><span class="ag-summary-label">진행중</span></div>
+      <div class="ag-summary-item"><span class="ag-summary-num" style="color:var(--accent)">${avg}%</span><span class="ag-summary-label">평균 진행률</span></div>
+    `;
+  } else {
+    summaryEl.style.display='none';
+  }
+
+  const grid=document.getElementById('ag-grid');
+  const empty=document.getElementById('ag-empty');
+  if(!list.length){
+    grid.innerHTML=''; empty.style.display='block'; return;
+  }
+  empty.style.display='none';
+  const fillColor=s=>s==='완료'?'linear-gradient(90deg,var(--accent),var(--green))':s==='중단'?'var(--t3)':'linear-gradient(90deg,var(--blue),var(--purple))';
+  grid.innerHTML=list.map(g=>`
+    <div class="ag-card ag-status-${esc(g.status)}">
+      <div class="ag-card-top">
+        <div class="ag-card-title">${esc(g.title)}</div>
+        <div class="ag-card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openAnnualGoalModal('${g.id}')" title="수정">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="deleteAnnualGoal('${g.id}')" title="삭제" style="color:var(--red)">🗑️</button>
+        </div>
+      </div>
+      <span class="ag-card-cat ag-cat-${esc(g.category)}">${esc(g.category)}</span>
+      ${g.desc?`<div class="ag-card-desc">${esc(g.desc)}</div>`:''}
+      ${g.target?`<div class="ag-card-target">🎯 목표치: ${esc(g.target)}</div>`:''}
+      <div class="ag-progress-wrap">
+        <div class="ag-progress-label">
+          <span>진행률</span>
+          <span style="font-weight:700;color:var(--t1)">${g.progress||0}%</span>
+        </div>
+        <div class="ag-progress-bar"><div class="ag-progress-fill" style="width:${g.progress||0}%;background:${fillColor(g.status)}"></div></div>
+      </div>
+      <div>
+        ${g.status==='완료'?'<span class="tag tag-done">완료</span>':g.status==='중단'?'<span class="tag tag-todo">중단</span>':'<span class="tag tag-low">진행중</span>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openAnnualGoalModal(id){
+  const year=parseInt(document.getElementById('ag-year-select')?.value)||new Date().getFullYear();
+  document.getElementById('agm-edit-id').value='';
+  document.getElementById('agm-title').value='';
+  document.getElementById('agm-desc').value='';
+  document.getElementById('agm-target').value='';
+  document.getElementById('agm-progress').value=0;
+  document.getElementById('agm-status').value='진행중';
+  document.getElementById('agm-year').value=year;
+  document.getElementById('agm-category').value='업무';
+  document.getElementById('agm-progress-preview').style.width='0%';
+  document.getElementById('ag-modal-title').textContent='연간 목표 추가';
+  if(id){
+    const g=_agGoals.find(x=>x.id===id);
+    if(!g) return;
+    document.getElementById('ag-modal-title').textContent='연간 목표 수정';
+    document.getElementById('agm-edit-id').value=id;
+    document.getElementById('agm-year').value=g.year;
+    document.getElementById('agm-category').value=g.category;
+    document.getElementById('agm-title').value=g.title;
+    document.getElementById('agm-desc').value=g.desc||'';
+    document.getElementById('agm-target').value=g.target||'';
+    document.getElementById('agm-progress').value=g.progress||0;
+    document.getElementById('agm-status').value=g.status||'진행중';
+    document.getElementById('agm-progress-preview').style.width=(g.progress||0)+'%';
+  }
+  openModal('ag-modal');
+}
+
+function updateAgProgressPreview(val){
+  const v=Math.min(100,Math.max(0,parseInt(val)||0));
+  document.getElementById('agm-progress-preview').style.width=v+'%';
+}
+
+async function saveAnnualGoal(){
+  const title=document.getElementById('agm-title').value.trim();
+  if(!title){showToast('목표 제목을 입력하세요','error');return;}
+  const editId=document.getElementById('agm-edit-id').value;
+  const g={
+    title,
+    year:parseInt(document.getElementById('agm-year').value)||new Date().getFullYear(),
+    category:document.getElementById('agm-category').value||'기타',
+    desc:document.getElementById('agm-desc').value.trim(),
+    target:document.getElementById('agm-target').value.trim(),
+    progress:Math.min(100,Math.max(0,parseInt(document.getElementById('agm-progress').value)||0)),
+    status:document.getElementById('agm-status').value||'진행중',
+  };
+  if(editId) g.id=editId;
+  try{
+    await DB.upsertAnnualGoal(currentUser.사원번호,g);
+    closeModal('ag-modal');
+    showToast(editId?'목표가 수정되었습니다':'목표가 추가되었습니다','success');
+    await renderAnnualGoals();
+  }catch(e){showToast('저장에 실패했습니다','error');console.error(e);}
+}
+
+async function deleteAnnualGoal(id){
+  if(!confirm('이 목표를 삭제하시겠습니까?')) return;
+  try{
+    await DB.deleteAnnualGoal(id);
+    showToast('목표가 삭제되었습니다','success');
+    await renderAnnualGoals();
+  }catch(e){showToast('삭제에 실패했습니다','error');console.error(e);}
 }
 
 function fmtNum(n){ return Number(n).toLocaleString('ko-KR'); }
