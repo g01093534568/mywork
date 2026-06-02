@@ -1396,8 +1396,19 @@ function navigate(page){
   currentPage=page;
   if(page==='home') renderHome();
   if(page==='todo') renderTodos();
-  if(page==='daily'){ renderDailyPage(); if(gcalToken) renderCustomCalendar(); startGcalAutoRefresh(); }
-  else stopGcalAutoRefresh();
+  if(page==='daily'){
+    renderDailyPage();
+    startGcalAutoRefresh();
+    if(gcalToken){ renderCustomCalendar(); }
+    else {
+      const savedEmail = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
+      if(savedEmail && window.google?.accounts?.oauth2){
+        makeTokenClient(savedEmail, 'none', (resp) => {
+          if(!resp.error){ saveGcalToken(resp.access_token, savedEmail); renderCustomCalendar(); }
+        }).requestAccessToken({ prompt: 'none' });
+      }
+    }
+  } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
     if(currentUser.role==='admin') switchAdminTab('goals');
