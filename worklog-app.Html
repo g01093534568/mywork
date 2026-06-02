@@ -474,7 +474,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
       <!-- 구글 캘린더 -->
       <div style="margin-top:24px;">
-        <div class="section-title">📅 구글 캘린더</div>
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📅 구글 캘린더</span>
+          <button class="btn btn-sm btn-primary" onclick="openGcalModal()">+ 일정 추가</button>
+        </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <iframe
             src="https://calendar.google.com/calendar/embed?src=g01093534568%40gmail.com&ctz=Asia%2FSeoul&hl=ko&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0&mode=MONTH"
@@ -3079,7 +3082,6 @@ function disconnectGoogleCalendar() {
 }
 
 function openGcalModal() {
-  if (!gcalToken) { toast('먼저 Google 연동 버튼을 눌러 연결하세요.', 'error'); return; }
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('gcal-date').value = today;
   document.getElementById('gcal-title').value = '';
@@ -3087,6 +3089,23 @@ function openGcalModal() {
   document.getElementById('gcal-end').value = '';
   document.getElementById('gcal-location').value = '';
   document.getElementById('gcal-desc').value = '';
+  if (!gcalToken) {
+    const savedEmail = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
+    if (!gcalTokenClient) { toast('설정 탭에서 Google 계정을 먼저 연동해주세요.', 'error'); return; }
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GCAL_CLIENT_ID,
+      scope: GCAL_SCOPE,
+      ...(savedEmail && { login_hint: savedEmail }),
+      callback: (resp) => {
+        if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
+        gcalToken = resp.access_token;
+        updateGcalConnectionUI(true, savedEmail || '');
+        openModal('gcal-modal');
+      }
+    });
+    tokenClient.requestAccessToken();
+    return;
+  }
   openModal('gcal-modal');
 }
 
