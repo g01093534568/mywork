@@ -262,8 +262,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 @media(max-width:600px){.stock-grid{grid-template-columns:1fr;}}
 /* ---- TRADE LOG ---- */
 .trade-table{width:100%;border-collapse:collapse;min-width:660px;}
-.trade-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
-.trade-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.trade-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
+.trade-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;text-align:center;}
 .trade-table tr:hover td{background:rgba(255,255,255,0.02);}
 .tag-buy{background:rgba(224,85,85,0.15);color:var(--red);}
 .tag-sell{background:rgba(61,142,240,0.15);color:var(--blue);}
@@ -590,9 +590,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                   <th style="width:100px">날짜</th>
                   <th>종목</th>
                   <th style="width:80px">구분</th>
-                  <th style="width:80px;text-align:right">수량</th>
-                  <th style="width:110px;text-align:right">단가</th>
-                  <th style="width:130px;text-align:right">총금액</th>
+                  <th style="width:80px">수량</th>
+                  <th style="width:110px">단가</th>
+                  <th style="width:130px">총금액</th>
                   <th>메모</th>
                   <th style="width:80px">작업</th>
                 </tr>
@@ -2072,13 +2072,13 @@ async function renderTrades(){
         ${t.ticker?`<div style="font-size:11px;color:var(--t3)">${esc(t.ticker)}</div>`:''}
       </td>
       <td><span class="tag tag-${t.type==='buy'?'buy':'sell'}">${t.type==='buy'?'▲ 매수':'▼ 매도'}</span></td>
-      <td style="text-align:right;font-weight:500">${fmtNum(t.qty)}주</td>
-      <td style="text-align:right">₩${fmtNum(t.price)}</td>
-      <td style="text-align:right;font-weight:600;color:${t.type==='buy'?'var(--red)':'var(--blue)'}">
+      <td style="font-weight:500">${fmtNum(t.qty)}주</td>
+      <td>₩${fmtNum(t.price)}</td>
+      <td style="font-weight:600;color:${t.type==='buy'?'var(--red)':'var(--blue)'}">
         ${t.type==='buy'?'−':'+'}₩${fmtNum(total)}
       </td>
       <td style="color:var(--t2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.memo||'')}">${esc(t.memo||'')}</td>
-      <td><div style="display:flex;gap:4px">
+      <td><div style="display:flex;gap:4px;justify-content:center">
         <button class="btn btn-ghost btn-sm" onclick="openTradeModal(null,'${t.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTrade('${t.id}')">🗑</button>
       </div></td>
