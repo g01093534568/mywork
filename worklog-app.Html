@@ -1369,6 +1369,7 @@ async function migrateLocalStorageToSupabase(){
 }
 
 function doLogout(){
+  stopGcalAutoRefresh();
   sessionStorage.removeItem('wl_session');
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
@@ -1395,7 +1396,8 @@ function navigate(page){
   currentPage=page;
   if(page==='home') renderHome();
   if(page==='todo') renderTodos();
-  if(page==='daily'){ renderDailyPage(); if(gcalToken) renderCustomCalendar(); }
+  if(page==='daily'){ renderDailyPage(); if(gcalToken) renderCustomCalendar(); startGcalAutoRefresh(); }
+  else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
     if(currentUser.role==='admin') switchAdminTab('goals');
@@ -3069,9 +3071,21 @@ const GCAL_TOKEN_KEY = 'gcal_token';
 const GCAL_TOKEN_TIME_KEY = 'gcal_token_time';
 let gcalToken = null;
 let gcalViewYear = new Date().getFullYear();
-let gcalViewMonth = new Date().getMonth(); // 0-based
+let gcalViewMonth = new Date().getMonth();
 let gcalEvents = [];
 let gcalPopupEl = null;
+let gcalAutoRefreshTimer = null;
+
+function startGcalAutoRefresh() {
+  stopGcalAutoRefresh();
+  gcalAutoRefreshTimer = setInterval(() => {
+    if (currentPage === 'daily' && gcalToken) renderCustomCalendar();
+  }, 60000);
+}
+
+function stopGcalAutoRefresh() {
+  if (gcalAutoRefreshTimer) { clearInterval(gcalAutoRefreshTimer); gcalAutoRefreshTimer = null; }
+}
 
 /* ── 토큰 관리 ── */
 function saveGcalToken(token, email) {
