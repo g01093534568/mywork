@@ -502,6 +502,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <button class="btn btn-secondary btn-sm" onclick="changeDate(1)">다음 ▶</button>
         <input type="date" id="daily-date" onchange="renderDailyPage()" />
         <span id="daily-day-label" style="font-size:14px;color:var(--t2);"></span>
+        <button class="btn btn-secondary btn-sm" id="ai-report-btn" onclick="generateAIReport()" style="margin-left:auto">🤖 AI 리포트</button>
       </div>
       <div class="daily-grid">
         <div class="daily-todo-list">
@@ -515,6 +516,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           </h4>
           <div id="daily-activities-content"></div>
         </div>
+      </div>
+
+      <!-- AI 성찰 리포트 -->
+      <div id="ai-report-wrap" style="margin-top:20px;display:none;">
+        <div class="section-title">🤖 AI 업무 성찰 리포트</div>
+        <div id="ai-report-box" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;font-size:14px;color:var(--t1);line-height:1.9;white-space:pre-wrap;"></div>
       </div>
 
       <!-- 구글 캘린더 -->
@@ -693,6 +700,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button id="gcal-settings-disconnect-btn" class="btn btn-sm btn-danger" onclick="disconnectGoogleCalendar()" style="display:none;">연동 해제</button>
           </div>
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 리포트 설정</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Anthropic API 키를 등록하면 업무 페이지에서 AI 성찰 리포트를 사용할 수 있습니다. 키는 이 기기에만 저장됩니다.</div>
+          <div class="form-group">
+            <label>Anthropic API 키</label>
+            <input type="password" id="ai-api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" />
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
+            <button class="btn btn-primary" onclick="saveAiApiKey()">저장</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAiApiKey()">삭제</button>
+            <span id="ai-key-status" style="font-size:12px;color:var(--t2);"></span>
+          </div>
         </div>
       </div>
       <!-- Goals Tab -->
@@ -3271,6 +3291,7 @@ async function switchAdminTab(tab){
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
+  if(tab==='google') loadAiKeySettings();
 }
 
 // ═══════════════════════════════════════════════
@@ -3804,6 +3825,118 @@ async function addGcalEvent() {
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════
+// AI DAILY REPORT
+// ═══════════════════════════════════════════════
+function getAiApiKey(){ return localStorage.getItem('worklog_anthropic_key')||''; }
+
+function loadAiKeySettings(){
+  const k=getAiApiKey();
+  const inp=document.getElementById('ai-api-key-input');
+  const st=document.getElementById('ai-key-status');
+  if(inp) inp.value=k?'•'.repeat(24):'';
+  if(st) st.textContent=k?'✓ 키 등록됨':'미등록';
+}
+
+function saveAiApiKey(){
+  const v=document.getElementById('ai-api-key-input').value.trim();
+  if(!v||v.startsWith('•')){ toast('새 API 키를 입력하세요','error'); return; }
+  localStorage.setItem('worklog_anthropic_key',v);
+  loadAiKeySettings();
+  toast('API 키가 저장되었습니다');
+}
+
+function clearAiApiKey(){
+  localStorage.removeItem('worklog_anthropic_key');
+  const inp=document.getElementById('ai-api-key-input');
+  if(inp) inp.value='';
+  loadAiKeySettings();
+  toast('API 키가 삭제되었습니다');
+}
+
+async function generateAIReport(){
+  const key=getAiApiKey();
+  if(!key){ toast('설정 → Google 계정 탭에서 Anthropic API 키를 먼저 등록하세요','error'); return; }
+
+  const date=document.getElementById('daily-date').value||today();
+  const btn=document.getElementById('ai-report-btn');
+  const wrap=document.getElementById('ai-report-wrap');
+  const box=document.getElementById('ai-report-box');
+
+  btn.disabled=true; btn.textContent='⏳ 분석 중...';
+  wrap.style.display='block';
+  box.textContent='AI가 오늘의 업무를 분석하고 있습니다...';
+
+  try{
+    const [activities, allTodos]=await Promise.all([
+      DB.getDailyActivities(currentUser.사원번호, date),
+      DB.getTodos(currentUser.사원번호)
+    ]);
+
+    const relevant=allTodos.filter(t=>{
+      if(!todayVisible(t,date)) return false;
+      if(!t.isRecurring&&t.startDate&&t.startDate>date) return false;
+      return true;
+    });
+    const doneCount=relevant.filter(t=>isDoneOnDate(t,date)).length;
+    const total=relevant.length;
+    const pct=total?Math.round(doneCount/total*100):0;
+    const doneTitles=relevant.filter(t=>isDoneOnDate(t,date)).map(t=>t.title);
+    const pendingTitles=relevant.filter(t=>!isDoneOnDate(t,date)).map(t=>t.title);
+
+    const actText=activities.length
+      ? activities.map(a=>{
+          let s=`• [${a.time||'시간미기록'}] ${a.title}`;
+          if(a.content) s+=`\n  내용: ${a.content}`;
+          if(a.reflection) s+=`\n  성찰: ${a.reflection}`;
+          return s;
+        }).join('\n')
+      : '(업무 활동 기록 없음)';
+
+    const prompt=`당신은 업무 성찰 코치입니다. 아래 하루 업무 데이터를 바탕으로 따뜻하고 실용적인 성찰 리포트를 한국어로 작성해 주세요.
+
+날짜: ${date}
+할 일 완료율: ${doneCount}/${total}건 완료 (${pct}%)
+완료한 할 일: ${doneTitles.length ? doneTitles.join(', ') : '없음'}
+미완료 할 일: ${pendingTitles.length ? pendingTitles.join(', ') : '없음'}
+
+업무 활동 기록:
+${actText}
+
+아래 3가지 항목으로 400자 이내로 간결하게 작성하세요:
+1. ✅ 오늘의 핵심 성과
+2. 💡 아쉬운 점 또는 개선 포인트
+3. 🎯 내일을 위한 제언`;
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'x-api-key':key,
+        'anthropic-version':'2023-06-01',
+        'content-type':'application/json',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:800,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(!res.ok){
+      const err=await res.json().catch(()=>({}));
+      throw new Error(err.error?.message||`HTTP ${res.status}`);
+    }
+    const data=await res.json();
+    box.textContent=data.content?.[0]?.text||'리포트를 생성하지 못했습니다.';
+  }catch(e){
+    console.error('[AI Report]',e);
+    box.textContent='⚠️ 리포트 생성 실패: '+e.message;
+    toast('AI 리포트 오류: '+e.message,'error');
+  }finally{
+    btn.disabled=false; btn.textContent='🤖 AI 리포트';
+  }
 }
 
 </script>
