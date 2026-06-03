@@ -36,9 +36,6 @@ input,select,textarea{font-family:inherit;background:var(--bg2);border:1px solid
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,0.12);}
 input::placeholder,textarea::placeholder{color:var(--t3);}
 select option{background:var(--bg2);}
-.time-picker-wrap{display:flex;align-items:center;gap:6px;}
-.time-picker-wrap select{flex:1;min-width:0;padding:10px 8px;}
-.time-picker-wrap .time-colon{color:var(--t2);font-weight:700;font-size:16px;flex-shrink:0;}
 button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:var(--tr);}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r2);font-size:13px;font-weight:600;letter-spacing:0.2px;}
 .btn-primary{background:var(--accent);color:#1a1000;}
@@ -1180,19 +1177,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-row">
       <div class="form-group">
         <label>시작 시간</label>
-        <div class="time-picker-wrap">
-          <select id="gcal-start-h"><option value="">--</option></select>
-          <span class="time-colon">:</span>
-          <select id="gcal-start-m"><option value="">--</option></select>
-        </div>
+        <input type="text" id="gcal-start" placeholder="예: 0900" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
       <div class="form-group">
         <label>종료 시간</label>
-        <div class="time-picker-wrap">
-          <select id="gcal-end-h"><option value="">--</option></select>
-          <span class="time-colon">:</span>
-          <select id="gcal-end-m"><option value="">--</option></select>
-        </div>
+        <input type="text" id="gcal-end" placeholder="예: 1030" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
     </div>
     <div class="form-group">
@@ -1237,19 +1226,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-row">
       <div class="form-group">
         <label>시작 시간</label>
-        <div class="time-picker-wrap">
-          <select id="gcal-edit-start-h"><option value="">--</option></select>
-          <span class="time-colon">:</span>
-          <select id="gcal-edit-start-m"><option value="">--</option></select>
-        </div>
+        <input type="text" id="gcal-edit-start" placeholder="예: 0900" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
       <div class="form-group">
         <label>종료 시간</label>
-        <div class="time-picker-wrap">
-          <select id="gcal-edit-end-h"><option value="">--</option></select>
-          <span class="time-colon">:</span>
-          <select id="gcal-edit-end-m"><option value="">--</option></select>
-        </div>
+        <input type="text" id="gcal-edit-end" placeholder="예: 1030" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
     </div>
     <div class="form-group">
@@ -1659,7 +1640,6 @@ async function enterApp(){
   restoreGcalToken();
 
   document.getElementById('daily-date').value = today();
-  initTimePickers();
 
   // localStorage → Supabase 1회 자동 이전
   await migrateLocalStorageToSupabase();
@@ -3951,47 +3931,39 @@ document.addEventListener('keydown',e=>{
 // GOOGLE CALENDAR INTEGRATION
 // ═══════════════════════════════════════════════
 /* ── 상수/상태 ── */
-/* ── 24시간 타임피커 헬퍼 ── */
-function initTimePickers() {
-  const hIds = ['gcal-start-h','gcal-end-h','gcal-edit-start-h','gcal-edit-end-h'];
-  const mIds = ['gcal-start-m','gcal-end-m','gcal-edit-start-m','gcal-edit-end-m'];
-  hIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    for (let h = 0; h < 24; h++) {
-      const o = document.createElement('option');
-      o.value = String(h).padStart(2,'0');
-      o.textContent = String(h).padStart(2,'0');
-      el.appendChild(o);
-    }
-  });
-  mIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    for (let m = 0; m < 60; m += 5) {
-      const o = document.createElement('option');
-      o.value = String(m).padStart(2,'0');
-      o.textContent = String(m).padStart(2,'0');
-      el.appendChild(o);
-    }
-  });
+/* ── 24시간 텍스트 타임피커 헬퍼 ── */
+function formatTimeInput(el) {
+  // 숫자만 추출 후 최대 4자리, 3자리 이상이면 콜론 자동 삽입
+  let v = el.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length > 2) v = v.slice(0, 2) + ':' + v.slice(2);
+  el.value = v;
 }
-function getTimeValue(base) {
-  const h = document.getElementById(base+'-h')?.value;
-  const m = document.getElementById(base+'-m')?.value;
-  if (!h || !m) return '';
+function normalizeTimeInput(el) {
+  const digits = el.value.replace(/\D/g, '');
+  if (!digits) { el.value = ''; return; }
+  let h, m;
+  if (digits.length <= 2) {
+    h = parseInt(digits, 10); m = 0;
+  } else {
+    h = parseInt(digits.slice(0, 2), 10);
+    m = parseInt(digits.slice(2, 4) || '0', 10);
+  }
+  if (isNaN(h) || h > 23 || isNaN(m) || m > 59) { el.value = ''; return; }
+  el.value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+function getTimeValue(id) {
+  const el = document.getElementById(id);
+  if (!el || !el.value) return '';
+  const digits = el.value.replace(/\D/g, '');
+  if (!digits) return '';
+  const h = digits.slice(0, 2).padStart(2, '0');
+  const m = (digits.slice(2, 4) || '00').padStart(2, '0');
   return h + ':' + m;
 }
-function setTimeValue(base, val) {
-  const hEl = document.getElementById(base+'-h');
-  const mEl = document.getElementById(base+'-m');
-  if (!hEl || !mEl) return;
-  if (!val) { hEl.value = ''; mEl.value = ''; return; }
-  const [h, m] = val.split(':');
-  hEl.value = h;
-  // 분은 5분 단위 셀렉트이므로 가장 가까운 값으로 맞춤
-  const mNum = Math.round(parseInt(m) / 5) * 5;
-  mEl.value = String(mNum % 60).padStart(2,'0');
+function setTimeValue(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val || '';
 }
 
 const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
