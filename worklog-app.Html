@@ -208,6 +208,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .toast.success{border-color:rgba(59,201,138,0.4);color:var(--green);}
 .toast.error{border-color:rgba(224,85,85,0.4);color:var(--red);}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+/* Custom confirm dialog */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:10000;animation:fadeIn 0.15s ease;}
+.confirm-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:24px 28px;max-width:360px;width:90%;box-shadow:var(--shadow);animation:slideUp 0.2s ease;}
+.confirm-msg{font-size:14px;color:var(--t1);margin-bottom:20px;line-height:1.6;}
+.confirm-actions{display:flex;gap:10px;justify-content:flex-end;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 /* Todo→Log mini prompt */
 .todo-log-prompt{position:fixed;bottom:24px;right:24px;background:var(--card2);border:1px solid rgba(59,201,138,0.4);border-radius:var(--r);padding:16px 18px;width:300px;z-index:9998;box-shadow:var(--shadow);animation:toastIn 0.25s ease;}
 .todo-log-prompt-title{font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px;letter-spacing:0.5px;}
@@ -1320,35 +1326,86 @@ function dbToTrade(r) {
 }
 
 // ═══════════════════════════════════════════════
-// DATABASE (Supabase)
+// DATABASE (Supabase) + in-memory cache
 // ═══════════════════════════════════════════════
+const _C = {}; // cache store
+function _cg(k){ return _C[k]; }
+function _cs(k,v){ _C[k]=v; return v; }
+function _cd(...keys){ keys.forEach(k=>delete _C[k]); }
+
 const DB = {
-  async getUsers(){ const {data,error}=await SB.from('users').select('*'); if(error){console.error(error);return[];} return data||[]; },
-  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role}); if(error)throw error; },
-  async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; },
-  async getOrg(){ const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return{...DEFAULT_ORG}; const d=data[0]; return{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]}; },
-  async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; },
-  async getTodos(uid){ const {data,error}=await SB.from('todos').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToTodo); },
-  async upsertTodo(uid,todo){ const {error}=await SB.from('todos').upsert(todoToDb(todo,uid)); if(error)throw error; },
-  async deleteTodo(id){ const {error}=await SB.from('todos').delete().eq('id',id); if(error)throw error; },
-  async getDailyActivities(uid,date){ const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date); if(error){console.error(error);return[];} return(data||[]).map(dbToActivity); },
-  async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; },
-  async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; },
-  async getPersonalGoals(uid){ const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToPg); },
-  async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; },
-  async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; },
-  async getFacilityGoals(facility){ const {data,error}=await SB.from('facility_goals').select('*').eq('시설명',facility); if(error){console.error(error);return[];} return(data||[]).map(dbToFg); },
-  async upsertFacilityGoal(facility,g){ const {error}=await SB.from('facility_goals').upsert(fgToDb(g,facility)); if(error)throw error; },
-  async deleteFacilityGoal(id){ const {error}=await SB.from('facility_goals').delete().eq('id',id); if(error)throw error; },
-  async getStocks(uid){ const {data,error}=await SB.from('stocks').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToStock); },
-  async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; },
-  async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; },
-  async getTrades(uid){ const {data,error}=await SB.from('trades').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToTrade); },
-  async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; },
-  async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; },
-  async getAnnualGoals(uid){ const {data,error}=await SB.from('annual_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return(data||[]).map(dbToAg); },
-  async upsertAnnualGoal(uid,g){ const {error}=await SB.from('annual_goals').upsert(agToDb(g,uid)); if(error)throw error; },
-  async deleteAnnualGoal(id){ const {error}=await SB.from('annual_goals').delete().eq('id',id); if(error)throw error; },
+  clearCache(){ Object.keys(_C).forEach(k=>delete _C[k]); },
+
+  async getUsers(){
+    const k='users';
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('users').select('*'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+  },
+  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role}); if(error)throw error; _cd('users'); },
+  async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
+
+  async getOrg(){
+    const k='org';
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return _cs(k,{...DEFAULT_ORG}); const d=data[0]; return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
+  },
+  async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; _cd('org'); },
+
+  async getTodos(uid){
+    const k=`todos:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('todos').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTodo));
+  },
+  async upsertTodo(uid,todo){ const {error}=await SB.from('todos').upsert(todoToDb(todo,uid)); if(error)throw error; _cd(`todos:${uid}`); },
+  async deleteTodo(id){ const {error}=await SB.from('todos').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`todos:${currentUser.사원번호}`); },
+
+  async getDailyActivities(uid,date){
+    const k=`act:${uid}:${date}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToActivity));
+  },
+  async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; _cd(`act:${uid}:${date}`); },
+  async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; if(currentUser){ Object.keys(_C).filter(k=>k.startsWith(`act:${currentUser.사원번호}:`)).forEach(k=>delete _C[k]); } },
+
+  async getPersonalGoals(uid){
+    const k=`pg:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToPg));
+  },
+  async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; _cd(`pg:${uid}`); },
+  async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`pg:${currentUser.사원번호}`); },
+
+  async getFacilityGoals(facility){
+    const k=`fg:${facility}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('facility_goals').select('*').eq('시설명',facility); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFg));
+  },
+  async upsertFacilityGoal(facility,g){ const {error}=await SB.from('facility_goals').upsert(fgToDb(g,facility)); if(error)throw error; _cd(`fg:${facility}`); },
+  async deleteFacilityGoal(id){ const {error}=await SB.from('facility_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`fg:${currentUser.시설명}`); },
+
+  async getStocks(uid){
+    const k=`stocks:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('stocks').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToStock));
+  },
+  async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; _cd(`stocks:${uid}`); },
+  async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`stocks:${currentUser.사원번호}`); },
+
+  async getTrades(uid){
+    const k=`trades:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('trades').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTrade));
+  },
+  async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; _cd(`trades:${uid}`); },
+  async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`trades:${currentUser.사원번호}`); },
+
+  async getAnnualGoals(uid){
+    const k=`ag:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('annual_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToAg));
+  },
+  async upsertAnnualGoal(uid,g){ const {error}=await SB.from('annual_goals').upsert(agToDb(g,uid)); if(error)throw error; _cd(`ag:${uid}`); },
+  async deleteAnnualGoal(id){ const {error}=await SB.from('annual_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`ag:${currentUser.사원번호}`); },
 };
 
 // ═══════════════════════════════════════════════
@@ -1382,7 +1439,17 @@ async function doLogin(){
   if(btn){ btn.disabled=true; btn.textContent='로그인 중...'; }
   try{
     const users = await DB.getUsers();
-    const user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===pw);
+    const hashed = await hashPassword(pw);
+    let user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===hashed);
+    if(!user){
+      // 평문 비밀번호 레거시 매칭 → 성공 시 자동으로 해시로 마이그레이션
+      const legacy = users.find(u=>u.시설명===facility && u.사원번호===empno && !isHashed(u.패스워드) && u.패스워드===pw);
+      if(legacy){
+        legacy.패스워드=hashed;
+        await DB.upsertUser(legacy);
+        user=legacy;
+      }
+    }
     if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
     currentUser = user;
     sessionStorage.setItem('wl_session', JSON.stringify(user));
@@ -1457,6 +1524,7 @@ async function migrateLocalStorageToSupabase(){
 
 function doLogout(){
   stopGcalAutoRefresh();
+  DB.clearCache();
   sessionStorage.removeItem('wl_session');
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
@@ -1668,7 +1736,7 @@ async function savePersonalGoal(){
 }
 
 async function deletePersonalGoal(id){
-  if(!confirm('삭제하시겠습니까?')) return;
+  if(!await confirmDialog('삭제하시겠습니까?')) return;
   try{
     await DB.deletePersonalGoal(id);
     await renderPersonalGoals();
@@ -1850,7 +1918,7 @@ async function saveAnnualGoal(){
 }
 
 async function deleteAnnualGoal(id){
-  if(!confirm('이 목표를 삭제하시겠습니까?')) return;
+  if(!await confirmDialog('이 목표를 삭제하시겠습니까?')) return;
   try{
     await DB.deleteAnnualGoal(id);
     toast('목표가 삭제되었습니다','success');
@@ -2165,7 +2233,7 @@ async function saveStock(){
 }
 
 async function deleteStock(id){
-  if(!confirm('삭제하시겠습니까?')) return;
+  if(!await confirmDialog('삭제하시겠습니까?')) return;
   try{
     await DB.deleteStock(id);
     await renderStocks();
@@ -2623,7 +2691,7 @@ async function saveTrade(){
 }
 
 async function deleteTrade(id){
-  if(!confirm('매매 기록을 삭제하시겠습니까?')) return;
+  if(!await confirmDialog('매매 기록을 삭제하시겠습니까?')) return;
   try{
     await DB.deleteTrade(id);
     await Promise.all([renderStocks(),renderTrades()]);
@@ -2847,7 +2915,7 @@ async function saveTodo(){
 }
 
 async function deleteTodo(id){
-  if(!confirm('삭제하시겠습니까?')) return;
+  if(!await confirmDialog('삭제하시겠습니까?')) return;
   try{
     await DB.deleteTodo(id);
     await renderTodos();
@@ -2999,7 +3067,7 @@ async function saveActivity(){
 }
 
 async function deleteActivity(date,id){
-  if(!confirm('삭제하시겠습니까?')) return;
+  if(!await confirmDialog('삭제하시겠습니까?')) return;
   try{
     await DB.deleteActivity(id);
     await renderDailyActivities(date);
@@ -3056,8 +3124,8 @@ function addStrategyGoal(){
   renderStrategyEditor();
 }
 
-function deleteStrategyGoal(i){
-  if(!confirm(`전략목표 ${i+1}과 관련 전략과제를 모두 삭제하시겠습니까?`)) return;
+async function deleteStrategyGoal(i){
+  if(!await confirmDialog(`전략목표 ${i+1}과 관련 전략과제를 모두 삭제하시겠습니까?`)) return;
   collectStrategyDraft();
   strategyDraft.splice(i,1);
   renderStrategyEditor();
@@ -3213,7 +3281,7 @@ async function saveFacilityGoal(){
 }
 
 async function deleteFacilityGoal(id){
-  if(!confirm('시설목표를 삭제하시겠습니까?')) return;
+  if(!await confirmDialog('시설목표를 삭제하시겠습니까?')) return;
   try{
     await DB.deleteFacilityGoal(id);
     await renderAdminFacilityGoals();
@@ -3276,7 +3344,8 @@ async function saveUser(){
   if(!시설명||!사원번호||!패스워드){ toast('모든 항목을 입력하세요','error'); return; }
   if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
   const editId=document.getElementById('um-edit-id').value;
-  const data={id:editId||uid(), 시설명, 사원번호, 패스워드, role:document.getElementById('um-role').value};
+  const hashedPw=isHashed(패스워드)?패스워드:await hashPassword(패스워드);
+  const data={id:editId||uid(), 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
   const users=await DB.getUsers();
   const dup=users.find(u=>u.사원번호===사원번호 && u.id!==editId);
   if(dup){ toast('이미 사용 중인 사원번호입니다','error'); return; }
@@ -3290,7 +3359,7 @@ async function saveUser(){
 
 async function deleteUser(id){
   if(currentUser.id===id){ toast('자기 자신은 삭제할 수 없습니다','error'); return; }
-  if(!confirm('사용자를 삭제하시겠습니까?')) return;
+  if(!await confirmDialog('사용자를 삭제하시겠습니까?')) return;
   try{
     await DB.deleteUser(id);
     await renderAdminUsers();
@@ -3300,7 +3369,7 @@ async function deleteUser(id){
 
 async function exportUsersCSV(){
   const users=await DB.getUsers();
-  const rows=[['시설명','사원번호','패스워드','권한'],...users.map(u=>[u.시설명,u.사원번호,u.패스워드,u.role])];
+  const rows=[['시설명','사원번호','권한'],...users.map(u=>[u.시설명,u.사원번호,u.role])];
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='users.csv'; a.click();
@@ -3313,11 +3382,12 @@ function importUsersCSV(e){
     const lines=ev.target.result.split('\n').filter(l=>l.trim());
     const rows=lines.map(l=>l.split(',').map(v=>v.trim().replace(/^"|"$/g,'').replace(/""/g,'"')));
     const header=rows[0];
-    const data=rows.slice(1).map(r=>({
+    const raw=rows.slice(1).map(r=>({
       id:uid(),
       시설명:r[0]||'',사원번호:r[1]||'',패스워드:r[2]||'',role:r[3]||'user'
     })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
-    if(!data.length){ toast('유효한 데이터가 없습니다','error'); return; }
+    if(!raw.length){ toast('유효한 데이터가 없습니다','error'); return; }
+    const data=await Promise.all(raw.map(async u=>({...u, 패스워드:isHashed(u.패스워드)?u.패스워드:await hashPassword(u.패스워드)})));
     for(const u of data) await DB.upsertUser(u);
     await renderAdminUsers();
     toast(`${data.length}명 사용자가 업로드되었습니다`);
@@ -3362,6 +3432,29 @@ function toast(msg, type='success'){
 // UTILS
 // ═══════════════════════════════════════════════
 function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// SHA-256 해싱
+async function hashPassword(pw){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function isHashed(s){ return typeof s==='string' && /^[0-9a-f]{64}$/.test(s); }
+
+// 커스텀 confirm 다이얼로그
+function confirmDialog(msg, btnLabel='삭제'){
+  return new Promise(resolve=>{
+    document.querySelectorAll('.confirm-overlay').forEach(el=>el.remove());
+    const overlay=document.createElement('div');
+    overlay.className='confirm-overlay';
+    overlay.innerHTML=`<div class="confirm-box"><div class="confirm-msg">${esc(msg)}</div><div class="confirm-actions"><button class="btn btn-secondary" id="cdNo">취소</button><button class="btn btn-danger" id="cdYes">${esc(btnLabel)}</button></div></div>`;
+    document.body.appendChild(overlay);
+    const done=r=>{overlay.remove();resolve(r);};
+    overlay.querySelector('#cdYes').addEventListener('click',()=>done(true));
+    overlay.querySelector('#cdNo').addEventListener('click',()=>done(false));
+    overlay.addEventListener('click',e=>{if(e.target===overlay)done(false);});
+    overlay.querySelector('#cdNo').focus();
+  });
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown',e=>{
@@ -3813,7 +3906,7 @@ async function saveEditGcalEvent() {
 /* ── 삭제 ── */
 async function deleteGcalEvent(eventId) {
   hideGcalPopup();
-  if (!confirm('이 일정을 삭제할까요?')) return;
+  if (!await confirmDialog('이 일정을 삭제할까요?', '삭제')) return;
   const ev = gcalEvents.find(x => x.id === eventId);
   const calId = ev?._calId || 'primary';
   try {
