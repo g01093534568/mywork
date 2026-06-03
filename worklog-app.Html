@@ -2230,50 +2230,44 @@ function stopStockAutoRefresh(){
 // ═══════════════════════════════════════════════
 // EXCHANGE RATE (환율)
 // ═══════════════════════════════════════════════
-function fxYesterdayStr(){
-  const d=new Date(); d.setDate(d.getDate()-1);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
 async function loadExchangeRates(){
   const grid=document.getElementById('fx-grid');
   const statusEl=document.getElementById('fx-last-updated');
   if(!grid) return;
 
   const currencies=[
-    {code:'USD', flag:'🇺🇸', name:'미국 달러', pair:'USD / KRW', unit:'1 달러', mult:1},
-    {code:'JPY', flag:'🇯🇵', name:'일본 엔',   pair:'JPY / KRW', unit:'100 엔', mult:100},
-    {code:'EUR', flag:'🇪🇺', name:'유로',      pair:'EUR / KRW', unit:'1 유로', mult:1},
+    {code:'FRX.KRWUSD', flag:'🇺🇸', pair:'USD / KRW', unit:'1 달러'},
+    {code:'FRX.KRWJPY', flag:'🇯🇵', pair:'JPY / KRW', unit:'100 엔'},
+    {code:'FRX.KRWEUR', flag:'🇪🇺', pair:'EUR / KRW', unit:'1 유로'},
   ];
 
   try{
-    const [todayRes, ystRes]=await Promise.all([
-      fetch('https://api.frankfurter.dev/v1/latest?from=KRW&to=USD,EUR,JPY'),
-      fetch(`https://api.frankfurter.dev/v1/${fxYesterdayStr()}?from=KRW&to=USD,EUR,JPY`)
-    ]);
-    if(!todayRes.ok) throw new Error('API error');
-    const todayData=await todayRes.json();
-    const ystData=ystRes.ok ? await ystRes.json() : null;
+    const res=await fetch(`https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=${currencies.map(c=>c.code).join(',')}`);
+    if(!res.ok) throw new Error('API error');
+    const data=await res.json();
 
     const now=new Date();
-    if(statusEl) statusEl.textContent=`${todayData.date} 기준 (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 갱신 · 60초마다 자동 갱신)`;
+    const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if(statusEl) statusEl.textContent=`매매기준율 (${timeStr} 갱신 · 60초마다 자동 갱신)`;
     fxCountdown=FX_REFRESH_SEC;
     const btn=document.getElementById('fx-refresh-btn');
     if(btn){ btn.disabled=false; }
 
-    grid.innerHTML=currencies.map(cur=>{
-      const todayRate=cur.mult/todayData.rates[cur.code];
-      const ystRate=(ystData&&ystData.rates&&ystData.rates[cur.code])?(cur.mult/ystData.rates[cur.code]):null;
-      const diff=ystRate!=null?todayRate-ystRate:0;
-      const pct=ystRate!=null?(diff/ystRate*100):0;
+    grid.innerHTML=currencies.map((cur,i)=>{
+      const d=data[i];
+      if(!d) return '';
+      const rate=d.basePrice;
+      const dir=d.change==='RISE'?1:d.change==='FALL'?-1:0;
+      const diff=d.changePrice*dir;
+      const pct=d.changePriceRate*100*dir;
       const cls=diff>0.5?'fx-up':diff<-0.5?'fx-down':'fx-flat';
       const sign=diff>=0?'+':'';
       return `<div class="fx-card ${cls}">
         <div class="fx-flag">${cur.flag}</div>
         <div class="fx-pair">${cur.pair}</div>
-        <div class="fx-rate">${todayRate.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}<span style="font-size:14px;color:var(--t2);font-weight:400"> 원</span></div>
-        <div class="fx-unit">${cur.unit} 기준</div>
-        <div class="fx-change ${cls}">${ystRate!=null?`${sign}${diff.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}원 (${sign}${pct.toFixed(2)}%)`:'전일 데이터 없음'}</div>
+        <div class="fx-rate">${rate.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}<span style="font-size:14px;color:var(--t2);font-weight:400"> 원</span></div>
+        <div class="fx-unit">${cur.unit} · 매매기준율</div>
+        <div class="fx-change ${cls}">${sign}${diff.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})}원 (${sign}${pct.toFixed(2)}%)</div>
         <div class="fx-meta">전일 대비</div>
       </div>`;
     }).join('');
@@ -2338,7 +2332,8 @@ async function renderTrades(){
   }
   if(!trades.length){ tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
   if(empty) empty.style.display='none';
-  tbody.innerHTML=trades.map(t=>{
+  const displayed=trades.slice(0,10);
+  tbody.innerHTML=displayed.map(t=>{
     const stock=stocks.find(s=>s.id===t.stockId);
     const total=(Number(t.qty)||0)*(Number(t.price)||0);
     return `<tr>
