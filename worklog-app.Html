@@ -703,10 +703,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 리포트 설정</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Anthropic API 키를 등록하면 업무 페이지에서 AI 성찰 리포트를 사용할 수 있습니다. 키는 이 기기에만 저장됩니다.</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google AI Studio API 키를 등록하면 업무 페이지에서 AI 성찰 리포트를 사용할 수 있습니다. 무료로 사용 가능하며, 키는 이 기기에만 저장됩니다.</div>
           <div class="form-group">
-            <label>Anthropic API 키</label>
-            <input type="password" id="ai-api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" />
+            <label>Gemini API 키 (Google AI Studio)</label>
+            <input type="password" id="ai-api-key-input" placeholder="AIzaSy..." autocomplete="off" />
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
             <button class="btn btn-primary" onclick="saveAiApiKey()">저장</button>
@@ -3858,7 +3858,7 @@ function clearAiApiKey(){
 
 async function generateAIReport(){
   const key=getAiApiKey();
-  if(!key){ toast('설정 → Google 계정 탭에서 Anthropic API 키를 먼저 등록하세요','error'); return; }
+  if(!key){ toast('설정 → Google 계정 탭에서 Gemini API 키를 먼저 등록하세요','error'); return; }
 
   const date=document.getElementById('daily-date').value||today();
   const btn=document.getElementById('ai-report-btn');
@@ -3910,26 +3910,17 @@ ${actText}
 2. 💡 아쉬운 점 또는 개선 포인트
 3. 🎯 내일을 위한 제언`;
 
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,{
       method:'POST',
-      headers:{
-        'x-api-key':key,
-        'anthropic-version':'2023-06-01',
-        'content-type':'application/json',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:800,
-        messages:[{role:'user',content:prompt}]
-      })
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
     });
     if(!res.ok){
       const err=await res.json().catch(()=>({}));
       throw new Error(err.error?.message||`HTTP ${res.status}`);
     }
     const data=await res.json();
-    box.textContent=data.content?.[0]?.text||'리포트를 생성하지 못했습니다.';
+    box.textContent=data.candidates?.[0]?.content?.parts?.[0]?.text||'리포트를 생성하지 못했습니다.';
   }catch(e){
     console.error('[AI Report]',e);
     box.textContent='⚠️ 리포트 생성 실패: '+e.message;
