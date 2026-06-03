@@ -3592,6 +3592,7 @@ function stopGcalAutoRefresh() {
 /* ── 토큰 관리 ── */
 function saveGcalToken(token, email) {
   gcalToken = token;
+  gcalCalendars = []; // 새 토큰 발급 시 목록 초기화 → 다음 렌더에서 새로 가져옴
   sessionStorage.setItem(GCAL_TOKEN_KEY, token);
   sessionStorage.setItem(GCAL_TOKEN_TIME_KEY, Date.now().toString());
   updateGcalConnectionUI(true, email);
@@ -3663,6 +3664,7 @@ function connectGoogleCalendarWithEmail() {
 function disconnectGoogleCalendar() {
   gcalToken = null;
   gcalEvents = [];
+  gcalCalendars = [];
   sessionStorage.removeItem(GCAL_TOKEN_KEY);
   sessionStorage.removeItem(GCAL_TOKEN_TIME_KEY);
   if (currentUser) localStorage.removeItem('gcal_email_' + currentUser.사원번호);
@@ -3705,7 +3707,13 @@ async function renderCustomCalendar() {
   } catch(e) {
     if (gen !== gcalRenderGen) return;
     const loadEl = document.getElementById('gcal-cells-loading');
-    if (loadEl) loadEl.textContent = '일정을 불러오지 못했습니다.';
+    if (loadEl) {
+      if (e.message === '401') {
+        loadEl.textContent = '인증이 만료됐습니다. 설정에서 Google 계정을 다시 연동해주세요.';
+      } else {
+        loadEl.textContent = '일정을 불러오지 못했습니다.';
+      }
+    }
   }
 }
 
@@ -3727,6 +3735,13 @@ async function fetchGcalEventsForMonth(y, m) {
   const results = await Promise.all(gcalCalendars.map(async cal => {
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime&maxResults=200`;
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${gcalToken}` } });
+    if (res.status === 401) {
+      gcalToken = null;
+      gcalCalendars = [];
+      sessionStorage.removeItem(GCAL_TOKEN_KEY);
+      updateGcalConnectionUI(false, '');
+      throw new Error('401');
+    }
     if (!res.ok) return [];
     const data = await res.json();
     return (data.items || []).map(ev => ({
@@ -4059,7 +4074,7 @@ async function addGcalEvent() {
     closeModal('gcal-modal');
     toast('일정이 추가됐습니다 🎉');
     // 추가한 날짜 달로 이동
-    const [ey, em] = date.split('-').map(Number);
+    const [ey, em] = startDate.split('-').map(Number);
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
