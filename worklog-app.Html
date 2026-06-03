@@ -2354,12 +2354,30 @@ async function renderTrades(){
     if(trades.length){
       const totalBuy=trades.filter(t=>t.type==='buy').reduce((s,t)=>s+(Number(t.qty)||0)*(Number(t.price)||0),0);
       const totalSell=trades.filter(t=>t.type==='sell').reduce((s,t)=>s+(Number(t.qty)||0)*(Number(t.price)||0),0);
-      const realizedPnl=totalSell-totalBuy;
+      // 실현손익: 매도 시 (매도가 - 평균매수단가) × 수량 누계
+      const sorted=[...allTrades].sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
+      const pos={};
+      let realizedPnl=0;
+      for(const t of sorted){
+        const key=t.stockId||t.stockName;
+        if(!pos[key]) pos[key]={qty:0,cost:0};
+        const qty=Number(t.qty)||0, price=Number(t.price)||0;
+        if(t.type==='buy'){
+          pos[key].cost+=qty*price;
+          pos[key].qty+=qty;
+        } else if(t.type==='sell'&&pos[key].qty>0){
+          const avg=pos[key].cost/pos[key].qty;
+          const sold=Math.min(qty,pos[key].qty);
+          realizedPnl+=(price-avg)*sold;
+          pos[key].cost-=avg*sold;
+          pos[key].qty=Math.max(0,pos[key].qty-sold);
+        }
+      }
       summary.innerHTML=`
         <span style="color:var(--t3)">총 ${trades.length}건</span>
         <span>매수 <strong style="color:var(--red)">₩${fmtNum(totalBuy)}</strong></span>
         <span>매도 <strong style="color:var(--blue)">₩${fmtNum(totalSell)}</strong></span>
-        <span style="color:${realizedPnl>=0?'var(--green)':'var(--red)'}">실현손익 ${realizedPnl>=0?'+':''}₩${fmtNum(realizedPnl)}</span>`;
+        <span style="color:${realizedPnl>=0?'var(--green)':'var(--red)'}">실현손익 ${realizedPnl>=0?'+':''}₩${fmtNum(Math.round(realizedPnl))}</span>`;
     } else {
       summary.innerHTML='';
     }
