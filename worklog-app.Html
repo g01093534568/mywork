@@ -1645,7 +1645,8 @@ async function enterApp(){
   await migrateLocalStorageToSupabase();
 
   loadAdminGoalsForm();
-  navigate('home');
+  const lastPage = localStorage.getItem('wl_nav_page_'+currentUser.사원번호) || 'home';
+  navigate(lastPage);
 }
 
 async function migrateLocalStorageToSupabase(){
@@ -1709,6 +1710,7 @@ function navigate(page){
   if(navEl) navEl.classList.add('active');
   if(currentPage==='personal' && page!=='personal'){ stopStockAutoRefresh(); stopFxAutoRefresh(); }
   currentPage=page;
+  localStorage.setItem('wl_nav_page_'+currentUser.사원번호, page);
   if(page==='home') renderHome();
   if(page==='todo') renderTodos();
   if(page==='daily'){
@@ -1726,9 +1728,13 @@ function navigate(page){
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
-    if(currentUser.role==='admin') switchAdminTab('goals');
-    else if(currentUser.role==='facility-admin') switchAdminTab('facility');
-    else switchAdminTab('google');
+    const _savedAdminTab = localStorage.getItem('wl_nav_admin_'+currentUser.사원번호);
+    const _isAdmin = currentUser.role==='admin';
+    const _isFacAdmin = currentUser.role==='facility-admin';
+    const _allowed = ['google',...(_isAdmin||_isFacAdmin?['facility']:[]),...(_isAdmin?['goals','users']:[])];
+    const _adminTab = _savedAdminTab && _allowed.includes(_savedAdminTab) ? _savedAdminTab
+                    : _isAdmin ? 'goals' : _isFacAdmin ? 'facility' : 'google';
+    switchAdminTab(_adminTab);
   }
 
 }
@@ -1909,10 +1915,12 @@ async function deletePersonalGoal(id){
 // PERSONAL PAGE
 // ═══════════════════════════════════════════════
 async function renderPersonalPage(){
-  await switchPersonalTab('annual');
+  const lastPersonalTab = localStorage.getItem('wl_nav_personal_'+currentUser.사원번호) || 'annual';
+  await switchPersonalTab(lastPersonalTab);
 }
 
 async function switchPersonalTab(tab){
+  localStorage.setItem('wl_nav_personal_'+currentUser.사원번호, tab);
   document.querySelectorAll('.personal-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.personal-tab').forEach(t=>t.classList.remove('active'));
   const panel=document.getElementById('personal-'+tab);
@@ -3826,6 +3834,7 @@ function importUsersCSV(e){
 }
 
 async function switchAdminTab(tab){
+  localStorage.setItem('wl_nav_admin_'+currentUser.사원번호, tab);
   ['google','goals','facility','users'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
