@@ -208,6 +208,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .toast.success{border-color:rgba(59,201,138,0.4);color:var(--green);}
 .toast.error{border-color:rgba(224,85,85,0.4);color:var(--red);}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+/* Todo→Log mini prompt */
+.todo-log-prompt{position:fixed;bottom:24px;right:24px;background:var(--card2);border:1px solid rgba(59,201,138,0.4);border-radius:var(--r);padding:16px 18px;width:300px;z-index:9998;box-shadow:var(--shadow);animation:toastIn 0.25s ease;}
+.todo-log-prompt-title{font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px;letter-spacing:0.5px;}
+.todo-log-prompt-item{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.todo-log-prompt-row{display:flex;gap:8px;align-items:center;}
+.todo-log-prompt input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--t1);outline:none;}
+.todo-log-prompt input:focus{border-color:var(--accent);}
+.todo-log-prompt-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end;}
+.tlp-btn-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;}
+.tlp-btn-skip{background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
 /* Empty state */
 .empty-state{text-align:center;padding:40px 20px;color:var(--t3);}
 .empty-state .icon{font-size:36px;margin-bottom:10px;}
@@ -2722,18 +2732,52 @@ async function toggleTodoDone(id, date){
   const todo=todos.find(t=>t.id===id);
   if(!todo) return;
   const doneDate=date||today();
+  let becomingDone=false;
   if(todo.isRecurring){
     const dates=todo.completedDates||[];
     const idx=dates.indexOf(doneDate);
-    if(idx>=0) dates.splice(idx,1); else dates.push(doneDate);
+    if(idx>=0) dates.splice(idx,1); else { dates.push(doneDate); becomingDone=true; }
     todo.completedDates=dates;
   } else {
-    if(todo.status==='todo'){ todo.status='done'; todo.completedDate=doneDate; }
+    if(todo.status==='todo'){ todo.status='done'; todo.completedDate=doneDate; becomingDone=true; }
     else { todo.status='todo'; todo.completedDate=null; }
   }
   await DB.upsertTodo(currentUser.사원번호,todo);
   await renderTodos();
   if(currentPage==='daily') await renderDailyTodos(date);
+  if(becomingDone) showTodoLogPrompt(todo, doneDate);
+}
+
+function showTodoLogPrompt(todo, date){
+  document.querySelectorAll('.todo-log-prompt').forEach(el=>el.remove());
+  const el=document.createElement('div');
+  el.className='todo-log-prompt';
+  el.innerHTML=`
+    <div class="todo-log-prompt-title">✓ 완료 — 업무일지에 추가할까요?</div>
+    <div class="todo-log-prompt-item" title="${esc(todo.title)}">${esc(todo.title)}</div>
+    <div class="todo-log-prompt-row">
+      <input type="text" id="tlp-time" placeholder="시간 (예: 09:00~10:30)" />
+    </div>
+    <div class="todo-log-prompt-actions">
+      <button class="tlp-btn-skip" onclick="this.closest('.todo-log-prompt').remove()">건너뛰기</button>
+      <button class="tlp-btn-add" onclick="confirmTodoToLog('${esc(todo.id)}','${esc(todo.title)}','${date}')">업무일지 추가</button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#tlp-time').focus();
+  // 8초 후 자동 닫힘
+  setTimeout(()=>{ if(el.parentNode){ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }},8000);
+}
+
+async function confirmTodoToLog(todoId, todoTitle, date){
+  const timeEl=document.getElementById('tlp-time');
+  const time=timeEl?timeEl.value.trim():'';
+  const data={ id:uid(), title:todoTitle, time, linked:'', content:'', reflection:'' };
+  try{
+    await DB.upsertActivity(currentUser.사원번호, date, data);
+    document.querySelectorAll('.todo-log-prompt').forEach(el=>el.remove());
+    toast('업무일지에 추가되었습니다 ✓');
+    if(currentPage==='daily') await renderDailyActivities(date);
+  }catch(e){ toast('추가에 실패했습니다','error'); console.error(e); }
 }
 
 async function openTodoModal(id){
@@ -3321,7 +3365,14 @@ function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').
 
 // Keyboard shortcuts
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.active').forEach(el=>el.classList.remove('active'));
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.active').forEach(el=>el.classList.remove('active'));
+    document.querySelectorAll('.todo-log-prompt').forEach(el=>el.remove());
+  }
+  if(e.key==='Enter' && e.target.id==='tlp-time'){
+    const prompt=e.target.closest('.todo-log-prompt');
+    if(prompt) prompt.querySelector('.tlp-btn-add').click();
+  }
 });
 
 // ═══════════════════════════════════════════════
