@@ -1206,8 +1206,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <textarea id="agm-desc" rows="3" placeholder="목표에 대한 상세 내용을 입력하세요"></textarea>
     </div>
     <div class="form-group">
-      <label>목표치 / 기준</label>
-      <input type="text" id="agm-target" placeholder="예: 10kg 감량, 월 100만원 저축, 책 24권" />
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="margin-bottom:0">목표치 / 기준</label>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addAgTarget()" style="font-size:12px">+ 추가</button>
+      </div>
+      <div id="agm-target-list"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1778,24 +1781,51 @@ async function switchPersonalTab(tab){
 // ANNUAL GOALS
 // ═══════════════════════════════════════════════
 function dbToAg(d){
+  let targets=[];
+  if(d.target){
+    try{
+      const p=JSON.parse(d.target);
+      targets=Array.isArray(p)?p:(p?[String(p)]:[]);
+    }catch{ targets=d.target?[d.target]:[]; }
+  }
   return {
     id: d.id,
     year: d.year||new Date().getFullYear(),
     category: d.category||'기타',
     title: d.title||'',
     desc: d.description||'',
-    target: d.target||'',
+    targets,
     progress: d.progress||0,
     status: d.status||'진행중',
   };
 }
 function agToDb(g,uid){
-  const obj={사원번호:uid,year:g.year,category:g.category,title:g.title,description:g.desc||'',target:g.target||'',progress:g.progress||0,status:g.status||'진행중',updated_at:new Date().toISOString()};
+  const obj={사원번호:uid,year:g.year,category:g.category,title:g.title,description:g.desc||'',target:JSON.stringify(g.targets||[]),progress:g.progress||0,status:g.status||'진행중',updated_at:new Date().toISOString()};
   if(g.id) obj.id=g.id;
   return obj;
 }
 
 let _agGoals=[];
+let _agTargetDraft=[];
+
+function renderAgTargets(){
+  const list=document.getElementById('agm-target-list');
+  if(!list) return;
+  if(!_agTargetDraft.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:6px 0">목표치가 없습니다. + 추가 버튼으로 입력하세요.</div>';
+    return;
+  }
+  list.innerHTML=_agTargetDraft.map((v,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input type="text" class="agt-input" data-idx="${i}" value="${esc(v)}"
+        placeholder="예: 10kg 감량, 책 24권"
+        oninput="_agTargetDraft[${i}]=this.value"
+        style="font-size:13px;flex:1" />
+      <button type="button" class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="deleteAgTarget(${i})">✕</button>
+    </div>`).join('');
+}
+function addAgTarget(){ _agTargetDraft.push(''); renderAgTargets(); setTimeout(()=>{ const inputs=document.querySelectorAll('.agt-input'); if(inputs.length) inputs[inputs.length-1].focus(); },50); }
+function deleteAgTarget(i){ _agTargetDraft.splice(i,1); renderAgTargets(); }
 
 function initAnnualGoalsTab(){
   const sel=document.getElementById('ag-year-select');
@@ -1857,7 +1887,7 @@ async function renderAnnualGoals(){
       </div>
       <span class="ag-card-cat ag-cat-${esc(g.category)}">${esc(g.category)}</span>
       ${g.desc?`<div class="ag-card-desc">${esc(g.desc)}</div>`:''}
-      ${g.target?`<div class="ag-card-target">🎯 목표치: ${esc(g.target)}</div>`:''}
+      ${g.targets&&g.targets.length?`<div class="ag-card-target">${g.targets.map(t=>`🎯 ${esc(t)}`).join('<br>')}</div>`:''}
       <div class="ag-progress-wrap">
         <div class="ag-progress-label">
           <span>진행률</span>
@@ -1877,13 +1907,13 @@ async function openAnnualGoalModal(id){
   document.getElementById('agm-edit-id').value='';
   document.getElementById('agm-title').value='';
   document.getElementById('agm-desc').value='';
-  document.getElementById('agm-target').value='';
   document.getElementById('agm-progress').value=0;
   document.getElementById('agm-status').value='진행중';
   document.getElementById('agm-year').value=year;
   document.getElementById('agm-category').value='업무';
   document.getElementById('agm-progress-preview').style.width='0%';
   document.getElementById('ag-modal-title').textContent='연간 목표 추가';
+  _agTargetDraft=[];
   if(id){
     const g=_agGoals.find(x=>x.id===id);
     if(!g) return;
@@ -1893,11 +1923,12 @@ async function openAnnualGoalModal(id){
     document.getElementById('agm-category').value=g.category;
     document.getElementById('agm-title').value=g.title;
     document.getElementById('agm-desc').value=g.desc||'';
-    document.getElementById('agm-target').value=g.target||'';
+    _agTargetDraft=[...(g.targets||[])];
     document.getElementById('agm-progress').value=g.progress||0;
     document.getElementById('agm-status').value=g.status||'진행중';
     document.getElementById('agm-progress-preview').style.width=(g.progress||0)+'%';
   }
+  renderAgTargets();
   openModal('ag-modal');
 }
 
@@ -1915,7 +1946,7 @@ async function saveAnnualGoal(){
     year:parseInt(document.getElementById('agm-year').value)||new Date().getFullYear(),
     category:document.getElementById('agm-category').value||'기타',
     desc:document.getElementById('agm-desc').value.trim(),
-    target:document.getElementById('agm-target').value.trim(),
+    targets:_agTargetDraft.map(t=>t.trim()).filter(Boolean),
     progress:Math.min(100,Math.max(0,parseInt(document.getElementById('agm-progress').value)||0)),
     status:document.getElementById('agm-status').value||'진행중',
   };
