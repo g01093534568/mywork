@@ -132,14 +132,23 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .todo-toolbar{display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap;}
 .todo-toolbar input{flex:1;min-width:200px;}
 .todo-toolbar select{width:auto;flex:none;}
-.todo-container{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow-x:auto;}
-.todo-table-wrapper{min-width:800px;}
-.todo-table{width:100%;border-collapse:collapse;}
+.todo-container{background:var(--card);border:1px solid var(--border);border-radius:var(--r);}
+.todo-table-wrapper{overflow-x:auto;width:100%;}
+.todo-table{min-width:700px;width:100%;border-collapse:collapse;}
 .todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
 .todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;text-align:center;}
-.todo-table{width:100%;border-collapse:collapse;}
-.todo-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
-.todo-table td{padding:12px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;text-align:center;}
+/* Mobile todo cards */
+#todo-cards{display:none;padding:12px;}
+.todo-m-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;}
+.todo-m-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.todo-m-card-title{font-size:14px;font-weight:600;flex:1;cursor:pointer;text-align:left;}
+.todo-m-card-title.done{text-decoration:line-through;color:var(--t3);}
+.todo-m-card-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+.todo-m-card-actions{display:flex;gap:6px;justify-content:flex-end;}
+@media(max-width:600px){.todo-table-wrapper{display:none;}#todo-cards{display:block;}}
+/* Fade-out animation */
+@keyframes fadeOutEl{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(12px)}}
+.fade-out-el{animation:fadeOutEl 0.25s ease forwards;pointer-events:none;overflow:hidden;}
 .todo-table tr:hover td{background:rgba(255,255,255,0.02);}
 .todo-title-cell{max-width:240px;}
 .todo-title-text{font-weight:500;cursor:pointer;}
@@ -503,6 +512,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </table>
        </div>
         <div id="todo-empty" class="empty-state" style="display:none"><div class="icon">📋</div><p>할 일이 없습니다. 새 할 일을 추가해 보세요!</p></div>
+        <div id="todo-cards"></div>
       </div>
     </div>
 
@@ -1639,7 +1649,7 @@ async function renderPersonalGoals(){
   const cont=document.getElementById('personal-goals-display');
   if(!goals.length){ cont.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">📊</div><p>개인 성과 목표를 추가해 보세요</p></div>'; return; }
   cont.innerHTML=goals.map(g=>`
-    <div class="kpi-card">
+    <div class="kpi-card" data-id="${g.id}">
       <div class="kpi-card-header">
         <div class="kpi-card-title">${esc(g.goal)}</div>
         <div style="display:flex;gap:6px;align-items:center">
@@ -1737,6 +1747,7 @@ async function savePersonalGoal(){
 
 async function deletePersonalGoal(id){
   if(!await confirmDialog('삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.kpi-card[data-id="${id}"]`));
   try{
     await DB.deletePersonalGoal(id);
     await renderPersonalGoals();
@@ -1836,7 +1847,7 @@ async function renderAnnualGoals(){
   empty.style.display='none';
   const fillColor=s=>s==='완료'?'linear-gradient(90deg,var(--accent),var(--green))':s==='중단'?'var(--t3)':'linear-gradient(90deg,var(--blue),var(--purple))';
   grid.innerHTML=list.map(g=>`
-    <div class="ag-card ag-status-${esc(g.status)}">
+    <div class="ag-card ag-status-${esc(g.status)}" data-id="${g.id}">
       <div class="ag-card-top">
         <div class="ag-card-title">${esc(g.title)}</div>
         <div class="ag-card-actions">
@@ -1919,6 +1930,7 @@ async function saveAnnualGoal(){
 
 async function deleteAnnualGoal(id){
   if(!await confirmDialog('이 목표를 삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.ag-card[data-id="${id}"]`));
   try{
     await DB.deleteAnnualGoal(id);
     toast('목표가 삭제되었습니다','success');
@@ -2152,7 +2164,7 @@ async function renderStocks(){
     const pnl=qty?(cur-avg)*qty:null;
     const pnlPct=avg&&qty?((cur-avg)/avg*100):null;
     const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'pnl-flat');
-    return `<div class="stock-card stock-${dir}">
+    return `<div class="stock-card stock-${dir}" data-id="${s.id}">
       <div class="stock-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="openTradeModal('${s.id}')" title="매매 기록">📋</button>
         <button class="btn btn-ghost btn-sm" onclick="openStockModal('${s.id}')">✏️</button>
@@ -2234,6 +2246,7 @@ async function saveStock(){
 
 async function deleteStock(id){
   if(!await confirmDialog('삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.stock-card[data-id="${id}"]`));
   try{
     await DB.deleteStock(id);
     await renderStocks();
@@ -2532,7 +2545,7 @@ async function renderTrades(){
   tbody.innerHTML=displayed.map(t=>{
     const stock=stocks.find(s=>s.id===t.stockId);
     const total=(Number(t.qty)||0)*(Number(t.price)||0);
-    return `<tr>
+    return `<tr data-id="${t.id}">
       <td style="white-space:nowrap;color:var(--t2)">${fmtDate(t.date)}</td>
       <td>
         <div style="font-weight:600">${esc(t.stockName||(stock?stock.name:'삭제된 종목'))}</div>
@@ -2692,6 +2705,7 @@ async function saveTrade(){
 
 async function deleteTrade(id){
   if(!await confirmDialog('매매 기록을 삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`#trade-tbody tr[data-id="${id}"]`));
   try{
     await DB.deleteTrade(id);
     await Promise.all([renderStocks(),renderTrades()]);
@@ -2769,13 +2783,36 @@ async function renderTodos(){
   if(!list.length){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   const dayNames=['일','월','화','수','목','금','토'];
+  const priLabel={high:'높음',mid:'중간',low:'낮음'};
+  const cardsEl=document.getElementById('todo-cards');
+  if(cardsEl){
+    cardsEl.innerHTML=list.map(todo=>{
+      const done=isDoneOnDate(todo,t); const over=isOverdue(todo);
+      return `<div class="todo-m-card" data-id="${todo.id}">
+        <div class="todo-m-card-header">
+          <div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div>
+          <div class="todo-m-card-title ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
+        </div>
+        <div class="todo-m-card-meta">
+          <span class="tag tag-${todo.priority}">${priLabel[todo.priority]||'-'}</span>
+          <span class="tag tag-todo">${esc(todo.category||'업무')}</span>
+          ${over?'<span class="tag tag-high">⚠️ 마감초과</span>':''}
+          ${done?'<span class="tag tag-done">완료</span>':''}
+          ${todo.dueDate&&!todo.isRecurring?`<span style="font-size:11px;color:var(--t3)">~${fmtDate(todo.dueDate)}</span>`:''}
+        </div>
+        <div class="todo-m-card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTodo('${todo.id}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
   tbody.innerHTML=list.map(todo=>{
     const done=isDoneOnDate(todo, t);
     const over=isOverdue(todo);
-    const priLabel={high:'높음',mid:'중간',low:'낮음'};
     const recurringLabel=todo.isRecurring&&todo.recurringDays&&todo.recurringDays.length
       ?`<div style="font-size:11px;color:var(--accent);margin-top:2px">🔁 ${todo.recurringDays.sort((a,b)=>a===0?7:a-(b===0?7:b)).map(d=>dayNames[d]).join('·')}</div>`:'';
-    return `<tr>
+    return `<tr data-id="${todo.id}">
       <td><div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div></td>
       <td class="todo-title-cell" style="text-align:left">
         <div class="todo-title-text ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
@@ -2916,6 +2953,7 @@ async function saveTodo(){
 
 async function deleteTodo(id){
   if(!await confirmDialog('삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`#todo-tbody tr[data-id="${id}"], #todo-cards [data-id="${id}"]`));
   try{
     await DB.deleteTodo(id);
     await renderTodos();
@@ -3001,7 +3039,7 @@ async function renderDailyActivities(date){
   const cont=document.getElementById('daily-activities-content');
   if(!activities.length){ cont.innerHTML='<div class="empty-state"><div class="icon">📝</div><p>오늘의 주요 활동을 기록해 보세요</p></div>'; return; }
   cont.innerHTML=activities.map(a=>`
-    <div class="activity-item">
+    <div class="activity-item" data-id="${a.id}">
       <div class="activity-header">
         <div class="activity-title">${esc(a.title)}</div>
         <div style="display:flex;gap:4px;align-items:center">
@@ -3068,6 +3106,7 @@ async function saveActivity(){
 
 async function deleteActivity(date,id){
   if(!await confirmDialog('삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.activity-item[data-id="${id}"]`));
   try{
     await DB.deleteActivity(id);
     await renderDailyActivities(date);
@@ -3172,7 +3211,7 @@ async function renderAdminFacilityGoals(){
     return;
   }
   cont.innerHTML=goals.map((g,i)=>`
-    <div class="fg-item">
+    <div class="fg-item" data-id="${g.id}">
       <div class="fg-header">
         <span class="fg-num">시설목표 ${i+1}</span>
         <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️ 수정</button>
@@ -3282,6 +3321,7 @@ async function saveFacilityGoal(){
 
 async function deleteFacilityGoal(id){
   if(!await confirmDialog('시설목표를 삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.fg-item[data-id="${id}"]`));
   try{
     await DB.deleteFacilityGoal(id);
     await renderAdminFacilityGoals();
@@ -3302,7 +3342,7 @@ async function renderAdminUsers(){
   const roleMap = {admin:'본사관리자', 'facility-admin':'시설관리자', user:'사용자'};
 
   // Render users
-  tbody.innerHTML=users.map(u=>`<tr>
+  tbody.innerHTML=users.map(u=>`<tr data-id="${u.id}">
     <td>${esc(u.시설명)}</td>
     <td><span style="font-family:monospace;background:var(--bg);padding:2px 8px;border-radius:4px;font-size:12px">${u.사원번호}</span></td>
     <td><span class="tag ${u.role==='admin'?'tag-high':(u.role==='facility-admin'?'tag-mid':'tag-todo')}">${roleMap[u.role]||'사용자'}</span></td>
@@ -3360,6 +3400,7 @@ async function saveUser(){
 async function deleteUser(id){
   if(currentUser.id===id){ toast('자기 자신은 삭제할 수 없습니다','error'); return; }
   if(!await confirmDialog('사용자를 삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`#user-tbody tr[data-id="${id}"]`));
   try{
     await DB.deleteUser(id);
     await renderAdminUsers();
@@ -3433,6 +3474,15 @@ function toast(msg, type='success'){
 // ═══════════════════════════════════════════════
 function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// 삭제 페이드아웃
+function fadeOutEl(el){
+  return new Promise(resolve=>{
+    if(!el){ resolve(); return; }
+    el.classList.add('fade-out-el');
+    setTimeout(resolve, 240);
+  });
+}
+
 // SHA-256 해싱
 async function hashPassword(pw){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));
@@ -3461,11 +3511,23 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     document.querySelectorAll('.modal-overlay.active').forEach(el=>el.classList.remove('active'));
     document.querySelectorAll('.todo-log-prompt').forEach(el=>el.remove());
+    document.querySelectorAll('.confirm-overlay').forEach(el=>el.remove());
   }
   if(e.key==='Enter' && e.target.id==='tlp-time'){
     const prompt=e.target.closest('.todo-log-prompt');
     if(prompt) prompt.querySelector('.tlp-btn-add').click();
   }
+  // 단축키: input/textarea/select 포커스 중이거나 모달 열림 중엔 무시
+  const tag=e.target.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||e.target.isContentEditable) return;
+  if(document.querySelector('.modal-overlay.active,.confirm-overlay')) return;
+  if(!currentUser) return;
+  const k=e.key.toLowerCase();
+  if(k==='n'){ e.preventDefault(); if(currentPage==='todo') openTodoModal(); else if(currentPage==='daily') openActivityModal(); }
+  if(k==='h'){ e.preventDefault(); navigate('home'); }
+  if(k==='t'){ e.preventDefault(); navigate('todo'); }
+  if(k==='d'){ e.preventDefault(); navigate('daily'); }
+  if(e.key==='/'&&currentPage==='todo'){ e.preventDefault(); document.getElementById('todo-search')?.focus(); }
 });
 
 // ═══════════════════════════════════════════════
