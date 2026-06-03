@@ -36,6 +36,9 @@ input,select,textarea{font-family:inherit;background:var(--bg2);border:1px solid
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,0.12);}
 input::placeholder,textarea::placeholder{color:var(--t3);}
 select option{background:var(--bg2);}
+.time-picker-wrap{display:flex;align-items:center;gap:6px;}
+.time-picker-wrap select{flex:1;min-width:0;padding:10px 8px;}
+.time-picker-wrap .time-colon{color:var(--t2);font-weight:700;font-size:16px;flex-shrink:0;}
 button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:var(--tr);}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r2);font-size:13px;font-weight:600;letter-spacing:0.2px;}
 .btn-primary{background:var(--accent);color:#1a1000;}
@@ -1177,11 +1180,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-row">
       <div class="form-group">
         <label>시작 시간</label>
-        <input type="time" id="gcal-start" />
+        <div class="time-picker-wrap">
+          <select id="gcal-start-h"><option value="">--</option></select>
+          <span class="time-colon">:</span>
+          <select id="gcal-start-m"><option value="">--</option></select>
+        </div>
       </div>
       <div class="form-group">
         <label>종료 시간</label>
-        <input type="time" id="gcal-end" />
+        <div class="time-picker-wrap">
+          <select id="gcal-end-h"><option value="">--</option></select>
+          <span class="time-colon">:</span>
+          <select id="gcal-end-m"><option value="">--</option></select>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -1226,11 +1237,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-row">
       <div class="form-group">
         <label>시작 시간</label>
-        <input type="time" id="gcal-edit-start" />
+        <div class="time-picker-wrap">
+          <select id="gcal-edit-start-h"><option value="">--</option></select>
+          <span class="time-colon">:</span>
+          <select id="gcal-edit-start-m"><option value="">--</option></select>
+        </div>
       </div>
       <div class="form-group">
         <label>종료 시간</label>
-        <input type="time" id="gcal-edit-end" />
+        <div class="time-picker-wrap">
+          <select id="gcal-edit-end-h"><option value="">--</option></select>
+          <span class="time-colon">:</span>
+          <select id="gcal-edit-end-m"><option value="">--</option></select>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -1640,6 +1659,7 @@ async function enterApp(){
   restoreGcalToken();
 
   document.getElementById('daily-date').value = today();
+  initTimePickers();
 
   // localStorage → Supabase 1회 자동 이전
   await migrateLocalStorageToSupabase();
@@ -3931,6 +3951,49 @@ document.addEventListener('keydown',e=>{
 // GOOGLE CALENDAR INTEGRATION
 // ═══════════════════════════════════════════════
 /* ── 상수/상태 ── */
+/* ── 24시간 타임피커 헬퍼 ── */
+function initTimePickers() {
+  const hIds = ['gcal-start-h','gcal-end-h','gcal-edit-start-h','gcal-edit-end-h'];
+  const mIds = ['gcal-start-m','gcal-end-m','gcal-edit-start-m','gcal-edit-end-m'];
+  hIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = String(h).padStart(2,'0');
+      o.textContent = String(h).padStart(2,'0');
+      el.appendChild(o);
+    }
+  });
+  mIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    for (let m = 0; m < 60; m += 5) {
+      const o = document.createElement('option');
+      o.value = String(m).padStart(2,'0');
+      o.textContent = String(m).padStart(2,'0');
+      el.appendChild(o);
+    }
+  });
+}
+function getTimeValue(base) {
+  const h = document.getElementById(base+'-h')?.value;
+  const m = document.getElementById(base+'-m')?.value;
+  if (!h || !m) return '';
+  return h + ':' + m;
+}
+function setTimeValue(base, val) {
+  const hEl = document.getElementById(base+'-h');
+  const mEl = document.getElementById(base+'-m');
+  if (!hEl || !mEl) return;
+  if (!val) { hEl.value = ''; mEl.value = ''; return; }
+  const [h, m] = val.split(':');
+  hEl.value = h;
+  // 분은 5분 단위 셀렉트이므로 가장 가까운 값으로 맞춤
+  const mNum = Math.round(parseInt(m) / 5) * 5;
+  mEl.value = String(mNum % 60).padStart(2,'0');
+}
+
 const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
 const GCAL_TOKEN_KEY = 'gcal_token';
@@ -4250,8 +4313,8 @@ function openGcalAddForm(dateStr) {
   document.getElementById('gcal-date').value = dateStr;
   document.getElementById('gcal-end-date').value = dateStr;
   document.getElementById('gcal-title').value = '';
-  document.getElementById('gcal-start').value = '';
-  document.getElementById('gcal-end').value = '';
+  setTimeValue('gcal-start', '');
+  setTimeValue('gcal-end', '');
   document.getElementById('gcal-location').value = '';
   document.getElementById('gcal-desc').value = '';
   openModal('gcal-modal');
@@ -4327,8 +4390,8 @@ function openEditGcalModal(eventId) {
   document.getElementById('gcal-edit-title').value = ev.summary || '';
   document.getElementById('gcal-edit-date').value = startDate || '';
   document.getElementById('gcal-edit-end-date').value = endDate || '';
-  document.getElementById('gcal-edit-start').value = startT || '';
-  document.getElementById('gcal-edit-end').value = endT || '';
+  setTimeValue('gcal-edit-start', startT || '');
+  setTimeValue('gcal-edit-end', endT || '');
   document.getElementById('gcal-edit-location').value = ev.location || '';
   document.getElementById('gcal-edit-desc').value = ev.description || '';
   openModal('gcal-edit-modal');
@@ -4340,8 +4403,8 @@ async function saveEditGcalEvent() {
   const title = document.getElementById('gcal-edit-title').value.trim();
   const startDate = document.getElementById('gcal-edit-date').value;
   const endDate = document.getElementById('gcal-edit-end-date').value || startDate;
-  const startTime = document.getElementById('gcal-edit-start').value;
-  const endTime = document.getElementById('gcal-edit-end').value;
+  const startTime = getTimeValue('gcal-edit-start');
+  const endTime = getTimeValue('gcal-edit-end');
   const desc = document.getElementById('gcal-edit-desc').value.trim();
   const location = document.getElementById('gcal-edit-location').value.trim();
 
@@ -4401,8 +4464,8 @@ async function addGcalEvent() {
   const title = document.getElementById('gcal-title').value.trim();
   const startDate = document.getElementById('gcal-date').value;
   const endDate = document.getElementById('gcal-end-date').value || startDate;
-  const startTime = document.getElementById('gcal-start').value;
-  const endTime = document.getElementById('gcal-end').value;
+  const startTime = getTimeValue('gcal-start');
+  const endTime = getTimeValue('gcal-end');
   const desc = document.getElementById('gcal-desc').value.trim();
   const location = document.getElementById('gcal-location').value.trim();
 
