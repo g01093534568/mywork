@@ -2351,7 +2351,7 @@ async function renderTrades(){
       <td style="font-weight:500">${fmtNum(t.qty)}주</td>
       <td>₩${fmtNum(t.price)}</td>
       <td style="font-weight:600;color:${t.type==='buy'?'var(--red)':'var(--blue)'}">
-        ${t.type==='buy'?'−':'+'}₩${fmtNum(total)}
+        ₩${fmtNum(total)}
       </td>
       <td style="color:var(--t2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.memo||'')}">${esc(t.memo||'')}</td>
       <td><div style="display:flex;gap:4px;justify-content:center">
