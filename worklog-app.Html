@@ -336,8 +336,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .ag-cat-재정{background:rgba(232,160,32,0.15);color:var(--accent);}
 .ag-cat-관계{background:rgba(224,85,85,0.15);color:var(--red);}
 .ag-cat-기타{background:rgba(122,155,192,0.1);color:var(--t2);}
-.ag-summary{display:flex;gap:20px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px 18px;margin-bottom:20px;}
-.ag-summary-item{display:flex;flex-direction:column;gap:2px;}
+.ag-summary{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px 18px;margin-bottom:20px;}
+.ag-summary-item{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;}
 .ag-summary-num{font-size:22px;font-weight:700;}
 .ag-summary-label{font-size:11px;color:var(--t2);}
 /* ── CUSTOM GOOGLE CALENDAR ── */
@@ -2480,7 +2480,18 @@ async function renderStocks(){
   const [allStocks,trades]=await Promise.all([DB.getStocks(currentUser.사원번호),DB.getTrades(currentUser.사원번호)]);
   const cont=document.getElementById('stock-grid-container');
   // 보유수량이 0인 종목은 카드에서 제외 (DB 레코드·매매기록은 유지)
+  const stockIds=new Set(allStocks.map(s=>s.id));
   const stocks=allStocks.map(s=>({...s,_h:computeHoldings(s.id,trades)})).filter(s=>s._h.qty>0);
+  // stocks 레코드가 없어도 trades가 남아 있는 경우(고아 trades) 가상 카드로 복원
+  const orphanMap={};
+  for(const t of trades){
+    if(t.stockId&&!stockIds.has(t.stockId)&&!orphanMap[t.stockId])
+      orphanMap[t.stockId]={id:t.stockId,name:t.stockName||'삭제된 종목',ticker:t.ticker||'',currentPrice:0,prevClose:0};
+  }
+  for(const vs of Object.values(orphanMap)){
+    const h=computeHoldings(vs.id,trades);
+    if(h.qty>0) stocks.push({...vs,_h:h});
+  }
 
   // ── 자산 총계 대시보드 ──
   const dashEl=document.getElementById('asset-dashboard');
