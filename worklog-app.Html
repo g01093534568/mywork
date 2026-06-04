@@ -3276,7 +3276,7 @@ async function toggleTodoDone(id, date){
   await DB.upsertTodo(currentUser.사원번호,todo);
   await renderTodos();
   if(currentPage==='daily') await renderDailyTodos(date);
-  if(becomingDone) showTodoLogPrompt(todo, doneDate);
+  if(becomingDone && todo.category !== '개인') showTodoLogPrompt(todo, doneDate);
 }
 
 function showTodoLogPrompt(todo, date){
