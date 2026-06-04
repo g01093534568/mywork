@@ -2339,8 +2339,16 @@ async function loadKospiChart(){
   if(statusEl) statusEl.textContent='로딩 중...';
   if(errEl) errEl.style.display='none';
 
-  // ── 현재가 (Naver) ──
+  // ── 현재가 (Yahoo Finance → Naver 순서로 시도) ──
   const basicTries=[
+    ['Yahoo Finance', async()=>{
+      const r=await naverFetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=1d');
+      const d=await r.json();
+      const meta=d?.chart?.result?.[0]?.meta; if(!meta?.regularMarketPrice) throw new Error('no data');
+      const cur=meta.regularMarketPrice;
+      const prev=meta.previousClose||meta.chartPreviousClose||cur;
+      return{cur, chg:cur-prev, pct:prev?(cur-prev)/prev*100:0};
+    }],
     ['Naver polling', async()=>{
       const r=await naverFetch('https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KOSPI');
       const d=await r.json();
@@ -2370,14 +2378,28 @@ async function loadKospiChart(){
 
   const isUp=chg>=0;
   const sign=isUp?'+':'-';
-  const lineColor=isUp?'#3bc98a':'#e05555';
+  const lineColor=isUp?'#e05555':'#3d8ef0';
   priceEl.textContent=cur.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2});
   changeEl.textContent=`${sign}${Math.abs(chg).toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})} (${sign}${Math.abs(pct).toFixed(2)}%)`;
   changeEl.style.color=lineColor;
   statusEl.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 기준`;
 
-  // ── 차트 데이터 (Naver, 날짜 포함) ──
+  // ── 차트 데이터 (Yahoo Finance → Naver 순서로 시도, 날짜 포함) ──
   const chartTries=[
+    ['Yahoo Finance chart', async()=>{
+      const r=await naverFetch(`https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=3mo`);
+      const d=await r.json();
+      const result=d?.chart?.result?.[0]; if(!result) throw new Error('no data');
+      const ts=result.timestamp||[];
+      const closes=(result.indicators?.quote?.[0]?.close)||[];
+      const valid=ts.map((t,i)=>({t,c:closes[i]})).filter(x=>x.c!=null&&x.c>0);
+      if(valid.length<2) throw new Error('empty');
+      const dates=valid.map(x=>{
+        const dd=new Date(x.t*1000);
+        return `${dd.getFullYear()}${String(dd.getMonth()+1).padStart(2,'0')}${String(dd.getDate()).padStart(2,'0')}`;
+      });
+      return{vals:valid.map(x=>x.c),dates};
+    }],
     ['Naver price API', async()=>{
       const r=await naverFetch(`https://m.stock.naver.com/api/index/KOSPI/price?startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
       const rows=await r.json();
@@ -2658,12 +2680,20 @@ function bustUrl(u){ return u+(u.includes('?')?'&':'?')+'_nc='+Date.now(); }
 const NAVER_PROXY=[
   u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
   u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}&_t=${Date.now()}`,
+  u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   u=>`https://thingproxy.freeboard.io/fetch/${u}`
 ];
 async function naverFetch(url){
   const nc=bustUrl(url);
+  try{
+    const r=await fetch(nc,{cache:'no-store',signal:AbortSignal.timeout(5000)});
+    if(r.ok) return r;
+  }catch(e){}
   for(const p of NAVER_PROXY){
-    try{ const r=await fetch(p(nc),{cache:'no-store'}); if(r.ok) return r; }catch(e){}
+    try{
+      const r=await fetch(p(nc),{cache:'no-store',signal:AbortSignal.timeout(8000)});
+      if(r.ok) return r;
+    }catch(e){}
   }
   throw new Error('네이버 접속 실패');
 }
