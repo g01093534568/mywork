@@ -340,6 +340,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .ag-summary-item{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;}
 .ag-summary-num{font-size:22px;font-weight:700;}
 .ag-summary-label{font-size:11px;color:var(--t2);}
+/* ---- TODAY TRAIN CARD ---- */
+.today-train-card{background:var(--bg2);border:1px solid rgba(232,160,32,0.25);border-radius:var(--r);padding:18px;margin-bottom:16px;}
+.today-train-card-title{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
 /* ── CUSTOM GOOGLE CALENDAR ── */
 .gcal-view{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
 .gcal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
@@ -715,6 +718,27 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             </div>
             <button class="btn btn-primary" onclick="openGolfModal()">+ 기록 추가</button>
           </div>
+          <!-- 오늘 훈련 입력 -->
+          <div class="today-train-card">
+            <div class="today-train-card-title">📝 오늘 훈련 기록 입력 <span style="font-size:10px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0" id="golf-td-date-label"></span></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>스코어 (타수)</label>
+                <input type="number" id="golf-td-score" min="50" max="200" placeholder="예: 95" />
+              </div>
+              <div class="form-group">
+                <label>코스/장소</label>
+                <input type="text" id="golf-td-location" placeholder="예: 남서울CC, 실내 연습장" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>메모</label>
+              <textarea id="golf-td-memo" rows="2" placeholder="드라이버 비거리, 퍼팅 수, 특이사항 등"></textarea>
+            </div>
+            <div style="display:flex;justify-content:flex-end">
+              <button class="btn btn-primary" onclick="saveTodayGolf()">저장</button>
+            </div>
+          </div>
           <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
             <div style="overflow-x:auto;">
               <table class="trade-table">
@@ -745,6 +769,32 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <div id="running-summary" style="font-size:12px;color:var(--t2);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap;"></div>
             </div>
             <button class="btn btn-primary" onclick="openRunningModal()">+ 기록 추가</button>
+          </div>
+          <!-- 오늘 훈련 입력 -->
+          <div class="today-train-card" style="border-color:rgba(61,142,240,0.25);">
+            <div class="today-train-card-title" style="color:var(--blue)">📝 오늘 훈련 기록 입력 <span style="font-size:10px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0" id="running-td-date-label"></span></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>거리 (km) *</label>
+                <input type="number" id="running-td-distance" min="0.1" step="0.1" placeholder="예: 5.0" oninput="updateTodayRunningPace()" />
+              </div>
+              <div class="form-group">
+                <label>소요시간 (분) *</label>
+                <input type="number" id="running-td-duration" min="1" placeholder="예: 30" oninput="updateTodayRunningPace()" />
+              </div>
+            </div>
+            <div id="running-td-pace" style="text-align:center;font-size:13px;color:var(--accent);margin-bottom:8px;font-weight:600;display:none;"></div>
+            <div class="form-group">
+              <label>장소/코스</label>
+              <input type="text" id="running-td-location" placeholder="예: 한강공원, 올림픽공원" />
+            </div>
+            <div class="form-group">
+              <label>메모</label>
+              <textarea id="running-td-memo" rows="2" placeholder="컨디션, 구간기록, 특이사항 등"></textarea>
+            </div>
+            <div style="display:flex;justify-content:flex-end">
+              <button class="btn btn-primary" onclick="saveTodayRunning()">저장</button>
+            </div>
           </div>
           <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
             <div style="overflow-x:auto;">
@@ -1972,6 +2022,8 @@ function switchExerciseTab(tab){
   const tabEl=document.getElementById('ex-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
+  const label=document.getElementById(tab+'-td-date-label');
+  if(label) label.textContent='오늘 '+fmtDate(today());
   if(tab==='golf') renderGolfRecords();
   if(tab==='running') renderRunningRecords();
 }
@@ -2133,6 +2185,56 @@ async function deleteExerciseRecord(id,type){
     if(type==='golf') await renderGolfRecords();
     else await renderRunningRecords();
   }catch(e){toast('삭제 실패: '+e.message,'error');}
+}
+
+async function saveTodayGolf(){
+  const score=document.getElementById('golf-td-score').value;
+  const location=document.getElementById('golf-td-location').value.trim();
+  const memo=document.getElementById('golf-td-memo').value.trim();
+  const data={id:uid(),type:'golf',date:today(),location,score:score?parseInt(score):null,memo};
+  try{
+    await DB.upsertExercise(currentUser.사원번호,data);
+    document.getElementById('golf-td-score').value='';
+    document.getElementById('golf-td-location').value='';
+    document.getElementById('golf-td-memo').value='';
+    toast('골프 기록이 저장됐습니다.');
+    await renderGolfRecords();
+  }catch(e){toast('저장 실패: '+e.message,'error');}
+}
+
+async function saveTodayRunning(){
+  const distance=document.getElementById('running-td-distance').value;
+  const duration=document.getElementById('running-td-duration').value;
+  const location=document.getElementById('running-td-location').value.trim();
+  const memo=document.getElementById('running-td-memo').value.trim();
+  if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
+  if(!duration||parseInt(duration)<=0){toast('소요시간을 입력하세요.','error');return;}
+  const data={id:uid(),type:'running',date:today(),location,distance:parseFloat(distance),duration:parseInt(duration),memo};
+  try{
+    await DB.upsertExercise(currentUser.사원번호,data);
+    document.getElementById('running-td-distance').value='';
+    document.getElementById('running-td-duration').value='';
+    document.getElementById('running-td-location').value='';
+    document.getElementById('running-td-memo').value='';
+    document.getElementById('running-td-pace').style.display='none';
+    toast('러닝 기록이 저장됐습니다.');
+    await renderRunningRecords();
+  }catch(e){toast('저장 실패: '+e.message,'error');}
+}
+
+function updateTodayRunningPace(){
+  const dist=parseFloat(document.getElementById('running-td-distance')?.value||0);
+  const dur=parseInt(document.getElementById('running-td-duration')?.value||0);
+  const preview=document.getElementById('running-td-pace');
+  if(!preview) return;
+  if(dist>0&&dur>0){
+    const pm=Math.floor(dur/dist);
+    const ps=Math.round((dur/dist-pm)*60);
+    preview.textContent=`페이스: ${pm}'${String(ps).padStart(2,'0')}" /km`;
+    preview.style.display='block';
+  } else {
+    preview.style.display='none';
+  }
 }
 
 // ═══════════════════════════════════════════════
