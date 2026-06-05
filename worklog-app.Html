@@ -2013,7 +2013,6 @@ function exerciseToDb(ex, uid){
 }
 
 let _exGolf=[];
-let _exGolfPrac=[];
 let _exRunning=[];
 let _golfDate='';
 let _runningDate='';
@@ -2056,12 +2055,12 @@ function changeRunningDate(dir){
 }
 
 /* ── 골프 ── */
+// score === -1 : 훈련내용 마커 (라운딩 아님)
+const GOLF_PRACTICE_SCORE = -1;
+
 async function renderGolfPanel(){
   if(!_golfDate) _golfDate=today();
-  [_exGolf, _exGolfPrac]=await Promise.all([
-    DB.getExercises(currentUser.사원번호,'golf'),
-    DB.getExercises(currentUser.사원번호,'golf_practice'),
-  ]);
+  _exGolf=await DB.getExercises(currentUser.사원번호,'golf');
 
   const isToday=_golfDate===today();
   const dateLabel=document.getElementById('golf-date-label');
@@ -2070,21 +2069,21 @@ async function renderGolfPanel(){
     dateLabel.style.color=isToday?'var(--accent)':'var(--t1)';
   }
 
-  const rounds=_exGolf;
-  const scores=rounds.filter(r=>r.score).map(r=>r.score);
+  const roundsAll=_exGolf.filter(r=>r.score!==GOLF_PRACTICE_SCORE);
+  const scores=roundsAll.filter(r=>r.score&&r.score>0).map(r=>r.score);
   const summary=document.getElementById('golf-summary');
   if(summary){
     if(scores.length){
       const avg=Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
       const best=Math.min(...scores);
-      summary.innerHTML=`<span>라운드 <strong>${rounds.length}</strong>회</span><span>평균 <strong style="color:var(--accent)">${avg}</strong>타</span><span>베스트 <strong style="color:var(--green)">${best}</strong>타</span>`;
+      summary.innerHTML=`<span>라운드 <strong>${roundsAll.length}</strong>회</span><span>평균 <strong style="color:var(--accent)">${avg}</strong>타</span><span>베스트 <strong style="color:var(--green)">${best}</strong>타</span>`;
     } else {
       summary.innerHTML=`<span>라운드 <strong>0</strong>회</span>`;
     }
   }
 
   const pracList=document.getElementById('golf-prac-list');
-  const pracEntries=_exGolfPrac.filter(r=>r.date===_golfDate);
+  const pracEntries=_exGolf.filter(r=>r.score===GOLF_PRACTICE_SCORE&&r.date===_golfDate);
   if(pracList){
     if(pracEntries.length){
       pracList.innerHTML=pracEntries.map(r=>`
@@ -2106,7 +2105,7 @@ async function renderGolfPanel(){
   }
 
   const roundList=document.getElementById('golf-round-list');
-  const roundEntries=_exGolf.filter(r=>r.date===_golfDate);
+  const roundEntries=_exGolf.filter(r=>r.score!==GOLF_PRACTICE_SCORE&&r.date===_golfDate);
   if(roundList){
     if(roundEntries.length){
       roundList.innerHTML=roundEntries.map(r=>`
@@ -2132,7 +2131,7 @@ async function renderGolfPanel(){
 }
 
 function editGolfPractice(id){
-  const r=_exGolfPrac.find(x=>x.id===id);
+  const r=_exGolf.find(x=>x.id===id);
   if(!r) return;
   document.getElementById('golf-prac-edit-id').value=id;
   document.getElementById('golf-prac-memo').value=r.memo||'';
@@ -2145,7 +2144,7 @@ function editGolfRound(id){
   const r=_exGolf.find(x=>x.id===id);
   if(!r) return;
   document.getElementById('golf-round-edit-id').value=id;
-  document.getElementById('golf-round-score').value=r.score||'';
+  document.getElementById('golf-round-score').value=r.score&&r.score>0?r.score:'';
   document.getElementById('golf-round-location').value=r.location||'';
   document.getElementById('golf-round-memo').value=r.memo||'';
   document.getElementById('golf-round-score').focus();
@@ -2157,7 +2156,8 @@ async function saveGolfPractice(){
   const location=document.getElementById('golf-prac-location').value.trim();
   if(!memo&&!location){toast('훈련 내용을 입력하세요.','error');return;}
   const editId=document.getElementById('golf-prac-edit-id').value;
-  const data={id:editId||uid(),type:'golf_practice',date:_golfDate,location,memo};
+  // score = -1 로 훈련내용 구분 (기존 'golf' 타입 그대로 사용)
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:GOLF_PRACTICE_SCORE,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('golf-prac-memo').value='';
@@ -2292,7 +2292,7 @@ async function deleteExerciseRecord(id,type){
   try{
     await DB.deleteExercise(id,currentUser.사원번호,type);
     toast('기록이 삭제됐습니다.');
-    if(type==='golf'||type==='golf_practice') await renderGolfPanel();
+    if(type==='golf') await renderGolfPanel();
     else await renderRunningPanel();
   }catch(e){toast('삭제 실패: '+e.message,'error');}
 }
