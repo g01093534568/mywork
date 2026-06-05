@@ -814,7 +814,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
           <!-- 대회기록 입력 -->
           <div class="today-train-card" style="border-color:rgba(255,183,0,0.3);margin-top:16px;">
-            <div class="today-train-card-title" style="color:var(--accent)">🏆 대회기록</div>
+            <input type="hidden" id="race-td-edit-id" />
+            <div class="today-train-card-title" style="color:var(--accent)" id="race-td-card-title">🏆 대회기록</div>
             <div class="form-row">
               <div class="form-group">
                 <label>대회명 *</label>
@@ -839,8 +840,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <label>메모 (순위, 날씨, 컨디션 등)</label>
               <textarea id="race-td-memo" rows="2" placeholder="예: 종합 153위, 맑음, 컨디션 양호"></textarea>
             </div>
-            <div style="display:flex;justify-content:flex-end">
-              <button class="btn btn-primary" onclick="saveTodayRace()">저장</button>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-secondary" id="race-td-cancel-btn" onclick="cancelRaceEdit()" style="display:none;">취소</button>
+              <button class="btn btn-primary" id="race-td-save-btn" onclick="saveTodayRace()">저장</button>
             </div>
           </div>
           <div id="running-race-list"></div>
@@ -2328,7 +2330,10 @@ async function renderRunningPanel(){
                 </div>
                 ${r.memo?`<div style="font-size:12px;color:var(--t3);margin-top:4px;white-space:pre-wrap;line-height:1.5;">${esc(r.memo)}</div>`:''}
               </div>
-              <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','running_race')">🗑</button>
+              <div style="display:flex;gap:4px;flex-shrink:0;">
+                <button class="btn btn-ghost btn-sm" onclick="editRaceRecord('${r.id}')">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','running_race')">🗑</button>
+              </div>
             </div>
           </div>`;
         }).join('');
@@ -2393,7 +2398,41 @@ async function deleteExerciseRecord(id,type){
   }catch(e){toast('삭제 실패: '+e.message,'error');}
 }
 
+function editRaceRecord(id){
+  const r=_exRunningRace.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('race-td-edit-id').value=id;
+  document.getElementById('race-td-name').value=r.location||'';
+  document.getElementById('race-td-date').value=r.date||'';
+  document.getElementById('race-td-distance').value=r.distance||'';
+  setTimeId('race-td-time',r.duration||0);
+  document.getElementById('race-td-memo').value=r.memo||'';
+  const titleEl=document.getElementById('race-td-card-title');
+  if(titleEl) titleEl.textContent='✏️ 대회기록 수정';
+  const cancelBtn=document.getElementById('race-td-cancel-btn');
+  const saveBtn=document.getElementById('race-td-save-btn');
+  if(cancelBtn) cancelBtn.style.display='';
+  if(saveBtn) saveBtn.textContent='수정 저장';
+  document.getElementById('race-td-name').focus();
+  document.getElementById('race-td-name').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cancelRaceEdit(){
+  document.getElementById('race-td-edit-id').value='';
+  document.getElementById('race-td-name').value='';
+  document.getElementById('race-td-distance').value='';
+  setTimeId('race-td-time',0);
+  document.getElementById('race-td-memo').value='';
+  const titleEl=document.getElementById('race-td-card-title');
+  if(titleEl) titleEl.textContent='🏆 대회기록';
+  const cancelBtn=document.getElementById('race-td-cancel-btn');
+  const saveBtn=document.getElementById('race-td-save-btn');
+  if(cancelBtn) cancelBtn.style.display='none';
+  if(saveBtn) saveBtn.textContent='저장';
+}
+
 async function saveTodayRace(){
+  const editId=document.getElementById('race-td-edit-id').value;
   const name=document.getElementById('race-td-name').value.trim();
   const date=document.getElementById('race-td-date').value;
   const distance=document.getElementById('race-td-distance').value;
@@ -2403,14 +2442,11 @@ async function saveTodayRace(){
   if(!date){toast('날짜를 선택하세요.','error');return;}
   if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
   if(!duration){toast('완주시간을 입력하세요.','error');return;}
-  const data={id:uid(),type:'running_race',date,location:name,distance:parseFloat(distance),duration,memo};
+  const data={id:editId||uid(),type:'running_race',date,location:name,distance:parseFloat(distance),duration,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
-    document.getElementById('race-td-name').value='';
-    document.getElementById('race-td-distance').value='';
-    setTimeId('race-td-time',0);
-    document.getElementById('race-td-memo').value='';
-    toast('대회기록이 저장됐습니다.');
+    cancelRaceEdit();
+    toast(editId?'대회기록이 수정됐습니다.':'대회기록이 저장됐습니다.');
     await renderRunningPanel();
   }catch(e){toast('저장 실패: '+e.message,'error');}
 }
