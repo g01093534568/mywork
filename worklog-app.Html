@@ -1726,7 +1726,15 @@ async function enterApp(){
   // localStorage → Supabase 1회 자동 이전
   await migrateLocalStorageToSupabase();
 
+  // 홈 데이터 미리 캐시 (cold start 대비 — lastPage가 home이면 await로 즉시 렌더 보장)
+  const prefetchHome = Promise.all([
+    DB.getOrg().catch(()=>{}),
+    DB.getFacilityGoals(currentUser.시설명).catch(()=>{}),
+    DB.getPersonalGoals(currentUser.사원번호).catch(()=>{})
+  ]);
+
   const lastPage = localStorage.getItem('wl_nav_page_'+currentUser.사원번호) || 'home';
+  if(lastPage === 'home') await prefetchHome;
   navigate(lastPage);
 }
 
