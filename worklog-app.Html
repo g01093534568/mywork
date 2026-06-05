@@ -1582,7 +1582,9 @@ const DB = {
   async getOrg(){
     const k='org';
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return _cs(k,{...DEFAULT_ORG}); const d=data[0]; return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
+    try {
+      const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return _cs(k,{...DEFAULT_ORG}); const d=data[0]; return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
+    } catch(e){ console.error('[DB.getOrg]',e); return {...DEFAULT_ORG}; }
   },
   async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; _cd('org'); },
 
@@ -1605,7 +1607,9 @@ const DB = {
   async getPersonalGoals(uid){
     const k=`pg:${uid}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToPg));
+    try {
+      const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToPg));
+    } catch(e){ console.error('[DB.getPersonalGoals]',e); return []; }
   },
   async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; _cd(`pg:${uid}`); },
   async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`pg:${currentUser.사원번호}`); },
@@ -1613,7 +1617,9 @@ const DB = {
   async getFacilityGoals(facility){
     const k=`fg:${facility}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('facility_goals').select('*').eq('시설명',facility); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFg));
+    try {
+      const {data,error}=await SB.from('facility_goals').select('*').eq('시설명',facility); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFg));
+    } catch(e){ console.error('[DB.getFacilityGoals]',e); return []; }
   },
   async upsertFacilityGoal(facility,g){ const {error}=await SB.from('facility_goals').upsert(fgToDb(g,facility)); if(error)throw error; _cd(`fg:${facility}`); },
   async deleteFacilityGoal(id){ const {error}=await SB.from('facility_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`fg:${currentUser.시설명}`); },
@@ -1727,17 +1733,7 @@ async function enterApp(){
   await migrateLocalStorageToSupabase();
 
   const lastPage = localStorage.getItem('wl_nav_page_'+currentUser.사원번호) || 'home';
-  navigate(lastPage);  // 즉시 페이지 전환 (로딩 스피너 표시)
-
-  // cold start 대응: 데이터 로드 완료 후 홈에 있으면 재렌더
-  if(lastPage === 'home'){
-    await Promise.all([
-      DB.getOrg().catch(()=>{}),
-      DB.getFacilityGoals(currentUser.시설명).catch(()=>{}),
-      DB.getPersonalGoals(currentUser.사원번호).catch(()=>{})
-    ]);
-    if(currentPage === 'home') renderHome();
-  }
+  navigate(lastPage);
 }
 
 async function migrateLocalStorageToSupabase(){
@@ -1828,11 +1824,15 @@ function navigate(page){
 async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
-  // 로딩 중 표시 (Supabase cold start 시 빈 화면 방지)
   const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
   if(!_cg('org')) document.getElementById('org-goals-display').innerHTML=loadingHtml;
   if(!_cg(`pg:${currentUser.사원번호}`)) document.getElementById('personal-goals-display').innerHTML=loadingHtml;
-  await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
+  try {
+    await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
+  } catch(e) {
+    console.error('[renderHome]', e);
+    if(currentPage === 'home') setTimeout(() => renderHome(), 3000);
+  }
 }
 
 async function renderFacilityGoals(){ /* rendered inside renderOrgGoals */ }
