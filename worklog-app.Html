@@ -121,6 +121,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .strategy-col-title{font-size:12px;font-weight:700;color:var(--green);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:10px;}
 .strategy-task{font-size:12px;color:var(--t2);padding:5px 0;display:flex;align-items:flex-start;gap:6px;word-break:keep-all;}
 .strategy-task::before{content:'•';color:var(--accent);flex-shrink:0;margin-top:1px;}
+.facility-goals-section{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+.facility-goals-header{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.facility-goals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+.facility-goal-col{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:12px;}
+.facility-task-label{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.facility-goal-item{font-size:12px;color:var(--t1);padding:4px 0;display:flex;align-items:flex-start;gap:4px;word-break:keep-all;}
 .personal-goals-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .kpi-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
@@ -1824,21 +1830,31 @@ async function renderOrgGoals(){
     <div style="width:100%"><div class="strategy-grid">`;
   (org.전략목표||[]).forEach((목표,i)=>{
     const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
-    const taskNames=tasks.map(t=>t.과제);
-    const linked=facilityGoals.filter(g=>g.linkedStrategyTask && taskNames.includes(g.linkedStrategyTask));
     html+=`<div class="strategy-col"><div class="strategy-col-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
     tasks.forEach(t=>{
-      const taskLinked=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
       html+=`<div class="strategy-task">${esc(t.과제)}</div>`;
-      taskLinked.forEach(g=>{
-        html+=`<div style="font-size:11px;color:var(--blue);padding:3px 0 3px 14px;display:flex;align-items:flex-start;gap:4px">
-          <span style="flex-shrink:0;margin-top:1px">🏢</span><span>${esc(g.goal)}</span>
-        </div>`;
-      });
     });
     html+=`</div>`;
   });
-  html+=`</div></div></div>`;
+  html+=`</div></div>`;
+  const linkedTasks=(org.전략과제||[]).filter(t=>facilityGoals.some(g=>g.linkedStrategyTask===t.과제));
+  if(linkedTasks.length){
+    html+=`<div class="goal-arrow">↓</div>
+    <div style="width:100%">
+      <div class="facility-goals-section">
+        <div class="facility-goals-header">🏢 시설목표</div>
+        <div class="facility-goals-grid">`;
+    linkedTasks.forEach(t=>{
+      const matched=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
+      html+=`<div class="facility-goal-col"><div class="facility-task-label">${esc(t.과제)}</div>`;
+      matched.forEach(g=>{
+        html+=`<div class="facility-goal-item"><span style="flex-shrink:0">🏢</span><span>${esc(g.goal)}</span></div>`;
+      });
+      html+=`</div>`;
+    });
+    html+=`</div></div></div>`;
+  }
+  html+=`</div>`;
   document.getElementById('org-goals-display').innerHTML=html;
 }
 
