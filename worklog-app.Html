@@ -2114,7 +2114,7 @@ async function renderGolfPanel(){
   }
 
   const roundList=document.getElementById('golf-round-list');
-  const roundEntries=_exGolf.filter(r=>r.score!==GOLF_PRACTICE_SCORE&&r.date===_golfDate);
+  const roundEntries=_exGolf.filter(r=>!isGolfPractice(r)&&r.date===_golfDate);
   if(roundList){
     if(roundEntries.length){
       roundList.innerHTML=roundEntries.map(r=>`
@@ -2161,12 +2161,13 @@ function editGolfRound(id){
 }
 
 async function saveGolfPractice(){
+  if(!_golfDate) _golfDate=today();
   const memo=document.getElementById('golf-prac-memo').value.trim();
   const location=document.getElementById('golf-prac-location').value.trim();
   if(!memo&&!location){toast('훈련 내용을 입력하세요.','error');return;}
   const editId=document.getElementById('golf-prac-edit-id').value;
-  // score = -1 로 훈련내용 구분 (기존 'golf' 타입 그대로 사용)
-  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:GOLF_PRACTICE_SCORE,memo};
+  // duration=1 로 훈련내용 구분 (골프는 duration 미사용, score=null)
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:null,duration:1,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('golf-prac-memo').value='';
@@ -2174,7 +2175,10 @@ async function saveGolfPractice(){
     document.getElementById('golf-prac-edit-id').value='';
     toast('훈련 내용이 저장됐습니다.');
     await renderGolfPanel();
-  }catch(e){toast('저장 실패: '+e.message,'error');}
+  }catch(e){
+    console.error('saveGolfPractice error:',e);
+    toast('저장 실패: '+(e.message||e.code||JSON.stringify(e)),'error');
+  }
 }
 
 async function saveGolfRound(){
@@ -2182,7 +2186,7 @@ async function saveGolfRound(){
   const location=document.getElementById('golf-round-location').value.trim();
   const memo=document.getElementById('golf-round-memo').value.trim();
   const editId=document.getElementById('golf-round-edit-id').value;
-  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:score?parseInt(score):null,memo};
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:score?parseInt(score):null,duration:null,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('golf-round-score').value='';
