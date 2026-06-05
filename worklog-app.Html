@@ -2069,7 +2069,7 @@ function changeGolfDate(dir){
   else{
     const d=new Date(_golfDate+'T00:00:00');
     d.setDate(d.getDate()+dir);
-    _golfDate=d.toISOString().slice(0,10);
+    _golfDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   renderGolfPanel();
 }
@@ -2079,7 +2079,7 @@ function changeRunningDate(dir){
   else{
     const d=new Date(_runningDate+'T00:00:00');
     d.setDate(d.getDate()+dir);
-    _runningDate=d.toISOString().slice(0,10);
+    _runningDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   renderRunningPanel();
 }
