@@ -793,8 +793,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                 <input type="number" id="running-td-distance" min="0.1" step="0.1" placeholder="예: 5.0" oninput="updateTodayRunningPace()" />
               </div>
               <div class="form-group">
-                <label>소요시간 (분) *</label>
-                <input type="number" id="running-td-duration" min="1" placeholder="예: 30" oninput="updateTodayRunningPace()" />
+                <label>소요시간 *</label>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <input type="number" id="running-td-h" min="0" max="23" placeholder="0" style="width:52px;" oninput="updateTodayRunningPace()" />
+                  <span style="font-size:12px;color:var(--t2)">시</span>
+                  <input type="number" id="running-td-m" min="0" max="59" placeholder="00" style="width:52px;" oninput="updateTodayRunningPace()" />
+                  <span style="font-size:12px;color:var(--t2)">분</span>
+                  <input type="number" id="running-td-s" min="0" max="59" placeholder="00" style="width:52px;" oninput="updateTodayRunningPace()" />
+                  <span style="font-size:12px;color:var(--t2)">초</span>
+                </div>
               </div>
             </div>
             <div id="running-td-pace" style="text-align:center;font-size:13px;color:var(--accent);margin-bottom:8px;font-weight:600;display:none;"></div>
@@ -831,8 +838,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                 <input type="number" id="race-td-distance" min="0.1" step="0.1" placeholder="예: 42.195" />
               </div>
               <div class="form-group">
-                <label>완주시간 (분) *</label>
-                <input type="number" id="race-td-duration" min="1" placeholder="예: 240" />
+                <label>완주시간 *</label>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <input type="number" id="race-td-h" min="0" max="23" placeholder="0" style="width:52px;" />
+                  <span style="font-size:12px;color:var(--t2)">시</span>
+                  <input type="number" id="race-td-m" min="0" max="59" placeholder="00" style="width:52px;" />
+                  <span style="font-size:12px;color:var(--t2)">분</span>
+                  <input type="number" id="race-td-s" min="0" max="59" placeholder="00" style="width:52px;" />
+                  <span style="font-size:12px;color:var(--t2)">초</span>
+                </div>
               </div>
             </div>
             <div class="form-group">
@@ -1442,8 +1456,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <input type="number" id="rm-distance" min="0.1" step="0.1" placeholder="예: 5.0" oninput="updateRunningPacePreview()" />
       </div>
       <div class="form-group">
-        <label>소요시간 (분) *</label>
-        <input type="number" id="rm-duration" min="1" placeholder="예: 30" oninput="updateRunningPacePreview()" />
+        <label>소요시간 *</label>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="number" id="rm-h" min="0" max="23" placeholder="0" style="width:52px;" oninput="updateRunningPacePreview()" />
+          <span style="font-size:12px;color:var(--t2)">시</span>
+          <input type="number" id="rm-m" min="0" max="59" placeholder="00" style="width:52px;" oninput="updateRunningPacePreview()" />
+          <span style="font-size:12px;color:var(--t2)">분</span>
+          <input type="number" id="rm-s" min="0" max="59" placeholder="00" style="width:52px;" oninput="updateRunningPacePreview()" />
+          <span style="font-size:12px;color:var(--t2)">초</span>
+        </div>
       </div>
     </div>
     <div id="rm-pace-preview" style="text-align:center;font-size:13px;color:var(--accent);margin-bottom:8px;font-weight:600;display:none;"></div>
@@ -2208,6 +2229,38 @@ async function saveGolfRound(){
   }catch(e){toast('저장 실패: '+e.message,'error');}
 }
 
+/* ── 러닝 헬퍼 ── */
+function getHMS(hId,mId,sId){
+  const h=parseInt(document.getElementById(hId)?.value||0)||0;
+  const m=parseInt(document.getElementById(mId)?.value||0)||0;
+  const s=parseInt(document.getElementById(sId)?.value||0)||0;
+  return h*3600+m*60+s;
+}
+function setHMS(hId,mId,sId,totalSecs){
+  totalSecs=totalSecs||0;
+  const h=Math.floor(totalSecs/3600);
+  const m=Math.floor((totalSecs%3600)/60);
+  const s=totalSecs%60;
+  const hEl=document.getElementById(hId); if(hEl) hEl.value=h||'';
+  const mEl=document.getElementById(mId); if(mEl) mEl.value=m||'';
+  const sEl=document.getElementById(sId); if(sEl) sEl.value=s||'';
+}
+function fmtDuration(secs){
+  if(!secs) return '-';
+  const h=Math.floor(secs/3600);
+  const m=Math.floor((secs%3600)/60);
+  const s=secs%60;
+  if(h>0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function calcPace(totalSecs,distKm){
+  if(!totalSecs||!distKm) return '-';
+  const secsPerKm=totalSecs/distKm;
+  const pm=Math.floor(secsPerKm/60);
+  const ps=Math.round(secsPerKm%60);
+  return `${pm}'${String(ps).padStart(2,'0')}"`;
+}
+
 /* ── 러닝 ── */
 async function renderRunningPanel(){
   if(!_runningDate) _runningDate=today();
@@ -2233,13 +2286,8 @@ async function renderRunningPanel(){
     if(dayRecs.length){
       runList.innerHTML=dayRecs.map(r=>{
         const dist=r.distance?r.distance.toFixed(1):'-';
-        const dur=r.duration?r.duration+'분':'-';
-        let pace='-';
-        if(r.distance&&r.duration){
-          const pm=Math.floor(r.duration/r.distance);
-          const ps=Math.round((r.duration/r.distance-pm)*60);
-          pace=`${pm}'${String(ps).padStart(2,'0')}"`;
-        }
+        const dur=fmtDuration(r.duration);
+        const pace=calcPace(r.duration,r.distance);
         return `<div class="ex-entry-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
             <div style="flex:1;">
@@ -2274,13 +2322,8 @@ async function renderRunningPanel(){
       raceList.innerHTML=`<div style="font-size:13px;font-weight:700;color:var(--accent);margin:12px 0 6px;">🏆 대회 기록 목록</div>`
         +_exRunningRace.map(r=>{
           const dist=r.distance?r.distance.toFixed(1)+' km':'-';
-          const dur=r.duration?r.duration+'분':'-';
-          let pace='-';
-          if(r.distance&&r.duration){
-            const pm=Math.floor(r.duration/r.distance);
-            const ps=Math.round((r.duration/r.distance-pm)*60);
-            pace=`${pm}'${String(ps).padStart(2,'0')}"`;
-          }
+          const dur=fmtDuration(r.duration);
+          const pace=calcPace(r.duration,r.distance);
           return `<div class="ex-entry-card" style="border-left:3px solid var(--accent);">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
               <div style="flex:1;">
@@ -2307,7 +2350,7 @@ function openRunningModal(id){
   document.getElementById('rm-edit-id').value=id||'';
   document.getElementById('rm-date').value=r?r.date:today();
   document.getElementById('rm-distance').value=r?(r.distance||''):'';
-  document.getElementById('rm-duration').value=r?(r.duration||''):'';
+  setHMS('rm-h','rm-m','rm-s',r?r.duration:0);
   document.getElementById('rm-location').value=r?r.location:'';
   document.getElementById('rm-memo').value=r?r.memo:'';
   document.getElementById('running-modal-title').textContent=id?'🏃 러닝 기록 수정':'🏃 러닝 기록 추가';
@@ -2317,13 +2360,11 @@ function openRunningModal(id){
 
 function updateRunningPacePreview(){
   const dist=parseFloat(document.getElementById('rm-distance')?.value||0);
-  const dur=parseInt(document.getElementById('rm-duration')?.value||0);
+  const totalSecs=getHMS('rm-h','rm-m','rm-s');
   const preview=document.getElementById('rm-pace-preview');
   if(!preview) return;
-  if(dist>0&&dur>0){
-    const pm=Math.floor(dur/dist);
-    const ps=Math.round((dur/dist-pm)*60);
-    preview.textContent=`페이스: ${pm}'${String(ps).padStart(2,'0')}" /km`;
+  if(dist>0&&totalSecs>0){
+    preview.textContent=`페이스: ${calcPace(totalSecs,dist)} /km`;
     preview.style.display='block';
   } else {
     preview.style.display='none';
@@ -2334,13 +2375,13 @@ async function saveRunningRecord(){
   const id=document.getElementById('rm-edit-id').value;
   const date=document.getElementById('rm-date').value;
   const distance=document.getElementById('rm-distance').value;
-  const duration=document.getElementById('rm-duration').value;
+  const duration=getHMS('rm-h','rm-m','rm-s');
   const location=document.getElementById('rm-location').value.trim();
   const memo=document.getElementById('rm-memo').value.trim();
   if(!date){toast('날짜를 선택하세요.','error');return;}
   if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
-  if(!duration||parseInt(duration)<=0){toast('소요시간을 입력하세요.','error');return;}
-  const data={id:id||uid(),type:'running',date,location,distance:parseFloat(distance),duration:parseInt(duration),memo};
+  if(!duration){toast('소요시간을 입력하세요.','error');return;}
+  const data={id:id||uid(),type:'running',date,location,distance:parseFloat(distance),duration,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     closeModal('running-modal');
@@ -2363,18 +2404,18 @@ async function saveTodayRace(){
   const name=document.getElementById('race-td-name').value.trim();
   const date=document.getElementById('race-td-date').value;
   const distance=document.getElementById('race-td-distance').value;
-  const duration=document.getElementById('race-td-duration').value;
+  const duration=getHMS('race-td-h','race-td-m','race-td-s');
   const memo=document.getElementById('race-td-memo').value.trim();
   if(!name){toast('대회명을 입력하세요.','error');return;}
   if(!date){toast('날짜를 선택하세요.','error');return;}
   if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
-  if(!duration||parseInt(duration)<=0){toast('완주시간을 입력하세요.','error');return;}
-  const data={id:uid(),type:'running_race',date,location:name,distance:parseFloat(distance),duration:parseInt(duration),memo};
+  if(!duration){toast('완주시간을 입력하세요.','error');return;}
+  const data={id:uid(),type:'running_race',date,location:name,distance:parseFloat(distance),duration,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('race-td-name').value='';
     document.getElementById('race-td-distance').value='';
-    document.getElementById('race-td-duration').value='';
+    setHMS('race-td-h','race-td-m','race-td-s',0);
     document.getElementById('race-td-memo').value='';
     toast('대회기록이 저장됐습니다.');
     await renderRunningPanel();
@@ -2384,16 +2425,16 @@ async function saveTodayRace(){
 async function saveTodayRunning(){
   if(!_runningDate) _runningDate=today();
   const distance=document.getElementById('running-td-distance').value;
-  const duration=document.getElementById('running-td-duration').value;
+  const duration=getHMS('running-td-h','running-td-m','running-td-s');
   const location=document.getElementById('running-td-location').value.trim();
   const memo=document.getElementById('running-td-memo').value.trim();
   if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
-  if(!duration||parseInt(duration)<=0){toast('소요시간을 입력하세요.','error');return;}
-  const data={id:uid(),type:'running',date:_runningDate,location,distance:parseFloat(distance),duration:parseInt(duration),memo};
+  if(!duration){toast('소요시간을 입력하세요.','error');return;}
+  const data={id:uid(),type:'running',date:_runningDate,location,distance:parseFloat(distance),duration,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('running-td-distance').value='';
-    document.getElementById('running-td-duration').value='';
+    setHMS('running-td-h','running-td-m','running-td-s',0);
     document.getElementById('running-td-location').value='';
     document.getElementById('running-td-memo').value='';
     document.getElementById('running-td-pace').style.display='none';
@@ -2404,13 +2445,11 @@ async function saveTodayRunning(){
 
 function updateTodayRunningPace(){
   const dist=parseFloat(document.getElementById('running-td-distance')?.value||0);
-  const dur=parseInt(document.getElementById('running-td-duration')?.value||0);
+  const totalSecs=getHMS('running-td-h','running-td-m','running-td-s');
   const preview=document.getElementById('running-td-pace');
   if(!preview) return;
-  if(dist>0&&dur>0){
-    const pm=Math.floor(dur/dist);
-    const ps=Math.round((dur/dist-pm)*60);
-    preview.textContent=`페이스: ${pm}'${String(ps).padStart(2,'0')}" /km`;
+  if(dist>0&&totalSecs>0){
+    preview.textContent=`페이스: ${calcPace(totalSecs,dist)} /km`;
     preview.style.display='block';
   } else {
     preview.style.display='none';
