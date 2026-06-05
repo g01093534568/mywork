@@ -2071,7 +2071,7 @@ async function renderGolfPanel(){
   const isToday=_golfDate===today();
   const dateLabel=document.getElementById('golf-date-label');
   if(dateLabel){
-    dateLabel.textContent=fmtDate(_golfDate)+(isToday?' (오늘)':'');
+    dateLabel.textContent=fmtDate(_golfDate)+' ('+dayLabel(_golfDate)+')'+(isToday?' · 오늘':'');
     dateLabel.style.color=isToday?'var(--accent)':'var(--t1)';
   }
 
@@ -2126,7 +2126,7 @@ async function renderGolfPanel(){
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.location?esc(r.location):'라운딩'}</div>
-                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)}</div>
+                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)} (${dayLabel(r.date)})</div>
                 </div>
                 <div style="display:flex;gap:4px;flex-shrink:0;">
                   <button class="btn btn-ghost btn-sm" onclick="editGolfRound('${r.id}')">✏️</button>
@@ -2280,7 +2280,7 @@ async function renderRunningPanel(){
   const isToday=_runningDate===today();
   const dateLabel=document.getElementById('running-date-label');
   if(dateLabel){
-    dateLabel.textContent=fmtDate(_runningDate)+(isToday?' (오늘)':'');
+    dateLabel.textContent=fmtDate(_runningDate)+' ('+dayLabel(_runningDate)+')'+(isToday?' · 오늘':'');
     dateLabel.style.color=isToday?'var(--blue)':'var(--t1)';
   }
 
@@ -2344,7 +2344,7 @@ async function renderRunningPanel(){
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.location||'대회')}</div>
-                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)}</div>
+                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)} (${dayLabel(r.date)})</div>
                 </div>
                 <div style="display:flex;gap:4px;flex-shrink:0;">
                   <button class="btn btn-ghost btn-sm" onclick="editRaceRecord('${r.id}')">✏️</button>
