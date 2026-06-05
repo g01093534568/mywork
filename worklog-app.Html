@@ -343,6 +343,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 /* ---- TODAY TRAIN CARD ---- */
 .today-train-card{background:var(--bg2);border:1px solid rgba(232,160,32,0.25);border-radius:var(--r);padding:18px;margin-bottom:16px;}
 .today-train-card-title{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
+/* ---- EXERCISE DATE BAR ---- */
+.ex-date-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;}
+.ex-section-title{font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px;display:flex;align-items:center;gap:8px;}
+.ex-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.ex-entry-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;margin-bottom:8px;}
 /* ── CUSTOM GOOGLE CALENDAR ── */
 .gcal-view{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
 .gcal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
@@ -829,13 +834,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <p>계정 설정 및 관리 기능</p>
       </div>
       <div class="admin-tabs">
-        <div class="admin-tab active" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
-        <div class="admin-tab" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
+        <div class="admin-tab active" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
         <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
         <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
+        <div class="admin-tab" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
       </div>
       <!-- Google 계정 Tab -->
-      <div id="admin-google" class="admin-panel active">
+      <div id="admin-google" class="admin-panel">
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🔗 Google Calendar 연동</div>
           <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google 계정을 입력하면 업무 페이지의 캘린더와 자동으로 연동됩니다.</div>
