@@ -468,8 +468,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 아직 설정하지 않았습니다</p></div>
       </div>
 
-      <div class="section-title" style="margin-top:28px;">🏢 시설 목표 <span id="home-facility-label" style="font-size:11px;color:var(--t2);font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px"></span></div>
-      <div class="facility-goals-grid" id="facility-goals-display" style="margin-bottom:28px;"></div>
+      <div id="facility-goals-display" style="display:none"></div>
 
       <div class="section-title" style="margin-top:28px;">👤 개인 성과 목표 <button class="btn btn-sm btn-secondary" onclick="openPersonalGoalModal()" style="margin-left:8px">+ 목표 추가</button></div>
       <div class="personal-goals-grid" id="personal-goals-display">
@@ -1796,28 +1795,7 @@ async function renderHome(){
   await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
 }
 
-async function renderFacilityGoals(){
-  const goals = await DB.getFacilityGoals(currentUser.시설명);
-  const cont = document.getElementById('facility-goals-display');
-  const label = document.getElementById('home-facility-label');
-  if(label) label.textContent = `(${currentUser.시설명})`;
-  if(!goals.length){
-    cont.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏢</div><p>시설 관리자가 시설목표를 설정하면 여기에 표시됩니다</p></div>';
-    return;
-  }
-  cont.innerHTML=goals.map(g=>`
-    <div class="fg-display-card">
-      <div class="fg-display-header">
-        <div style="font-size:14px;font-weight:600">${esc(g.goal)}</div>
-        <span style="font-size:13px;color:var(--accent);font-weight:700">${g.progress||0}%</span>
-      </div>
-      ${(()=>{const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);return kpis.length?`<div style="margin-bottom:8px">${kpis.map((k,ki)=>`<div style="font-size:12px;color:var(--t2)">📊 ${kpis.length>1?ki+1+'. ':''}${esc(k)}</div>`).join('')}</div>`:'';})()}
-      <div class="progress-bar-wrap">
-        <div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div>
-      </div>
-      ${g.linkedStrategyGoal?`<div class="fg-linked">↗ ${esc(g.linkedStrategyGoal)}${g.linkedStrategyTask?' › '+esc(g.linkedStrategyTask):''}</div>`:''}
-    </div>`).join('');
-}
+async function renderFacilityGoals(){ /* rendered inside renderOrgGoals */ }
 
 async function renderOrgGoals(){
   const [org, facilityGoals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명)]);
@@ -1837,22 +1815,19 @@ async function renderOrgGoals(){
     html+=`</div>`;
   });
   html+=`</div></div>`;
-  const linkedTasks=(org.전략과제||[]).filter(t=>facilityGoals.some(g=>g.linkedStrategyTask===t.과제));
-  if(linkedTasks.length){
-    html+=`<div class="goal-arrow">↓</div>
-    <div style="width:100%">
-      <div class="facility-goals-section">
-        <div class="facility-goals-header">🏢 시설목표</div>
-        <div class="facility-goals-grid">`;
-    linkedTasks.forEach(t=>{
-      const matched=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
-      html+=`<div class="facility-goal-col"><div class="facility-task-label">${esc(t.과제)}</div>`;
-      matched.forEach(g=>{
-        html+=`<div class="facility-goal-item"><span style="flex-shrink:0">🏢</span><span>${esc(g.goal)}</span></div>`;
-      });
-      html+=`</div>`;
+  if(facilityGoals.length){
+    html+=`<div class="goal-arrow">↓</div><div style="width:100%"><div class="strategy-grid">`;
+    facilityGoals.forEach(g=>{
+      const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
+      html+=`<div class="strategy-col">
+        <div class="strategy-col-title" style="color:var(--blue)">🏢 ${esc(g.goal)}</div>
+        ${kpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
+        <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+        <div style="font-size:11px;color:var(--accent);text-align:right;margin-top:4px;font-weight:700">${g.progress||0}%</div>
+        ${g.linkedStrategyTask?`<div class="fg-linked" style="margin-top:8px">↗ ${esc(g.linkedStrategyTask)}</div>`:''}
+      </div>`;
     });
-    html+=`</div></div></div>`;
+    html+=`</div></div>`;
   }
   html+=`</div>`;
   document.getElementById('org-goals-display').innerHTML=html;
