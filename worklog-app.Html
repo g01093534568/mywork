@@ -1726,7 +1726,6 @@ async function enterApp(){
   // localStorage → Supabase 1회 자동 이전
   await migrateLocalStorageToSupabase();
 
-  loadAdminGoalsForm();
   const lastPage = localStorage.getItem('wl_nav_page_'+currentUser.사원번호) || 'home';
   navigate(lastPage);
 }
@@ -1799,14 +1798,6 @@ function navigate(page){
     renderDailyPage();
     startGcalAutoRefresh();
     if(gcalToken){ renderCustomCalendar(); }
-    else {
-      const savedEmail = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
-      if(savedEmail && window.google?.accounts?.oauth2){
-        makeTokenClient(savedEmail, 'none', (resp) => {
-          if(!resp.error){ saveGcalToken(resp.access_token, savedEmail); renderCustomCalendar(); }
-        }).requestAccessToken({ prompt: 'none' });
-      }
-    }
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
@@ -1827,6 +1818,10 @@ function navigate(page){
 async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
+  // 로딩 중 표시 (Supabase cold start 시 빈 화면 방지)
+  const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
+  if(!_cg('org')) document.getElementById('org-goals-display').innerHTML=loadingHtml;
+  if(!_cg(`pg:${currentUser.사원번호}`)) document.getElementById('personal-goals-display').innerHTML=loadingHtml;
   await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
 }
 
