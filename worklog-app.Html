@@ -743,7 +743,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <input type="text" id="golf-prac-location" placeholder="예: 스크린골프, 실내 연습장, 필드" />
             </div>
             <div style="display:flex;justify-content:flex-end">
-              <button class="btn btn-primary" onclick="saveGolfPractice()">저장</button>
+              <button class="btn btn-primary" onclick="saveGolfPractice(this)">저장</button>
             </div>
           </div>
           <div id="golf-prac-list"></div>
@@ -2160,24 +2160,34 @@ function editGolfRound(id){
   document.getElementById('golf-round-score').scrollIntoView({behavior:'smooth',block:'center'});
 }
 
-async function saveGolfPractice(){
+async function saveGolfPractice(btnEl){
   if(!_golfDate) _golfDate=today();
-  const memo=document.getElementById('golf-prac-memo').value.trim();
-  const location=document.getElementById('golf-prac-location').value.trim();
+  const memo=(document.getElementById('golf-prac-memo')||{}).value?.trim()||'';
+  const location=(document.getElementById('golf-prac-location')||{}).value?.trim()||'';
   if(!memo&&!location){toast('훈련 내용을 입력하세요.','error');return;}
-  const editId=document.getElementById('golf-prac-edit-id').value;
-  // duration=1 로 훈련내용 구분 (골프는 duration 미사용, score=null)
-  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:null,duration:1,memo};
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='저장 중...';}
+  const editId=(document.getElementById('golf-prac-edit-id')||{}).value||'';
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:null,distance:null,duration:1,memo};
   try{
-    await DB.upsertExercise(currentUser.사원번호,data);
-    document.getElementById('golf-prac-memo').value='';
-    document.getElementById('golf-prac-location').value='';
-    document.getElementById('golf-prac-edit-id').value='';
+    const {error}=await SB.from('exercises').upsert({
+      id:data.id, 사원번호:currentUser.사원번호, type:'golf',
+      date:data.date, location:data.location, score:null,
+      distance:null, duration:1, memo:data.memo,
+      updated_at:new Date().toISOString()
+    });
+    if(error) throw error;
+    _cd(`ex:${currentUser.사원번호}:golf`);
+    if(document.getElementById('golf-prac-memo')) document.getElementById('golf-prac-memo').value='';
+    if(document.getElementById('golf-prac-location')) document.getElementById('golf-prac-location').value='';
+    if(document.getElementById('golf-prac-edit-id')) document.getElementById('golf-prac-edit-id').value='';
     toast('훈련 내용이 저장됐습니다.');
     await renderGolfPanel();
   }catch(e){
     console.error('saveGolfPractice error:',e);
-    toast('저장 실패: '+(e.message||e.code||JSON.stringify(e)),'error');
+    const msg=e?.message||e?.code||e?.details||JSON.stringify(e);
+    toast('저장 실패: '+msg,'error');
+  }finally{
+    if(btnEl){btnEl.disabled=false;btnEl.textContent='저장';}
   }
 }
 
