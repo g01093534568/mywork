@@ -2310,31 +2310,46 @@ async function renderRunningPanel(){
   const raceDateEl=document.getElementById('race-td-date');
   if(raceDateEl&&!raceDateEl.value) raceDateEl.value=today();
 
-  // 대회기록 목록 렌더링
+  // 대회기록 목록 — 년도별 그룹
   const raceList=document.getElementById('running-race-list');
   if(raceList){
     if(_exRunningRace.length){
+      const sorted=[..._exRunningRace].sort((a,b)=>b.date.localeCompare(a.date));
+      const byYear={};
+      sorted.forEach(r=>{ const y=(r.date||'').slice(0,4)||'미상'; (byYear[y]||(byYear[y]=[])).push(r); });
+      const years=Object.keys(byYear).sort((a,b)=>b-a);
       raceList.innerHTML=`<div style="font-size:13px;font-weight:700;color:var(--accent);margin:12px 0 6px;">🏆 대회 기록 목록</div>`
-        +_exRunningRace.map(r=>{
-          const dist=r.distance?r.distance.toFixed(1)+' km':'-';
-          const dur=fmtDuration(r.duration);
-          const pace=calcPace(r.duration,r.distance);
-          return `<div class="ex-entry-card" style="border-left:3px solid var(--accent);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-              <div style="flex:1;">
-                <div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:4px;">${esc(r.location||'대회')} <span style="font-size:11px;color:var(--t3);font-weight:400;">${r.date}</span></div>
-                <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;">
-                  <span><strong style="font-size:16px;color:var(--accent)">${dist}</strong></span>
-                  <span style="font-size:13px;color:var(--t2)">${dur}</span>
-                  <span style="font-size:13px;color:var(--blue);font-weight:600;">${pace}/km</span>
+        +years.map(year=>{
+          const cnt=byYear[year].length;
+          const cards=byYear[year].map(r=>{
+            const dist=r.distance?r.distance.toFixed(1)+' km':'-';
+            const dur=fmtDuration(r.duration);
+            const pace=calcPace(r.duration,r.distance);
+            return `<div class="ex-entry-card" style="border-left:3px solid var(--accent);">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <div style="flex:1;">
+                  <div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:4px;">${esc(r.location||'대회')} <span style="font-size:11px;color:var(--t3);font-weight:400;">${fmtDate(r.date)}</span></div>
+                  <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;">
+                    <span><strong style="font-size:16px;color:var(--accent)">${dist}</strong></span>
+                    <span style="font-size:13px;color:var(--t2)">${dur}</span>
+                    <span style="font-size:13px;color:var(--blue);font-weight:600;">${pace}/km</span>
+                  </div>
+                  ${r.memo?`<div style="font-size:12px;color:var(--t3);margin-top:4px;white-space:pre-wrap;line-height:1.5;">${esc(r.memo)}</div>`:''}
                 </div>
-                ${r.memo?`<div style="font-size:12px;color:var(--t3);margin-top:4px;white-space:pre-wrap;line-height:1.5;">${esc(r.memo)}</div>`:''}
+                <div style="display:flex;gap:4px;flex-shrink:0;">
+                  <button class="btn btn-ghost btn-sm" onclick="editRaceRecord('${r.id}')">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','running_race')">🗑</button>
+                </div>
               </div>
-              <div style="display:flex;gap:4px;flex-shrink:0;">
-                <button class="btn btn-ghost btn-sm" onclick="editRaceRecord('${r.id}')">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','running_race')">🗑</button>
-              </div>
+            </div>`;
+          }).join('');
+          return `<div style="margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:13px;font-weight:700;color:var(--t2);">${year}년</span>
+              <span style="font-size:11px;color:var(--t3);">${cnt}회</span>
+              <div style="flex:1;height:1px;background:var(--border);"></div>
             </div>
+            ${cards}
           </div>`;
         }).join('');
     } else {
