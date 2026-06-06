@@ -1781,6 +1781,20 @@ function doLogout(){
   document.getElementById('l-pw').value='';
 }
 
+// GCal 변수 — IIFE보다 먼저 선언 필요 (TDZ 방지)
+const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
+const GCAL_TOKEN_KEY = 'gcal_token';
+const GCAL_TOKEN_TIME_KEY = 'gcal_token_time';
+let gcalToken = null;
+let gcalCalendars = [];
+let gcalViewYear = new Date().getFullYear();
+let gcalViewMonth = new Date().getMonth();
+let gcalEvents = [];
+let gcalPopupEl = null;
+let gcalAutoRefreshTimer = null;
+let gcalRenderGen = 0;
+
 // Restore session
 (function(){
   const s=sessionStorage.getItem('wl_session');
@@ -4413,19 +4427,6 @@ function setTimeValue(id, val) {
   if (!el) return;
   el.value = val || '';
 }
-
-const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
-const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
-const GCAL_TOKEN_KEY = 'gcal_token';
-const GCAL_TOKEN_TIME_KEY = 'gcal_token_time';
-let gcalToken = null;
-let gcalCalendars = []; // [{id, summary, backgroundColor, foregroundColor}]
-let gcalViewYear = new Date().getFullYear();
-let gcalViewMonth = new Date().getMonth();
-let gcalEvents = [];
-let gcalPopupEl = null;
-let gcalAutoRefreshTimer = null;
-let gcalRenderGen = 0;
 
 function startGcalAutoRefresh() {
   stopGcalAutoRefresh();
