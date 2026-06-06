@@ -3617,11 +3617,13 @@ async function renderTodos(){
   const filterPri=document.getElementById('todo-filter-priority').value;
   const t=today();
   let list=todos.filter(todo=>{
-    if(!todayVisible(todo, t)) return false;
+    // 반복 할일은 요일 무관 전체 표시, 일반 할일은 기존 로직 유지
+    if(!todo.isRecurring && !todayVisible(todo, t)) return false;
     if(search && !todo.title.toLowerCase().includes(search)) return false;
     if(filterCat!=='all' && todo.category!==filterCat) return false;
     if(filterStatus==='todo'){
       if(!todo.isRecurring && todo.status!=='todo' && todo.completedDate!==t) return false;
+      if(todo.isRecurring && isDoneOnDate(todo, t)) return false;
     }
     if(filterStatus==='done' && !isDoneOnDate(todo, t)) return false;
     if(filterStatus==='overdue' && !isOverdue(todo)) return false;
