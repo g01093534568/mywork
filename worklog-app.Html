@@ -3582,7 +3582,10 @@ function isRecurringOnDate(todo, date){
 function todayVisible(todo, date){
   const d=date||today();
   if(todo.isRecurring) return isRecurringOnDate(todo, d);
-  if(todo.status==='todo') return true;
+  if(todo.status==='todo'){
+    if(todo.dueDate && todo.dueDate > d) return false;
+    return true;
+  }
   if(todo.completedDate===d) return true;
   return false;
 }
