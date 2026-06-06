@@ -1565,7 +1565,7 @@ function dbToTrade(r) {
 // ═══════════════════════════════════════════════
 const _C = {}; // cache store
 function _cg(k){ return _C[k]; }
-function _cs(k,v){ _C[k]=v; return v; }
+function _cs(k,v){ _C[k]=v; try{sessionStorage.setItem('_wlc_'+k,JSON.stringify(v));}catch(e){} return v; }
 function _cd(...keys){ keys.forEach(k=>delete _C[k]); }
 
 const DB = {
@@ -1773,6 +1773,7 @@ async function migrateLocalStorageToSupabase(){
 function doLogout(){
   stopGcalAutoRefresh();
   DB.clearCache();
+  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
@@ -1825,8 +1826,23 @@ async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
   const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
-  if(!_cg('org')) document.getElementById('org-goals-display').innerHTML=loadingHtml;
-  if(!_cg(`pg:${currentUser.사원번호}`)) document.getElementById('personal-goals-display').innerHTML=loadingHtml;
+  const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${currentUser.사원번호}`;
+
+  // 새로고침 시 sessionStorage → _C 복원 (즉시 렌더링용)
+  if(!_C[k_org]) try{ const s=sessionStorage.getItem('_wlc_'+k_org); if(s) _C[k_org]=JSON.parse(s); }catch(e){}
+  if(!_C[k_fg])  try{ const s=sessionStorage.getItem('_wlc_'+k_fg);  if(s) _C[k_fg] =JSON.parse(s); }catch(e){}
+  if(!_C[k_pg])  try{ const s=sessionStorage.getItem('_wlc_'+k_pg);  if(s) _C[k_pg] =JSON.parse(s); }catch(e){}
+
+  if(!_cg(k_org)) document.getElementById('org-goals-display').innerHTML=loadingHtml;
+  if(!_cg(k_pg))  document.getElementById('personal-goals-display').innerHTML=loadingHtml;
+
+  // sessionStorage 캐시가 있으면 즉시 렌더 (stale)
+  if(_cg(k_org)||_cg(k_fg)) await renderOrgGoals();
+  if(_cg(k_pg)) await renderPersonalGoals();
+
+  // 캐시 초기화 → Supabase에서 fresh 데이터 강제 re-fetch
+  _cd(k_org, k_fg, k_pg);
+
   try {
     await Promise.all([renderOrgGoals(), renderFacilityGoals(), renderPersonalGoals()]);
   } catch(e) {
