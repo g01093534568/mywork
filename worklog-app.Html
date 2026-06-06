@@ -1729,8 +1729,8 @@ async function enterApp(){
 
   document.getElementById('daily-date').value = today();
 
-  // localStorage → Supabase 1회 자동 이전
-  await migrateLocalStorageToSupabase();
+  // localStorage → Supabase 1회 자동 이전 (백그라운드 — navigate 블로킹 방지)
+  migrateLocalStorageToSupabase();
 
   const lastPage = localStorage.getItem('wl_nav_page_'+currentUser.사원번호) || 'home';
   navigate(lastPage);
