@@ -390,6 +390,40 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-popup-time{font-size:12px;color:var(--t2);margin-bottom:12px;}
 .gcal-popup-actions{display:flex;gap:8px;}
 .gcal-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
+/* ---- GMAIL ---- */
+.gmail-layout{display:flex;gap:0;height:calc(100vh - 180px);min-height:500px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.gmail-sidebar{width:180px;flex-shrink:0;border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;gap:2px;}
+.gmail-label-btn{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r2);font-size:13px;font-weight:500;color:var(--t2);cursor:pointer;transition:var(--tr);border:none;background:transparent;width:100%;text-align:left;}
+.gmail-label-btn:hover{background:var(--bg3);color:var(--t1);}
+.gmail-label-btn.active{background:rgba(232,160,32,0.12);color:var(--accent);font-weight:600;}
+.gmail-label-btn .gmail-badge{margin-left:auto;background:var(--accent);color:#1a1000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center;}
+.gmail-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.gmail-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.gmail-search{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:7px 14px;font-size:13px;color:var(--t1);outline:none;width:auto;}
+.gmail-search:focus{border-color:var(--accent);}
+.gmail-thread-list{flex:1;overflow-y:auto;}
+.gmail-thread-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s;}
+.gmail-thread-item:hover{background:rgba(255,255,255,0.03);}
+.gmail-thread-item.unread{background:rgba(232,160,32,0.04);}
+.gmail-thread-item.unread .gmail-thread-sender{font-weight:700;color:var(--t1);}
+.gmail-thread-item.unread .gmail-thread-subject{font-weight:600;color:var(--t1);}
+.gmail-thread-sender{font-size:13px;font-weight:500;color:var(--t2);width:140px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gmail-thread-body{flex:1;overflow:hidden;}
+.gmail-thread-subject{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gmail-thread-snippet{font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;}
+.gmail-thread-date{font-size:11px;color:var(--t3);flex-shrink:0;width:60px;text-align:right;}
+.gmail-detail-wrap{flex:1;overflow-y:auto;padding:20px;}
+.gmail-detail-header{margin-bottom:16px;}
+.gmail-detail-subject{font-size:18px;font-weight:700;color:var(--t1);margin-bottom:10px;}
+.gmail-msg-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:10px;overflow:hidden;}
+.gmail-msg-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;}
+.gmail-msg-from{font-size:13px;font-weight:600;color:var(--t1);flex:1;}
+.gmail-msg-date{font-size:11px;color:var(--t3);}
+.gmail-msg-body{padding:0 16px 16px;font-size:13px;color:var(--t2);line-height:1.7;white-space:pre-wrap;word-break:break-word;}
+.gmail-msg-body iframe{width:100%;border:none;min-height:200px;}
+.gmail-empty{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
+.gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;text-align:center;padding:40px;}
+@media(max-width:700px){.gmail-sidebar{width:44px;}.gmail-label-btn span{display:none;}.gmail-thread-sender{width:80px;}}
 </style>
 </head>
 <body>
@@ -445,6 +479,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <div class="nav-item" onclick="navigate('personal')" id="nav-personal">
         <span class="nav-icon">🙋</span><span>개인</span>
+      </div>
+      <div class="nav-item" onclick="navigate('gmail')" id="nav-gmail">
+        <span class="nav-icon">✉️</span><span>Gmail</span>
       </div>
       <div class="nav-label">설정</div>
       <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
@@ -884,6 +921,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">✉️ Gmail 연동</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google 계정을 연동하면 앱에서 받은편지함을 확인하고 메일을 보낼 수 있습니다.</div>
+          <div class="form-group">
+            <label>Google 계정 (Gmail 주소)</label>
+            <input type="email" id="gmail-account-email" placeholder="example@gmail.com" oninput="onGmailEmailInput()" />
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:16px;">
+            <button id="gmail-settings-connect-btn" class="btn btn-primary" onclick="connectGmailWithEmail()" disabled>🔗 연동하기</button>
+            <span id="gmail-settings-status" style="font-size:12px;font-weight:600;color:var(--green);display:none;">✓ 연동됨</span>
+            <button id="gmail-settings-disconnect-btn" class="btn btn-sm btn-danger" onclick="gmailDisconnect()" style="display:none;">연동 해제</button>
+          </div>
+          <div id="gmail-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 리포트 설정</div>
           <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google AI Studio API 키를 등록하면 업무 페이지에서 AI 성찰 리포트를 사용할 수 있습니다. 무료로 사용 가능하며, 키는 이 기기에만 저장됩니다.</div>
           <div class="form-group">
@@ -982,10 +1033,103 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
     </div>
 
+    <!-- ── GMAIL PAGE ── -->
+    <div id="page-gmail" class="page-section">
+      <div class="page-header" style="margin-bottom:16px;">
+        <h2>Gmail</h2>
+        <p>받은편지함을 확인하고 메일을 보내세요</p>
+      </div>
+      <div class="gmail-layout" id="gmail-layout">
+        <!-- 연동 전 프롬프트 -->
+        <div class="gmail-connect-prompt" id="gmail-connect-prompt" style="width:100%;">
+          <div style="font-size:32px;">✉️</div>
+          <div style="font-size:15px;font-weight:700;color:var(--t1);">Gmail 연동이 필요합니다</div>
+          <div style="font-size:13px;color:var(--t3);">설정 → Google 계정 탭에서 Gmail을 연동하세요</div>
+          <button class="btn btn-primary" onclick="navigate('admin');setTimeout(()=>switchAdminTab('google'),100)">설정으로 이동</button>
+        </div>
+        <!-- 연동 후 본체 (JS로 표시) -->
+        <div id="gmail-body" style="display:none;width:100%;display:none;flex:1;overflow:hidden;display:flex;">
+          <div class="gmail-sidebar">
+            <button class="gmail-label-btn active" id="gmail-lbl-INBOX" onclick="gmailSelectLabel('INBOX')">
+              <span>📥</span><span>받은편지함</span><span class="gmail-badge" id="gmail-unread-count" style="display:none"></span>
+            </button>
+            <button class="gmail-label-btn" id="gmail-lbl-SENT" onclick="gmailSelectLabel('SENT')">
+              <span>📤</span><span>보낸편지함</span>
+            </button>
+            <button class="gmail-label-btn" id="gmail-lbl-STARRED" onclick="gmailSelectLabel('STARRED')">
+              <span>⭐</span><span>중요</span>
+            </button>
+            <div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+              <button class="gmail-label-btn" onclick="gmailDisconnect()" style="color:var(--red);">
+                <span>🔌</span><span>연동 해제</span>
+              </button>
+            </div>
+          </div>
+          <div class="gmail-main">
+            <div class="gmail-toolbar">
+              <input class="gmail-search" id="gmail-search-input" placeholder="메일 검색..." onkeydown="if(event.key==='Enter')gmailSearch()" />
+              <button class="btn btn-sm btn-secondary" onclick="gmailSearch()">검색</button>
+              <button class="btn btn-sm btn-primary" onclick="openGmailCompose()">✏️ 편지쓰기</button>
+              <button class="btn btn-sm btn-secondary" onclick="gmailRefresh()" title="새로고침">↻</button>
+            </div>
+            <!-- 스레드 목록 -->
+            <div class="gmail-thread-list" id="gmail-thread-list"></div>
+            <!-- 메세지 상세 -->
+            <div class="gmail-detail-wrap" id="gmail-detail-wrap" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /main-content -->
 </div><!-- /app-screen -->
 
 <!-- ═══ MODALS ═══ -->
+
+<!-- Gmail Compose Modal -->
+<div class="modal-overlay" id="gmail-compose-modal">
+  <div class="modal" style="max-width:600px;">
+    <h3>✏️ 메일 쓰기</h3>
+    <div class="form-group">
+      <label>받는 사람 *</label>
+      <input type="email" id="gmail-compose-to" placeholder="example@gmail.com" />
+    </div>
+    <div class="form-group">
+      <label>제목 *</label>
+      <input type="text" id="gmail-compose-subject" placeholder="제목을 입력하세요" />
+    </div>
+    <div class="form-group">
+      <label>내용 *</label>
+      <textarea id="gmail-compose-body" rows="10" placeholder="내용을 입력하세요" style="resize:vertical;"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('gmail-compose-modal')">취소</button>
+      <button class="btn btn-primary" onclick="gmailSendMessage()">📨 보내기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gmail Reply Modal -->
+<div class="modal-overlay" id="gmail-reply-modal">
+  <div class="modal" style="max-width:600px;">
+    <h3>↩️ 답장</h3>
+    <input type="hidden" id="gmail-reply-to" />
+    <input type="hidden" id="gmail-reply-subject" />
+    <input type="hidden" id="gmail-reply-thread-id" />
+    <div class="form-group">
+      <label>받는 사람</label>
+      <input type="text" id="gmail-reply-to-display" readonly style="opacity:0.7;" />
+    </div>
+    <div class="form-group">
+      <label>내용 *</label>
+      <textarea id="gmail-reply-body" rows="8" placeholder="답장 내용을 입력하세요" style="resize:vertical;"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('gmail-reply-modal')">취소</button>
+      <button class="btn btn-primary" onclick="gmailSendReply()">📨 보내기</button>
+    </div>
+  </div>
+</div>
 
 <!-- Todo Modal -->
 <div class="modal-overlay" id="todo-modal">
@@ -1745,6 +1889,7 @@ async function enterApp(){
   const gcalWrap=document.getElementById('gcal-custom-view');
   if(gcalWrap) gcalWrap.innerHTML='<div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>';
   updateGcalConnectionUI(false,'');
+  updateGmailConnectionUI(false,'');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   document.getElementById('user-name-display').textContent = currentUser.시설명;
@@ -1761,6 +1906,11 @@ async function enterApp(){
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
   document.getElementById('gcal-account-email').value = savedGcalEmail || '';
   document.getElementById('gcal-settings-connect-btn').disabled = !savedGcalEmail;
+  const savedGmailEmail = localStorage.getItem('gmail_email_' + currentUser.사원번호);
+  const gmailEmailInput = document.getElementById('gmail-account-email');
+  if (gmailEmailInput) gmailEmailInput.value = savedGmailEmail || '';
+  const gmailConnectBtn = document.getElementById('gmail-settings-connect-btn');
+  if (gmailConnectBtn) gmailConnectBtn.disabled = !savedGmailEmail;
   loadAiKeySettings();
   // 세션 토큰만 복원 — OAuth 시도는 daily 페이지 진입 시 처리 (로그인 팝업 방지)
   (function() {
@@ -1770,6 +1920,13 @@ async function enterApp(){
       gcalToken = tok;
       const email = localStorage.getItem('gcal_email_' + currentUser.사원번호) || '';
       updateGcalConnectionUI(true, email);
+    }
+    const gtok = sessionStorage.getItem(_gmailTokenKey());
+    const gts  = parseInt(sessionStorage.getItem(_gmailTokenTimeKey()) || '0');
+    if (gtok && Date.now() - gts < 55 * 60 * 1000) {
+      gmailToken = gtok;
+      const gemail = localStorage.getItem('gmail_email_' + currentUser.사원번호) || '';
+      updateGmailConnectionUI(true, gemail);
     }
   })();
 
@@ -1821,11 +1978,14 @@ function doLogout(){
   // 사용자별 캐시 + GCal 토큰 + 세션 모두 초기화
   const _logoutTokenKey = _gcalTokenKey();
   const _logoutTokenTimeKey = _gcalTokenTimeKey();
-  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey).forEach(k=>sessionStorage.removeItem(k));
+  const _logoutGmailKey = _gmailTokenKey();
+  const _logoutGmailTimeKey = _gmailTokenTimeKey();
+  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey||k===_logoutGmailKey||k===_logoutGmailTimeKey).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
   gcalEvents=[];
   gcalCalendars=[];
+  gmailToken=null;
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -1872,6 +2032,7 @@ function navigate(page){
     if (gcalToken) renderCustomCalendar(); else restoreGcalToken();
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
+  if(page==='gmail') renderGmailPage();
   if(page==='admin'){
     const _savedAdminTab = localStorage.getItem('wl_nav_admin_'+currentUser.사원번호);
     const _isAdmin = currentUser.role==='admin';
@@ -5373,6 +5534,367 @@ async function executeAITool(toolName,input){
     }
     default: return '알 수 없는 명령입니다';
   }
+}
+
+// ═══════════════════════════════════════════════
+// GMAIL
+// ═══════════════════════════════════════════════
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+let gmailToken = null;
+let gmailCurrentLabel = 'INBOX';
+let gmailThreads = [];
+let gmailNextPageToken = null;
+
+function _gmailTokenKey() { return 'gmail_token_' + (currentUser?.사원번호 || '_guest'); }
+function _gmailTokenTimeKey() { return 'gmail_token_time_' + (currentUser?.사원번호 || '_guest'); }
+
+function saveGmailToken(token, email) {
+  gmailToken = token;
+  sessionStorage.setItem(_gmailTokenKey(), token);
+  sessionStorage.setItem(_gmailTokenTimeKey(), Date.now().toString());
+  updateGmailConnectionUI(true, email);
+}
+
+function restoreGmailToken() {
+  const token = sessionStorage.getItem(_gmailTokenKey());
+  const time = parseInt(sessionStorage.getItem(_gmailTokenTimeKey()) || '0');
+  if (token && Date.now() - time < 55 * 60 * 1000) {
+    gmailToken = token;
+    const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : '';
+    updateGmailConnectionUI(true, email || '');
+    return true;
+  }
+  const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : null;
+  if (!email || !window.google?.accounts?.oauth2) return false;
+  makeGmailTokenClient(email, 'none', (resp) => {
+    if (resp.error) return;
+    saveGmailToken(resp.access_token, email);
+    renderGmailInbox();
+  }).requestAccessToken({ prompt: 'none' });
+  return false;
+}
+
+function makeGmailTokenClient(email, pr, callback) {
+  return google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GMAIL_SCOPE,
+    ...(email && { login_hint: email }),
+    prompt: pr,
+    callback,
+  });
+}
+
+function gmailEnsureToken(onReady) {
+  if (gmailToken) { onReady(); return; }
+  const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : null;
+  if (!window.google?.accounts?.oauth2) { toast('설정 탭에서 Gmail을 먼저 연동해주세요.', 'error'); return; }
+  const tryAuth = (pr) => {
+    makeGmailTokenClient(email, pr, (resp) => {
+      if (resp.error === 'interaction_required' || resp.error === 'access_denied') { tryAuth(''); return; }
+      if (resp.error) { toast('Gmail 연동 실패: ' + resp.error, 'error'); return; }
+      saveGmailToken(resp.access_token, email || '');
+      onReady();
+    }).requestAccessToken({ prompt: pr });
+  };
+  tryAuth(email ? 'none' : '');
+}
+
+function updateGmailConnectionUI(connected, email) {
+  const s = document.getElementById('gmail-settings-status');
+  const d = document.getElementById('gmail-settings-disconnect-btn');
+  const e = document.getElementById('gmail-connected-email');
+  if (s) s.style.display = connected ? 'inline' : 'none';
+  if (d) d.style.display = connected ? 'inline-flex' : 'none';
+  if (e) { e.style.display = connected && email ? 'block' : 'none'; e.textContent = connected && email ? `연동된 계정: ${email}` : ''; }
+  const prompt = document.getElementById('gmail-connect-prompt');
+  const body = document.getElementById('gmail-body');
+  if (prompt) prompt.style.display = connected ? 'none' : 'flex';
+  if (body) body.style.display = connected ? 'flex' : 'none';
+}
+
+function onGmailEmailInput() {
+  const btn = document.getElementById('gmail-settings-connect-btn');
+  if (btn) btn.disabled = !document.getElementById('gmail-account-email').value.trim();
+}
+
+function connectGmailWithEmail() {
+  const email = document.getElementById('gmail-account-email').value.trim();
+  if (!email) { toast('Gmail 주소를 입력하세요.', 'error'); return; }
+  if (!window.google?.accounts?.oauth2) { toast('Google API 로딩 중입니다.', 'error'); return; }
+  makeGmailTokenClient(email, '', (resp) => {
+    if (resp.error) { toast('연동 실패: ' + resp.error, 'error'); return; }
+    if (currentUser) localStorage.setItem('gmail_email_' + currentUser.사원번호, email);
+    saveGmailToken(resp.access_token, email);
+    toast('Gmail 연동 완료!');
+  }).requestAccessToken();
+}
+
+function gmailDisconnect() {
+  gmailToken = null;
+  gmailThreads = [];
+  sessionStorage.removeItem(_gmailTokenKey());
+  sessionStorage.removeItem(_gmailTokenTimeKey());
+  if (currentUser) localStorage.removeItem('gmail_email_' + currentUser.사원번호);
+  updateGmailConnectionUI(false, '');
+  const tl = document.getElementById('gmail-thread-list');
+  if (tl) tl.innerHTML = '';
+  toast('Gmail 연동이 해제되었습니다.');
+}
+
+/* ── 페이지 렌더 ── */
+function renderGmailPage() {
+  const hasStored = currentUser ? !!localStorage.getItem('gmail_email_' + currentUser.사원번호) : false;
+  const restored = restoreGmailToken();
+  if (gmailToken || restored) {
+    updateGmailConnectionUI(true, currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : '');
+    renderGmailInbox();
+  } else if (!hasStored) {
+    updateGmailConnectionUI(false, '');
+  }
+}
+
+function gmailSelectLabel(label) {
+  gmailCurrentLabel = label;
+  document.querySelectorAll('.gmail-label-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('gmail-lbl-' + label);
+  if (btn) btn.classList.add('active');
+  document.getElementById('gmail-detail-wrap').style.display = 'none';
+  document.getElementById('gmail-thread-list').style.display = 'block';
+  renderGmailInbox();
+}
+
+function gmailRefresh() { renderGmailInbox(); }
+
+async function renderGmailInbox() {
+  const tl = document.getElementById('gmail-thread-list');
+  if (!tl) return;
+  if (!gmailToken) { gmailEnsureToken(() => renderGmailInbox()); return; }
+  tl.innerHTML = '<div class="gmail-empty">불러오는 중...</div>';
+  document.getElementById('gmail-detail-wrap').style.display = 'none';
+  tl.style.display = 'block';
+  try {
+    const q = document.getElementById('gmail-search-input')?.value.trim() || '';
+    const params = new URLSearchParams({ maxResults: 30, labelIds: gmailCurrentLabel });
+    if (q) { params.delete('labelIds'); params.set('q', q + (gmailCurrentLabel !== 'INBOX' ? ` in:${gmailCurrentLabel.toLowerCase()}` : '')); }
+    const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads?${params}`);
+    if (!res) return;
+    const data = await res.json();
+    gmailThreads = data.threads || [];
+    gmailNextPageToken = data.nextPageToken || null;
+    if (!gmailThreads.length) { tl.innerHTML = '<div class="gmail-empty">메일이 없습니다</div>'; return; }
+    const previews = await Promise.all(gmailThreads.map(t => gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${t.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`).then(r => r?.json())));
+    tl.innerHTML = previews.map(thread => {
+      if (!thread) return '';
+      const msg = thread.messages?.[thread.messages.length - 1];
+      const headers = msg?.payload?.headers || [];
+      const get = (n) => headers.find(h => h.name === n)?.value || '';
+      const from = gmailFormatFrom(get('From'));
+      const subject = get('Subject') || '(제목 없음)';
+      const date = gmailFormatDate(get('Date'));
+      const snippet = thread.snippet || '';
+      const unread = thread.messages?.some(m => m.labelIds?.includes('UNREAD'));
+      return `<div class="gmail-thread-item${unread?' unread':''}" onclick="renderGmailThread('${thread.id}')">
+        <div class="gmail-thread-sender">${esc(from)}</div>
+        <div class="gmail-thread-body">
+          <div class="gmail-thread-subject">${esc(subject)}</div>
+          <div class="gmail-thread-snippet">${esc(snippet)}</div>
+        </div>
+        <div class="gmail-thread-date">${date}</div>
+      </div>`;
+    }).join('');
+    // 미읽음 개수 배지
+    const unreadCount = previews.filter(t => t?.messages?.some(m => m.labelIds?.includes('UNREAD'))).length;
+    const badge = document.getElementById('gmail-unread-count');
+    if (badge) { badge.textContent = unreadCount; badge.style.display = unreadCount ? 'inline' : 'none'; }
+  } catch(e) { tl.innerHTML = `<div class="gmail-empty">불러오기 실패: ${e.message}</div>`; }
+}
+
+async function renderGmailThread(threadId) {
+  const dw = document.getElementById('gmail-detail-wrap');
+  const tl = document.getElementById('gmail-thread-list');
+  if (!dw) return;
+  tl.style.display = 'none';
+  dw.style.display = 'block';
+  dw.innerHTML = '<div class="gmail-empty">불러오는 중...</div>';
+  try {
+    const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`);
+    if (!res) return;
+    const thread = await res.json();
+    const msgs = thread.messages || [];
+    if (!msgs.length) { dw.innerHTML = '<div class="gmail-empty">메시지가 없습니다</div>'; return; }
+    const firstHeaders = msgs[0].payload?.headers || [];
+    const subject = firstHeaders.find(h => h.name === 'Subject')?.value || '(제목 없음)';
+    // 미읽음 메시지 읽음 처리
+    const unreadIds = msgs.filter(m => m.labelIds?.includes('UNREAD')).map(m => m.id);
+    unreadIds.forEach(id => gmailMarkRead(id));
+    const lastFrom = msgs[msgs.length - 1].payload?.headers?.find(h => h.name === 'From')?.value || '';
+    const replyEmail = gmailExtractEmail(lastFrom);
+    dw.innerHTML = `
+      <div class="gmail-detail-header">
+        <button class="btn btn-sm btn-secondary" onclick="gmailBackToList()" style="margin-bottom:12px;">← 목록으로</button>
+        <div class="gmail-detail-subject">${esc(subject)}</div>
+        <button class="btn btn-sm btn-primary" onclick="openGmailReply('${esc(replyEmail)}','${esc(subject)}','${threadId}')">↩️ 답장</button>
+      </div>
+      ${msgs.map(msg => {
+        const h = msg.payload?.headers || [];
+        const from = gmailFormatFrom(h.find(x => x.name === 'From')?.value || '');
+        const date = gmailFormatDate(h.find(x => x.name === 'Date')?.value || '');
+        const body = gmailDecodeBody(msg.payload);
+        return `<div class="gmail-msg-item">
+          <div class="gmail-msg-head">
+            <div class="gmail-msg-from">${esc(from)}</div>
+            <div class="gmail-msg-date">${date}</div>
+          </div>
+          <div class="gmail-msg-body">${body}</div>
+        </div>`;
+      }).join('')}
+    `;
+  } catch(e) { dw.innerHTML = `<div class="gmail-empty">불러오기 실패: ${e.message}</div>`; }
+}
+
+function gmailBackToList() {
+  document.getElementById('gmail-detail-wrap').style.display = 'none';
+  document.getElementById('gmail-thread-list').style.display = 'block';
+}
+
+function gmailSearch() { renderGmailInbox(); }
+
+/* ── 편지쓰기 ── */
+function openGmailCompose() {
+  document.getElementById('gmail-compose-to').value = '';
+  document.getElementById('gmail-compose-subject').value = '';
+  document.getElementById('gmail-compose-body').value = '';
+  openModal('gmail-compose-modal');
+}
+
+function openGmailReply(to, subject, threadId) {
+  document.getElementById('gmail-reply-to').value = to;
+  document.getElementById('gmail-reply-subject').value = subject.startsWith('Re:') ? subject : 'Re: ' + subject;
+  document.getElementById('gmail-reply-thread-id').value = threadId;
+  document.getElementById('gmail-reply-to-display').value = to;
+  document.getElementById('gmail-reply-body').value = '';
+  openModal('gmail-reply-modal');
+}
+
+async function gmailSendMessage() {
+  const to = document.getElementById('gmail-compose-to').value.trim();
+  const subject = document.getElementById('gmail-compose-subject').value.trim();
+  const body = document.getElementById('gmail-compose-body').value;
+  if (!to || !subject) { toast('받는 사람과 제목을 입력하세요.', 'error'); return; }
+  await gmailEnsureToken(async () => {
+    try {
+      const raw = gmailBuildRaw(to, subject, body);
+      const res = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ raw }),
+      });
+      if (!res) return;
+      if (res.ok) { toast('메일을 보냈습니다!'); closeModal('gmail-compose-modal'); }
+      else { const e = await res.json(); toast('발송 실패: ' + (e.error?.message || '알 수 없는 오류'), 'error'); }
+    } catch(e) { toast('발송 실패: ' + e.message, 'error'); }
+  });
+}
+
+async function gmailSendReply() {
+  const to = document.getElementById('gmail-reply-to').value.trim();
+  const subject = document.getElementById('gmail-reply-subject').value.trim();
+  const threadId = document.getElementById('gmail-reply-thread-id').value;
+  const body = document.getElementById('gmail-reply-body').value;
+  if (!body.trim()) { toast('내용을 입력하세요.', 'error'); return; }
+  await gmailEnsureToken(async () => {
+    try {
+      const raw = gmailBuildRaw(to, subject, body);
+      const res = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ raw, threadId }),
+      });
+      if (!res) return;
+      if (res.ok) { toast('답장을 보냈습니다!'); closeModal('gmail-reply-modal'); renderGmailInbox(); }
+      else { const e = await res.json(); toast('발송 실패: ' + (e.error?.message || '알 수 없는 오류'), 'error'); }
+    } catch(e) { toast('발송 실패: ' + e.message, 'error'); }
+  });
+}
+
+async function gmailMarkRead(messageId) {
+  if (!gmailToken) return;
+  await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+  }).catch(() => {});
+}
+
+/* ── 헬퍼 ── */
+async function gmailFetch(url, opts = {}) {
+  if (!gmailToken) return null;
+  const headers = { 'Authorization': `Bearer ${gmailToken}`, 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 401) {
+    gmailToken = null;
+    sessionStorage.removeItem(_gmailTokenKey());
+    updateGmailConnectionUI(false, '');
+    toast('Gmail 인증이 만료됐습니다. 다시 연동해주세요.', 'error');
+    return null;
+  }
+  return res;
+}
+
+function gmailBuildRaw(to, subject, body) {
+  const fromEmail = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) || '' : '';
+  const lines = [
+    `From: ${fromEmail}`,
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    btoa(unescape(encodeURIComponent(body))),
+  ];
+  return btoa(unescape(encodeURIComponent(lines.join('\r\n')))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function gmailDecodeBody(payload) {
+  if (!payload) return '';
+  const findPart = (p, mime) => {
+    if (!p) return null;
+    if (p.mimeType === mime) return p;
+    if (p.parts) { for (const sub of p.parts) { const r = findPart(sub, mime); if (r) return r; } }
+    return null;
+  };
+  const htmlPart = findPart(payload, 'text/html');
+  const textPart = findPart(payload, 'text/plain');
+  const part = htmlPart || textPart;
+  if (!part?.body?.data) return '(내용 없음)';
+  const decoded = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+  const text = decodeURIComponent(escape(decoded));
+  if (htmlPart) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = text;
+    wrap.querySelectorAll('script,style,head').forEach(el => el.remove());
+    return wrap.innerHTML;
+  }
+  return esc(text);
+}
+
+function gmailFormatFrom(raw) {
+  if (!raw) return '';
+  const m = raw.match(/^"?([^"<]+)"?\s*(?:<.*>)?$/);
+  return m ? m[1].trim() : raw.split('@')[0];
+}
+
+function gmailExtractEmail(raw) {
+  const m = raw.match(/<([^>]+)>/);
+  return m ? m[1] : raw.trim();
+}
+
+function gmailFormatDate(raw) {
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 </script>
