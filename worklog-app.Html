@@ -421,7 +421,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gmail-thread-date{font-size:11px;color:var(--t3);flex-shrink:0;}
 .gmail-thread-item.unread .gmail-thread-date{color:var(--accent);}
 .gmail-thread-row2{display:flex;align-items:center;gap:6px;}
-.gmail-thread-subject{font-size:13px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.gmail-thread-subject{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
 .gmail-thread-item.unread .gmail-thread-subject{color:var(--t1);font-weight:600;}
 .gmail-thread-snippet{font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%;}
 /* ── 메일 상세 ── */
@@ -5939,14 +5939,14 @@ function gmailDecodeBody(payload) {
       const wrap = document.createElement('div');
       wrap.innerHTML = text;
       wrap.querySelectorAll('script,link,head').forEach(el => el.remove());
-      // 이메일 자체 스타일이 앱 레이아웃에 영향 주지 않도록 scoped으로 감쌈
-      return `<div style="all:initial;display:block;font-family:inherit;font-size:13px;color:#c8d8ec;line-height:1.7;">${wrap.innerHTML}</div>`;
+      // HTML 이메일은 밝은 배경으로 렌더 — 이메일 자체 색상(#333, black 등)이 다크 배경에서 보이지 않는 문제 방지
+      return `<div style="background:#f8f9fa;border-radius:8px;padding:20px;color:#1a1a1a;font-size:14px;line-height:1.7;overflow:auto;">${wrap.innerHTML}</div>`;
     }
   }
   const textPart = findPart(payload, 'text/plain');
   if (textPart?.body?.data) {
     const text = decodeBase64(textPart.body.data);
-    if (text) return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${esc(text)}</pre>`;
+    if (text) return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;color:var(--t1);font-size:13px;line-height:1.8;">${esc(text)}</pre>`;
   }
   return '<span style="color:var(--t3);font-style:italic;">(내용 없음)</span>';
 }
