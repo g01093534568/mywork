@@ -1756,16 +1756,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
     <!-- ⚡ 에너지 관리 시스템 페이지 -->
     <div id="page-energy" class="page-section">
+      <!-- 서버 연결 실패 시에만 표시되는 수동 로그인 폼 -->
       <div id="em-loginView" style="display:none; align-items:center; justify-content:center; min-height:70vh; background:var(--bg2); border-radius:var(--r);">
         <div class="em-login-box">
           <div style="display:flex;justify-content:center;margin-bottom:1rem;">
             <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z"/></svg>
           </div>
-          <h1 style="text-align:center;color:#f59e0b;margin-bottom:1.5rem;font-size:1.5rem;font-weight:700;">에너지 관리 시스템</h1>
+          <h1 style="text-align:center;color:#f59e0b;margin-bottom:0.5rem;font-size:1.5rem;font-weight:700;">에너지 관리 시스템</h1>
+          <div id="em-autoLoginStatus" style="text-align:center;margin-bottom:1.2rem;padding:8px 12px;border-radius:6px;font-size:13px;background:#fee2e2;color:#b91c1c;display:none;">
+            ⚠ 자동 로그인 실패 — 에너지 관리 서버(localhost:3000)가 실행 중인지 확인하세요
+          </div>
           <form id="em-loginForm">
             <div class="em-form-group">
               <label for="em-facilityName">시설명</label>
-              <input type="text" id="em-facilityName" name="facilityName" required autofocus>
+              <input type="text" id="em-facilityName" name="facilityName" required>
             </div>
             <div class="em-form-group">
               <label for="em-username">아이디</label>
@@ -1779,7 +1783,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <div style="text-align:center;">
               <button type="submit" class="em-login-btn">로그인</button>
             </div>
-            <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:12px;">에너지 관리 서버가 실행 중이어야 합니다 (localhost:3000)</p>
           </form>
         </div>
       </div>
@@ -6846,11 +6849,44 @@ if('serviceWorker' in navigator){
 const EM_API_BASE = 'http://localhost:3000';
 
 let emMgmtInitialized = false;
-function initEnergyMgmt() {
-    if (!emMgmtInitialized) {
-        emMgmtInitialized = true;
-        checkAuth();
+async function initEnergyMgmt() {
+    if (emMgmtInitialized) return;
+    emMgmtInitialized = true;
+
+    // worklog 로그인 사용자로 에너지 관리 세션 자동 생성
+    const wlUser = (() => {
+        try { return JSON.parse(sessionStorage.getItem('wl_session')); } catch(e) { return null; }
+    })();
+
+    if (wlUser && wlUser.시설명 && wlUser.사원번호) {
+        try {
+            const resp = await fetch(EM_API_BASE + '/api/auto-login-worklog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ facilityName: wlUser.시설명, username: wlUser.사원번호 })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                // 자동 로그인 성공 → 바로 대시보드
+                const userNameDisplay = document.getElementById('em-userName');
+                if (userNameDisplay) userNameDisplay.textContent = data.user.facilityName + ' (' + data.user.username + ')';
+                const headerTitle = document.querySelector('.em-header h1');
+                if (headerTitle) headerTitle.textContent = '에너지 관리 시스템';
+                showDashboard();
+                loadFacilityOptionsForEnergyInput();
+                loadEnergyRecords();
+                return;
+            }
+        } catch(e) {
+            console.warn('에너지 관리 자동 로그인 실패, 수동 로그인으로 전환:', e);
+            // 서버 연결 실패 알림 표시
+            const statusEl = document.getElementById('em-autoLoginStatus');
+            if (statusEl) statusEl.style.display = 'block';
+        }
     }
+    // 자동 로그인 실패 또는 worklog 미로그인 → 기존 checkAuth (세션 쿠키 있으면 복구)
+    checkAuth();
 }
 
 // ---- app.js ----
@@ -6886,7 +6922,7 @@ function showDashboard() {
 
 async function checkAuth() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/check-auth');
+        const response = await fetch(EM_API_BASE + '/api/check-auth', { credentials: 'include' });
         if (!response.ok) throw new Error('Auth check failed');
         const data = await response.json();
 
@@ -6966,6 +7002,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 const response = await fetch(EM_API_BASE + '/api/login', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ facilityName, username, password })
@@ -6995,7 +7032,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
             try {
-                await fetch(EM_API_BASE + '/api/logout', { method: 'POST' });
+                await fetch(EM_API_BASE + '/api/logout', {
+                credentials: 'include', method: 'POST' });
                 sessionStorage.removeItem('currentUser');
                 showLogin();
                 
@@ -7100,6 +7138,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             } else {
                 response = await fetch(EM_API_BASE + '/api/facilities', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(facilityData)
@@ -7247,6 +7286,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 const response = await fetch(EM_API_BASE + '/api/energy', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(energyData)
@@ -7358,7 +7398,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadFacilities() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities');
+        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success) {
@@ -7630,7 +7670,7 @@ window.deleteFacility = async function(dbId) {
 
 async function loadEnergyRecords() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy');
+        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success) {
@@ -7663,7 +7703,7 @@ async function loadFacilityOptionsForEnergyInput() {
 
         if (role === '관리자' || role === '시설관리자') {
             // 시설 목록 로드
-            const response = await fetch(EM_API_BASE + '/api/facilities');
+            const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
             const data = await response.json();
 
             if (data.success && Array.isArray(data.facilities)) {
@@ -7742,7 +7782,7 @@ function renderEnergyRecords(records) {
 
 window.generateDocument = async function(index) {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy');
+        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success && data.records[index]) {
@@ -7750,6 +7790,7 @@ window.generateDocument = async function(index) {
 
             // 공문 생성 API 호출
             const docResponse = await fetch(EM_API_BASE + '/api/generate-document', {
+                credentials: 'include',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(record)
@@ -7787,7 +7828,7 @@ window.generateDocument = async function(index) {
 
 window.generateAttachment1 = async function(index) {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy');
+        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success && data.records[index]) {
@@ -7795,6 +7836,7 @@ window.generateAttachment1 = async function(index) {
 
             // 첨부1 생성 API 호출
             const attachmentResponse = await fetch(EM_API_BASE + '/api/generate-attachment1', {
+                credentials: 'include',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(record)
@@ -7862,7 +7904,7 @@ async function loadDataViewTab() {
 
 async function loadFacilityOptions() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities');
+        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success) {
@@ -8282,6 +8324,7 @@ async function deleteSelectedRecords() {
 
     try {
         const response = await fetch(EM_API_BASE + '/api/energy-data/delete-multiple', {
+                credentials: 'include',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -8471,6 +8514,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 } else {
                     response = await fetch(EM_API_BASE + '/api/energy-info', {
+                credentials: 'include',
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(energyInfoData)
@@ -8523,7 +8567,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // 에너지 정보 관리 함수들
 async function loadEnergyInfos() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy-info');
+        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -8693,7 +8737,7 @@ function closeEnergyInfoModal() {
 
 async function loadFacilityOptionsForEnergyInfo() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities');
+        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success) {
@@ -8720,7 +8764,7 @@ async function loadFacilityOptionsForEnergyInfo() {
 
 window.editEnergyInfo = async function(index) {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy-info');
+        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
         const data = await response.json();
 
         if (data.success && data.infos[index]) {
@@ -8839,6 +8883,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 console.log('API 키 검증 시작');
                 const response = await fetch(EM_API_BASE + '/api/validate-clova-key', {
+                credentials: 'include',
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -9217,6 +9262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 서버를 통해 클로바 OCR API 호출
                     console.log('서버로 요청 전송 중...');
                     const response = await fetch(EM_API_BASE + '/api/clova-ocr', {
+                credentials: 'include',
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -9992,7 +10038,7 @@ async function deleteAllEnergyData() {
 
     try {
         // 먼저 현재 데이터 개수 확인
-        const checkResponse = await fetch(EM_API_BASE + '/api/data-view');
+        const checkResponse = await fetch(EM_API_BASE + '/api/data-view', { credentials: 'include' });
         const checkData = await checkResponse.json();
 
         if (!checkData.success) {
@@ -10015,6 +10061,7 @@ async function deleteAllEnergyData() {
 
         // 모든 데이터 삭제 요청
         const response = await fetch(EM_API_BASE + '/api/energy-data/delete-all', {
+                credentials: 'include',
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -10053,6 +10100,7 @@ async function generateOfficialDocument(record) {
         console.log('공문 생성:', record);
 
         const response = await fetch(EM_API_BASE + '/api/generate-document', {
+                credentials: 'include',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -10100,6 +10148,7 @@ async function generateAttachmentDocument(record) {
         }
 
         const response = await fetch(EM_API_BASE + '/api/generate-attachment1', {
+                credentials: 'include',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -10224,6 +10273,7 @@ async function generateOfficialDocumentCombined(records) {
         };
 
         const response = await fetch(EM_API_BASE + '/api/generate-document', {
+                credentials: 'include',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -10292,6 +10342,7 @@ async function generateAttachmentDocumentCombined(records) {
 
         // 통합 첨부문서 생성 요청
         const response = await fetch(EM_API_BASE + '/api/generate-attachment-combined', {
+                credentials: 'include',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -10631,6 +10682,7 @@ async function uploadEnergyDataExcel(event) {
 
         // 서버에 데이터 업로드
         const response = await fetch(EM_API_BASE + '/api/energy-data/upload', {
+                credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ records })
@@ -11017,6 +11069,7 @@ async function handleExcelUpload(event) {
         for (const record of importedData) {
             try {
                 const response = await fetch(EM_API_BASE + '/api/energy', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(record)
@@ -11089,6 +11142,7 @@ async function deleteSelectedFacilities() {
 
     try {
         const response = await fetch(EM_API_BASE + '/api/facilities/bulk-delete', {
+                credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: indices })
@@ -11121,7 +11175,7 @@ async function downloadFacilitiesExcel() {
             return;
         }
 
-        const response = await fetch(EM_API_BASE + '/api/facilities');
+        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
         const data = await response.json();
 
         if (!data.success || !data.facilities || data.facilities.length === 0) {
@@ -11223,6 +11277,7 @@ async function uploadFacilitiesExcel(event) {
         for (const facility of facilities) {
             try {
                 const response = await fetch(EM_API_BASE + '/api/facilities', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(facility)
@@ -11323,7 +11378,7 @@ async function downloadEnergyInfoExcel() {
             return;
         }
 
-        const response = await fetch(EM_API_BASE + '/api/energy-info');
+        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
         const data = await response.json();
 
         console.log('에너지 정보 응답:', data);
@@ -11428,6 +11483,7 @@ async function uploadEnergyInfoExcel(event) {
         for (const info of energyInfoList) {
             try {
                 const response = await fetch(EM_API_BASE + '/api/energy-info', {
+                credentials: 'include',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(info)
