@@ -6715,7 +6715,8 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             let response;
             if (currentEditIndex !== null) {
-                response = await fetch(`/api/facilities/${currentEditIndex}`, {
+                response = await fetch(EM_API_BASE + `/api/facilities/${currentEditIndex}`, {
+                credentials: 'include',
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(facilityData)
