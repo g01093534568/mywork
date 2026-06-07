@@ -391,39 +391,55 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-popup-actions{display:flex;gap:8px;}
 .gcal-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
 /* ---- GMAIL ---- */
-.gmail-layout{display:flex;gap:0;height:calc(100vh - 180px);min-height:500px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
-.gmail-sidebar{width:180px;flex-shrink:0;border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;gap:2px;}
-.gmail-label-btn{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r2);font-size:13px;font-weight:500;color:var(--t2);cursor:pointer;transition:var(--tr);border:none;background:transparent;width:100%;text-align:left;}
+.gmail-layout{display:flex;gap:0;height:calc(100vh - 180px);min-height:500px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+/* ── 사이드바 ── */
+.gmail-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:4px;background:var(--card);}
+.gmail-compose-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:20px;font-size:13px;font-weight:700;color:#1a1000;background:var(--accent);cursor:pointer;border:none;width:100%;margin-bottom:12px;box-shadow:0 2px 8px rgba(232,160,32,0.3);transition:filter 0.15s;}
+.gmail-compose-btn:hover{filter:brightness(1.08);}
+.gmail-label-btn{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r2);font-size:13px;font-weight:500;color:var(--t2);cursor:pointer;transition:var(--tr);border:none;background:transparent;width:100%;text-align:left;}
 .gmail-label-btn:hover{background:var(--bg3);color:var(--t1);}
-.gmail-label-btn.active{background:rgba(232,160,32,0.12);color:var(--accent);font-weight:600;}
-.gmail-label-btn .gmail-badge{margin-left:auto;background:var(--accent);color:#1a1000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center;}
-.gmail-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.gmail-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
-.gmail-search{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:7px 14px;font-size:13px;color:var(--t1);outline:none;width:auto;}
-.gmail-search:focus{border-color:var(--accent);}
+.gmail-label-btn.active{background:rgba(232,160,32,0.15);color:var(--accent);font-weight:700;}
+.gmail-label-btn .gmail-badge{margin-left:auto;background:var(--accent);color:#1a1000;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center;}
+/* ── 메인 영역 ── */
+.gmail-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.gmail-toolbar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--card);}
+.gmail-search{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:8px 16px;font-size:13px;color:var(--t1);outline:none;width:auto;transition:var(--tr);}
+.gmail-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,0.1);}
+/* ── 스레드 목록 ── */
 .gmail-thread-list{flex:1;overflow-y:auto;}
-.gmail-thread-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s;}
-.gmail-thread-item:hover{background:rgba(255,255,255,0.03);}
-.gmail-thread-item.unread{background:rgba(232,160,32,0.04);}
-.gmail-thread-item.unread .gmail-thread-sender{font-weight:700;color:var(--t1);}
-.gmail-thread-item.unread .gmail-thread-subject{font-weight:600;color:var(--t1);}
-.gmail-thread-sender{font-size:13px;font-weight:500;color:var(--t2);width:140px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gmail-thread-body{flex:1;overflow:hidden;}
-.gmail-thread-subject{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gmail-thread-snippet{font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;}
-.gmail-thread-date{font-size:11px;color:var(--t3);flex-shrink:0;width:60px;text-align:right;}
-.gmail-detail-wrap{flex:1;overflow-y:auto;padding:20px;}
-.gmail-detail-header{margin-bottom:16px;}
-.gmail-detail-subject{font-size:18px;font-weight:700;color:var(--t1);margin-bottom:10px;}
-.gmail-msg-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:10px;overflow:hidden;}
-.gmail-msg-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;}
-.gmail-msg-from{font-size:13px;font-weight:600;color:var(--t1);flex:1;}
-.gmail-msg-date{font-size:11px;color:var(--t3);}
-.gmail-msg-body{padding:0 16px 16px;font-size:13px;color:var(--t2);line-height:1.7;word-break:break-word;overflow:hidden;}
-.gmail-msg-body iframe{width:100%;border:none;min-height:200px;}
+.gmail-thread-item{display:flex;align-items:stretch;gap:0;padding:0;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.12s;position:relative;}
+.gmail-thread-item:hover{background:rgba(255,255,255,0.05);}
+.gmail-thread-item.unread{background:rgba(232,160,32,0.07);}
+.gmail-thread-item.unread::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:0 2px 2px 0;}
+.gmail-thread-inner{display:flex;align-items:center;gap:12px;padding:13px 18px;width:100%;}
+.gmail-thread-avatar{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--t2);flex-shrink:0;text-transform:uppercase;}
+.gmail-thread-item.unread .gmail-thread-avatar{background:rgba(232,160,32,0.15);color:var(--accent);}
+.gmail-thread-body{flex:1;overflow:hidden;min-width:0;}
+.gmail-thread-row1{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+.gmail-thread-sender{font-size:13px;font-weight:600;color:var(--t2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gmail-thread-item.unread .gmail-thread-sender{color:var(--t1);font-weight:700;}
+.gmail-thread-date{font-size:11px;color:var(--t3);flex-shrink:0;}
+.gmail-thread-item.unread .gmail-thread-date{color:var(--accent);}
+.gmail-thread-row2{display:flex;align-items:center;gap:6px;}
+.gmail-thread-subject{font-size:13px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.gmail-thread-item.unread .gmail-thread-subject{color:var(--t1);font-weight:600;}
+.gmail-thread-snippet{font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%;}
+/* ── 메일 상세 ── */
+.gmail-detail-wrap{flex:1;overflow-y:auto;padding:24px;}
+.gmail-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.gmail-detail-subject{font-size:20px;font-weight:700;color:var(--t1);flex:1;line-height:1.4;}
+.gmail-msg-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;transition:box-shadow 0.15s;}
+.gmail-msg-item:hover{box-shadow:0 2px 12px rgba(0,0,0,0.3);}
+.gmail-msg-head{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;border-bottom:1px solid var(--border);}
+.gmail-msg-avatar{width:38px;height:38px;border-radius:50%;background:rgba(232,160,32,0.15);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--accent);flex-shrink:0;text-transform:uppercase;}
+.gmail-msg-head-info{flex:1;}
+.gmail-msg-from{font-size:14px;font-weight:700;color:var(--t1);margin-bottom:2px;}
+.gmail-msg-from-email{font-size:11px;color:var(--t3);}
+.gmail-msg-date{font-size:11px;color:var(--t3);white-space:nowrap;}
+.gmail-msg-body{padding:18px;font-size:13px;color:var(--t2);line-height:1.8;word-break:break-word;overflow:hidden;border-top:none;}
 .gmail-empty{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
-.gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;text-align:center;padding:40px;}
-@media(max-width:700px){.gmail-sidebar{width:44px;}.gmail-label-btn span{display:none;}.gmail-thread-sender{width:80px;}}
+.gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;text-align:center;padding:40px;}
+@media(max-width:700px){.gmail-sidebar{width:52px;}.gmail-label-btn span,.gmail-compose-btn span{display:none;}.gmail-compose-btn{padding:10px;border-radius:50%;}.gmail-thread-snippet{display:none;}}
 </style>
 </head>
 <body>
@@ -1050,6 +1066,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <!-- 연동 후 본체 (JS로 표시) -->
         <div id="gmail-body" style="display:none;width:100%;display:none;flex:1;overflow:hidden;display:flex;">
           <div class="gmail-sidebar">
+            <button class="gmail-compose-btn" onclick="openGmailCompose()">
+              <span>✏️</span><span>편지쓰기</span>
+            </button>
             <button class="gmail-label-btn active" id="gmail-lbl-INBOX" onclick="gmailSelectLabel('INBOX')">
               <span>📥</span><span>받은편지함</span><span class="gmail-badge" id="gmail-unread-count" style="display:none"></span>
             </button>
@@ -1069,8 +1088,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <div class="gmail-toolbar">
               <input class="gmail-search" id="gmail-search-input" placeholder="메일 검색..." onkeydown="if(event.key==='Enter')gmailSearch()" />
               <button class="btn btn-sm btn-secondary" onclick="gmailSearch()">검색</button>
-              <button class="btn btn-sm btn-primary" onclick="openGmailCompose()">✏️ 편지쓰기</button>
-              <button class="btn btn-sm btn-secondary" onclick="gmailRefresh()" title="새로고침">↻</button>
+              <button class="btn btn-sm btn-secondary" onclick="gmailRefresh()" title="새로고침" style="padding:8px 10px;">↻</button>
             </div>
             <!-- 스레드 목록 -->
             <div class="gmail-thread-list" id="gmail-thread-list"></div>
@@ -5695,16 +5713,23 @@ async function renderGmailInbox() {
     gmailThreads = data.threads || [];
     gmailNextPageToken = data.nextPageToken || null;
     if (!gmailThreads.length) { tl.innerHTML = '<div class="gmail-empty">메일이 없습니다</div>'; return; }
-    // 스레드 목록 미리보기 (snippet은 threads 목록 응답에 이미 포함)
+    // 스레드 목록 (snippet은 이미 포함 — 스켈레톤 먼저 렌더)
     tl.innerHTML = gmailThreads.map(thread => {
       const snippet = thread.snippet || '';
       return `<div class="gmail-thread-item" id="gmt-${thread.id}" onclick="renderGmailThread('${thread.id}')">
-        <div class="gmail-thread-sender" style="color:var(--t3);font-size:11px;">불러오는 중…</div>
-        <div class="gmail-thread-body">
-          <div class="gmail-thread-subject"></div>
-          <div class="gmail-thread-snippet">${esc(snippet)}</div>
+        <div class="gmail-thread-inner">
+          <div class="gmail-thread-avatar">·</div>
+          <div class="gmail-thread-body">
+            <div class="gmail-thread-row1">
+              <div class="gmail-thread-sender" style="color:var(--t3);">불러오는 중…</div>
+              <div class="gmail-thread-date"></div>
+            </div>
+            <div class="gmail-thread-row2">
+              <div class="gmail-thread-subject"></div>
+              <div class="gmail-thread-snippet">${esc(snippet)}</div>
+            </div>
+          </div>
         </div>
-        <div class="gmail-thread-date"></div>
       </div>`;
     }).join('');
     // 메타데이터 병렬 로드 후 DOM 업데이트
@@ -5724,6 +5749,7 @@ async function renderGmailInbox() {
       const date = gmailFormatDate(get('Date'));
       const unread = thread.messages?.some(m => m.labelIds?.includes('UNREAD'));
       if (unread) { item.classList.add('unread'); unreadCount++; }
+      item.querySelector('.gmail-thread-avatar').textContent = from.charAt(0) || '?';
       item.querySelector('.gmail-thread-sender').textContent = from;
       item.querySelector('.gmail-thread-subject').textContent = subject;
       item.querySelector('.gmail-thread-date').textContent = date;
@@ -5761,18 +5787,26 @@ async function renderGmailThread(threadId) {
     const replyEmail = gmailExtractEmail(lastFrom);
     dw.innerHTML = `
       <div class="gmail-detail-header">
-        <button class="btn btn-sm btn-secondary" onclick="gmailBackToList()" style="margin-bottom:12px;">← 목록으로</button>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <button class="btn btn-sm btn-secondary" onclick="gmailBackToList()">← 목록으로</button>
+          <button class="btn btn-sm btn-primary" onclick="openGmailReply('${esc(replyEmail)}','${esc(subject)}','${threadId}')">↩️ 답장</button>
+        </div>
         <div class="gmail-detail-subject">${esc(subject)}</div>
-        <button class="btn btn-sm btn-primary" onclick="openGmailReply('${esc(replyEmail)}','${esc(subject)}','${threadId}')">↩️ 답장</button>
       </div>
       ${msgs.map(msg => {
         const h = msg.payload?.headers || [];
-        const from = gmailFormatFrom(h.find(x => x.name === 'From')?.value || '');
+        const rawFrom = h.find(x => x.name === 'From')?.value || '';
+        const from = gmailFormatFrom(rawFrom);
+        const fromEmail = gmailExtractEmail(rawFrom);
         const date = gmailFormatDate(h.find(x => x.name === 'Date')?.value || '');
         const body = gmailDecodeBody(msg.payload);
         return `<div class="gmail-msg-item">
           <div class="gmail-msg-head">
-            <div class="gmail-msg-from">${esc(from)}</div>
+            <div class="gmail-msg-avatar">${(from.charAt(0)||'?')}</div>
+            <div class="gmail-msg-head-info">
+              <div class="gmail-msg-from">${esc(from)}</div>
+              <div class="gmail-msg-from-email">${esc(fromEmail)}</div>
+            </div>
             <div class="gmail-msg-date">${date}</div>
           </div>
           <div class="gmail-msg-body">${body}</div>
