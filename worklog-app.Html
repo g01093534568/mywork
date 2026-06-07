@@ -2404,7 +2404,7 @@ function activityToDb(a, 사원번호, date) {
   return { id:a.id, 사원번호, log_date:date, title:a.title, time_range:a.time||'', linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
 }
 function dbToActivity(r) {
-  return { id:r.id, title:r.title, time:r.time_range||'', linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'' };
+  return { id:r.id, title:r.title, time:r.time_range||'', linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'', createdAt:r.created_at||'' };
 }
 function pgToDb(g, 사원번호) {
   return { id:g.id, 사원번호, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked:g.linked||'' };
@@ -2470,7 +2470,7 @@ const DB = {
   async getDailyActivities(uid,date){
     const k=`act:${uid}:${date}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToActivity));
+    const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date).order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToActivity));
   },
   async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; _cd(`act:${uid}:${date}`); },
   async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; if(currentUser){ Object.keys(_C).filter(k=>k.startsWith(`act:${currentUser.사원번호}:`)).forEach(k=>delete _C[k]); } },
@@ -4816,10 +4816,11 @@ async function renderDailyActivities(date){
   const activities=[...(await DB.getDailyActivities(currentUser.사원번호,date))].sort((a,b)=>{
     const ta=(a.time||'').match(/(\d{1,2}):(\d{2})/);
     const tb=(b.time||'').match(/(\d{1,2}):(\d{2})/);
-    if(!ta&&!tb) return 0;
+    if(!ta&&!tb) return (a.createdAt||'').localeCompare(b.createdAt||'');
     if(!ta) return 1;
     if(!tb) return -1;
-    return (parseInt(ta[1])*60+parseInt(ta[2]))-(parseInt(tb[1])*60+parseInt(tb[2]));
+    const diff=(parseInt(ta[1])*60+parseInt(ta[2]))-(parseInt(tb[1])*60+parseInt(tb[2]));
+    return diff!==0 ? diff : (a.createdAt||'').localeCompare(b.createdAt||'');
   });
   const cont=document.getElementById('daily-activities-content');
   if(!activities.length){ cont.innerHTML='<div class="empty-state"><div class="icon">📝</div><p>오늘의 주요 활동을 기록해 보세요</p></div>'; return; }
