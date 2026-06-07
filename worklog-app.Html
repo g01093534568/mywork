@@ -1730,7 +1730,16 @@ async function enterApp(){
     document.getElementById('gcal-account-email').value = savedGcalEmail;
     document.getElementById('gcal-settings-connect-btn').disabled = false;
   }
-  restoreGcalToken();
+  // 세션 토큰만 복원 — OAuth 시도는 daily 페이지 진입 시 처리 (로그인 팝업 방지)
+  (function() {
+    const tok = sessionStorage.getItem(_gcalTokenKey());
+    const ts  = parseInt(sessionStorage.getItem(_gcalTokenTimeKey()) || '0');
+    if (tok && Date.now() - ts < 55 * 60 * 1000) {
+      gcalToken = tok;
+      const email = localStorage.getItem('gcal_email_' + currentUser.사원번호) || '';
+      updateGcalConnectionUI(true, email);
+    }
+  })();
 
   document.getElementById('daily-date').value = today();
 
@@ -1828,7 +1837,7 @@ function navigate(page){
   if(page==='daily'){
     renderDailyPage();
     startGcalAutoRefresh();
-    renderCustomCalendar();
+    if (gcalToken) renderCustomCalendar(); else restoreGcalToken();
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
