@@ -2375,7 +2375,7 @@ const DB = {
     if(_cg(k)) return _cg(k);
     const {data,error}=await SB.from('users').select('*'); if(error){console.error(error);return[];} return _cs(k,data||[]);
   },
-  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role}); if(error)throw error; _cd('users'); },
+  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role},{onConflict:'id'}); if(error)throw error; _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
 
   async getOrg(){
