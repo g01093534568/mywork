@@ -4494,9 +4494,9 @@ function restoreGcalToken() {
   const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
   if (!email) return;
   const attempt = () => {
-    if (!window.google?.accounts?.oauth2) return;
+    if (!window.google?.accounts?.oauth2) { showGcalReconnectPrompt(email); return; }
     makeTokenClient(email, 'none', (resp) => {
-      if (resp.error) return; // 조용히 실패 — 사용자가 수동으로 연동해야 함
+      if (resp.error) { showGcalReconnectPrompt(email); return; }
       saveGcalToken(resp.access_token, email);
     }).requestAccessToken({ prompt: 'none' });
   };
@@ -4505,8 +4505,34 @@ function restoreGcalToken() {
   } else {
     // Google API 비동기 로드 완료 대기 (최대 6초)
     const tid = setInterval(() => { if (window.google?.accounts?.oauth2) { clearInterval(tid); attempt(); } }, 300);
-    setTimeout(() => clearInterval(tid), 6000);
+    setTimeout(() => { clearInterval(tid); if (!gcalToken) showGcalReconnectPrompt(email); }, 6000);
   }
+}
+
+function showGcalReconnectPrompt(email) {
+  const wrap = document.getElementById('gcal-custom-view');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:14px;text-align:center;padding:20px;">
+    <div style="font-size:28px;">🔗</div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px;">Google Calendar 재연동이 필요합니다</div>
+      <div style="font-size:12px;color:var(--t3);">이전에 연동한 계정: ${email}</div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="gcalAutoReconnect()">🔗 다시 연동하기</button>
+  </div>`;
+}
+
+function gcalAutoReconnect() {
+  const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
+  if (!email || !window.google?.accounts?.oauth2) { toast('설정 탭에서 Google 계정을 먼저 연동해주세요.', 'error'); return; }
+  const tryAuth = (pr) => {
+    makeTokenClient(email, pr, (resp) => {
+      if (resp.error === 'interaction_required' || resp.error === 'access_denied') { tryAuth(''); return; }
+      if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
+      saveGcalToken(resp.access_token, email);
+    }).requestAccessToken({ prompt: pr });
+  };
+  tryAuth('none');
 }
 
 function makeTokenClient(email, pr, callback) {
