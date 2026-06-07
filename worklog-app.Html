@@ -1711,7 +1711,6 @@ async function enterApp(){
     const el=document.getElementById(id); if(el) el.innerHTML='';
   });
   updateGcalConnectionUI(false,'');
-  document.getElementById('gcal-account-email').value='';
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   document.getElementById('user-name-display').textContent = currentUser.시설명;
@@ -1782,8 +1781,6 @@ function doLogout(){
   Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k==='gcal_token'||k==='gcal_token_time').forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
-  updateGcalConnectionUI(false,'');
-  document.getElementById('gcal-account-email').value='';
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -4955,7 +4952,14 @@ async function addGcalEvent() {
 // AI DAILY REPORT
 // ═══════════════════════════════════════════════
 function _aiKeyName(){ return 'worklog_ai_key_'+(currentUser?.사원번호||''); }
-function getAiApiKey(){ return localStorage.getItem(_aiKeyName())||''; }
+function getAiApiKey(){
+  const k=localStorage.getItem(_aiKeyName());
+  if(k) return k;
+  // 기존 공용 키 마이그레이션 (최초 1회)
+  const old=localStorage.getItem('worklog_anthropic_key');
+  if(old && currentUser?.사원번호){ localStorage.setItem(_aiKeyName(),old); return old; }
+  return '';
+}
 
 function loadAiKeySettings(){
   const k=getAiApiKey();
