@@ -1756,44 +1756,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
     <!-- ⚡ 에너지 관리 시스템 페이지 -->
     <div id="page-energy" class="page-section">
-      <!-- 서버 연결 실패 시에만 표시되는 수동 로그인 폼 -->
-      <div id="em-loginView" style="display:none; align-items:center; justify-content:center; min-height:70vh; background:var(--bg2); border-radius:var(--r);">
-        <div class="em-login-box">
-          <div style="display:flex;justify-content:center;margin-bottom:1rem;">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z"/></svg>
-          </div>
-          <h1 style="text-align:center;color:#f59e0b;margin-bottom:0.5rem;font-size:1.5rem;font-weight:700;">에너지 관리 시스템</h1>
-          <div id="em-autoLoginStatus" style="text-align:center;margin-bottom:1.2rem;padding:8px 12px;border-radius:6px;font-size:13px;background:#fee2e2;color:#b91c1c;display:none;">
-            ⚠ 자동 로그인 실패 — 에너지 관리 서버(localhost:3000)가 실행 중인지 확인하세요
-          </div>
-          <form id="em-loginForm">
-            <div class="em-form-group">
-              <label for="em-facilityName">시설명</label>
-              <input type="text" id="em-facilityName" name="facilityName" required>
-            </div>
-            <div class="em-form-group">
-              <label for="em-username">아이디</label>
-              <input type="text" id="em-username" name="username" required>
-            </div>
-            <div class="em-form-group">
-              <label for="em-password">비밀번호</label>
-              <input type="password" id="em-password" name="password" required>
-            </div>
-            <div id="em-errorMessage" style="color:#f44336;font-size:13px;margin-bottom:10px;text-align:center;min-height:18px;"></div>
-            <div style="text-align:center;">
-              <button type="submit" class="em-login-btn">로그인</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div id="em-dashboardView" style="display:none;">
+      <div id="em-dashboardView">
         <div class="em-header">
           <h1 id="em-headerTitle">에너지 관리 시스템</h1>
-          <div class="em-user-info">
-            <span class="em-user-name" id="em-userName"></span>
-            <button class="em-logout-btn" id="em-logoutBtn">로그아웃</button>
-          </div>
+          <span class="em-user-name" id="em-userName" style="font-size:13px;color:var(--t3);"></span>
         </div>
 
         <div class="em-content">
@@ -6853,40 +6819,30 @@ async function initEnergyMgmt() {
     if (emMgmtInitialized) return;
     emMgmtInitialized = true;
 
-    // worklog 로그인 사용자로 에너지 관리 세션 자동 생성
+    // worklog 로그인 정보로 에너지 관리 서버 세션 자동 생성
     const wlUser = (() => {
         try { return JSON.parse(sessionStorage.getItem('wl_session')); } catch(e) { return null; }
     })();
+    const facilityName = wlUser?.시설명 || '';
+    const username = wlUser?.사원번호 || '';
 
-    if (wlUser && wlUser.시설명 && wlUser.사원번호) {
-        try {
-            const resp = await fetch(EM_API_BASE + '/api/auto-login-worklog', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ facilityName: wlUser.시설명, username: wlUser.사원번호 })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                // 자동 로그인 성공 → 바로 대시보드
-                const userNameDisplay = document.getElementById('em-userName');
-                if (userNameDisplay) userNameDisplay.textContent = data.user.facilityName + ' (' + data.user.username + ')';
-                const headerTitle = document.querySelector('.em-header h1');
-                if (headerTitle) headerTitle.textContent = '에너지 관리 시스템';
-                showDashboard();
-                loadFacilityOptionsForEnergyInput();
-                loadEnergyRecords();
-                return;
-            }
-        } catch(e) {
-            console.warn('에너지 관리 자동 로그인 실패, 수동 로그인으로 전환:', e);
-            // 서버 연결 실패 알림 표시
-            const statusEl = document.getElementById('em-autoLoginStatus');
-            if (statusEl) statusEl.style.display = 'block';
-        }
+    try {
+        await fetch(EM_API_BASE + '/api/auto-login-worklog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ facilityName, username })
+        });
+    } catch(e) {
+        console.warn('에너지 관리 서버 연결 실패:', e);
     }
-    // 자동 로그인 실패 또는 worklog 미로그인 → 기존 checkAuth (세션 쿠키 있으면 복구)
-    checkAuth();
+
+    // 세션 성공 여부와 무관하게 대시보드 표시 (API 오류는 각 함수에서 처리)
+    const userNameDisplay = document.getElementById('em-userName');
+    if (userNameDisplay && facilityName) userNameDisplay.textContent = facilityName;
+    showDashboard();
+    loadFacilityOptionsForEnergyInput();
+    loadEnergyRecords();
 }
 
 // ---- app.js ----
@@ -6911,13 +6867,13 @@ const energyInfoItemsPerPage = 20;
 let allEnergyInfos = [];
 
 function showLogin() {
-    document.getElementById('em-loginView').style.display = 'flex';
-    document.getElementById('em-dashboardView').style.display = 'none';
+    // 로그인 폼 제거됨 — 서버 오류는 콘솔/토스트로 처리
+    console.warn('에너지 관리 서버 연결 필요 (localhost:3000)');
 }
 
 function showDashboard() {
-    document.getElementById('em-loginView').style.display = 'none';
-    document.getElementById('em-dashboardView').style.display = 'block';
+    const dv = document.getElementById('em-dashboardView');
+    if (dv) dv.style.display = 'block';
 }
 
 async function checkAuth() {
@@ -6960,11 +6916,11 @@ async function checkAuth() {
             // 에너지 입력 탭의 시설명 옵션 로드
             loadFacilityOptionsForEnergyInput();
         } else {
-            showLogin();
+            console.warn("에너지 관리 로그인 불필요");
         }
     } catch (error) {
         console.error('인증 확인 오류:', error);
-        showLogin();
+        console.warn('에너지 관리 서버 미연결');
     }
 }
 
@@ -6981,72 +6937,7 @@ function updateTabVisibility(role) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Note: checkAuth() is called via initEnergyMgmt() when navigating to energy page
-
-    // 2. 로그인 폼 이벤트 리스너 (요소 존재 여부 확인 필수)
-    const loginForm = document.getElementById('em-loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const facilityNameEl = document.getElementById('em-facilityName');
-            const usernameEl = document.getElementById('em-username');
-            const passwordEl = document.getElementById('em-password');
-            const errorMessageEl = document.getElementById('em-errorMessage');
-
-            if (!usernameEl || !passwordEl) return;
-
-            const facilityName = facilityNameEl ? facilityNameEl.value.trim() : '';
-            const username = usernameEl.value.trim();
-            const password = passwordEl.value; // 비밀번호는 공백을 포함할 수 있으므로 trim을 제거합니다.
-
-            try {
-                const response = await fetch(EM_API_BASE + '/api/login', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ facilityName, username, password })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    if (errorMessageEl) errorMessageEl.textContent = '';
-                    sessionStorage.setItem('currentUser', JSON.stringify(data.user));
-                    // 새로고침 대신 인증 확인 함수를 즉시 호출하여 세션 유실 및 입력창 초기화 방지
-                    await checkAuth(); 
-                } else {
-                    const msg = data.message || '로그인에 실패했습니다.';
-                    if (errorMessageEl) errorMessageEl.textContent = msg;
-                    else alert(msg);
-                }
-            } catch (error) {
-                if (errorMessageEl) errorMessageEl.textContent = '서버 연결 오류가 발생했습니다.';
-                console.error('로그인 오류:', error);
-            }
-        });
-    }
-
-    // 3. 로그아웃 버튼 이벤트 리스너 (요소 존재 여부 확인 필수)
-    const logoutBtn = document.getElementById('em-logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await fetch(EM_API_BASE + '/api/logout', {
-                credentials: 'include', method: 'POST' });
-                sessionStorage.removeItem('currentUser');
-                showLogin();
-                
-                const loginFormEl = document.getElementById('em-loginForm');
-                if (loginFormEl) loginFormEl.reset();
-                
-                const errorMsgEl = document.getElementById('em-errorMessage');
-                if (errorMsgEl) errorMsgEl.textContent = '';
-            } catch (error) {
-                console.error('로그아웃 오류:', error);
-            }
-        });
-    }
+    // Note: initEnergyMgmt() 가 navigate('energy') 시 자동 호출됨
 
     const tabs = document.querySelectorAll('.em-tab');
     const tabContents = document.querySelectorAll('.em-tab-content');
@@ -8527,7 +8418,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (response.status === 401) {
                         alert('로그인이 필요합니다. 다시 로그인해주세요.');
-                        showLogin();
+                        console.warn("에너지 관리 로그인 불필요");
                         return;
                     }
 
@@ -10507,7 +10398,7 @@ document.addEventListener('visibilitychange', function() {
                 sessionStorage.removeItem('currentUser');
                 sessionStorage.removeItem('lastActiveTime');
                 navigator.sendBeacon(EM_API_BASE + '/api/logout');
-                showLogin();
+                console.warn("에너지 관리 로그인 불필요");
                 alert('장시간 사용하지 않아 자동으로 로그아웃되었습니다.');
             }
         }
