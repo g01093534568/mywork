@@ -1,0 +1,18 @@
+{
+  "name": "WorkLog | 개인 업무 관리",
+  "short_name": "WorkLog",
+  "description": "업무일지, 할 일, 목표 관리 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1622",
+  "theme_color": "#e8a020",
+  "orientation": "portrait-primary",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "업무 페이지", "short_name": "업무", "url": "/?page=daily", "description": "오늘 업무 기록" },
+    { "name": "할 일", "short_name": "할일", "url": "/?page=todo", "description": "할 일 목록" }
+  ]
+}
