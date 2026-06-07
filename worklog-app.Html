@@ -5227,7 +5227,7 @@ async function executeAITool(toolName,input){
     case 'add_todo':{
       const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null};
       await DB.upsertTodo(currentUser.사원번호,todo);
-      if(currentPage==='todo') await renderTodos();
+      navigate('todo'); await renderTodos();
       return `"${todo.title}" 할 일이 추가되었습니다`;
     }
     case 'complete_todo':{
@@ -5235,13 +5235,13 @@ async function executeAITool(toolName,input){
       const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done');
       if(!t) return `"${input.keyword}" 일치하는 할 일을 찾지 못했습니다`;
       await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()});
-      if(currentPage==='todo') await renderTodos();
+      navigate('todo'); await renderTodos();
       return `"${t.title}" 완료 처리되었습니다`;
     }
     case 'add_daily_log':{
       const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''};
       await DB.upsertActivity(currentUser.사원번호,today(),act);
-      if(currentPage==='daily') await renderDailyPage();
+      navigate('daily'); await renderDailyPage();
       return `업무 일지 "${act.title}" 기록되었습니다`;
     }
     case 'navigate_page':{
