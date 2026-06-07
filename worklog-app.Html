@@ -2010,9 +2010,14 @@ function doLogout(){
   document.getElementById('l-pw').value='';
 }
 
-// GCal 변수 — IIFE보다 먼저 선언 필요 (TDZ 방지)
+// GCal·Gmail 변수 — IIFE보다 먼저 선언 필요 (TDZ 방지)
 const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+let gmailToken = null;
+let gmailCurrentLabel = 'INBOX';
+let gmailThreads = [];
+let gmailNextPageToken = null;
 function _gcalTokenKey() { return 'gcal_token_' + (currentUser?.사원번호 || '_guest'); }
 function _gcalTokenTimeKey() { return 'gcal_token_time_' + (currentUser?.사원번호 || '_guest'); }
 let gcalToken = null;
@@ -5557,12 +5562,6 @@ async function executeAITool(toolName,input){
 // ═══════════════════════════════════════════════
 // GMAIL
 // ═══════════════════════════════════════════════
-const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
-let gmailToken = null;
-let gmailCurrentLabel = 'INBOX';
-let gmailThreads = [];
-let gmailNextPageToken = null;
-
 function _gmailTokenKey() { return 'gmail_token_' + (currentUser?.사원번호 || '_guest'); }
 function _gmailTokenTimeKey() { return 'gmail_token_time_' + (currentUser?.사원번호 || '_guest'); }
 
