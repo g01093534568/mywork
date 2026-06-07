@@ -388,15 +388,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-popup-time{font-size:12px;color:var(--t2);margin-bottom:12px;}
 .gcal-popup-actions{display:flex;gap:8px;}
 .gcal-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
-/* ── AI Voice Assistant ── */
-#voice-mic-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;}
-#voice-mic-btn:hover{transform:scale(1.08);}
-#voice-mic-btn.listening{background:var(--red);box-shadow:0 0 0 0 rgba(224,85,85,0.4);animation:micPulse 1.2s infinite;}
-@keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(224,85,85,0.5);}70%{box-shadow:0 0 0 18px rgba(224,85,85,0);}100%{box-shadow:0 0 0 0 rgba(224,85,85,0);}}
-#ai-overlay{position:fixed;bottom:96px;right:28px;background:var(--card2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px 16px 16px;max-width:300px;min-width:200px;z-index:9001;display:none;flex-direction:column;gap:8px;box-shadow:var(--shadow);animation:slideUp 0.2s ease;}
-#ai-overlay-label{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:0.5px;}
-#ai-overlay-text{font-size:13px;color:var(--t1);line-height:1.55;word-break:keep-all;}
-#ai-overlay-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--t3);font-size:15px;cursor:pointer;padding:2px 4px;}
 </style>
 </head>
 <body>
@@ -5393,13 +5384,6 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<!-- AI Voice Assistant UI -->
-<button id="voice-mic-btn" onclick="toggleVoiceInput()" title="음성 명령 (AI)">🎙</button>
-<div id="ai-overlay">
-  <button id="ai-overlay-close" onclick="hideAIOverlay()">✕</button>
-  <div id="ai-overlay-label">🎙 듣고 있어요</div>
-  <div id="ai-overlay-text"></div>
-</div>
 
 </body>
 </html>
