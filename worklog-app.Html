@@ -5172,8 +5172,8 @@ async function saveUser(){
   const hashedPw=isHashed(패스워드)?패스워드:await hashPassword(패스워드);
   const data={id:editId||uid(), 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
   const users=await DB.getUsers();
-  const dup=users.find(u=>u.사원번호===사원번호 && u.id!==editId);
-  if(dup){ toast('이미 사용 중인 사원번호입니다','error'); return; }
+  const dup=users.find(u=>u.사원번호===사원번호 && u.시설명===시설명 && u.id!==editId);
+  if(dup){ toast('이미 사용 중인 사원번호입니다 (같은 시설 내 중복 불가)','error'); return; }
   try{
     await DB.upsertUser(data);
     closeModal('user-modal');
@@ -5214,12 +5214,12 @@ function importUsersCSV(e){
     })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
     if(!raw.length){ toast('유효한 데이터가 없습니다','error'); return; }
     const seen=new Set();
-    const deduped=raw.filter(u=>{ if(seen.has(u.사원번호)) return false; seen.add(u.사원번호); return true; });
+    const deduped=raw.filter(u=>{ const k=u.시설명+'|'+u.사원번호; if(seen.has(k)) return false; seen.add(k); return true; });
     const existingUsers=await DB.getUsers();
-    const existingNos=new Set(existingUsers.map(u=>u.사원번호));
-    const conflicts=deduped.filter(u=>existingNos.has(u.사원번호));
+    const existingKeys=new Set(existingUsers.map(u=>u.시설명+'|'+u.사원번호));
+    const conflicts=deduped.filter(u=>existingKeys.has(u.시설명+'|'+u.사원번호));
     if(conflicts.length){
-      const nos=conflicts.map(u=>u.사원번호).join(', ');
+      const nos=conflicts.map(u=>`${u.시설명}/${u.사원번호}`).join(', ');
       toast(`이미 사용 중인 사원번호: ${nos}`, 'error');
       return;
     }
