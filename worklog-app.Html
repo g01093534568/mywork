@@ -5100,10 +5100,10 @@ const GEMINI_TOOLS=[
   {name:'add_daily_log',description:'오늘 업무 활동 일지를 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'활동 제목'},content:{type:'STRING',description:'활동 내용'},time:{type:'STRING',description:'시간대 예: 09:00-10:00'}},required:['title']}},
   {name:'navigate_page',description:'앱 페이지로 이동합니다',parameters:{type:'OBJECT',properties:{page:{type:'STRING',description:'home/todo/daily/personal/exercise/admin 중 하나'}},required:['page']}},
   {name:'search_todos',description:'할 일 목록에서 키워드 검색합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'검색 키워드'}},required:['keyword']}},
-  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{}}}
+  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}}
 ];
 
-let _voiceRec=null, _isListening=false;
+let _voiceRec=null, _isListening=false, _finalTranscript='';
 
 function toggleVoiceInput(){
   if(_isListening) stopVoiceInput(); else startVoiceInput();
@@ -5120,13 +5120,16 @@ function startVoiceInput(){
   _isListening=true;
   updateMicBtn(true);
   showAIOverlay('listening','듣고 있습니다...');
+  _finalTranscript='';
   _voiceRec.onresult=(e)=>{
-    const t=[...e.results].map(r=>r[0].transcript).join('');
-    showAIOverlay('listening',t);
+    let final='', interim='';
+    for(const r of e.results){ if(r.isFinal) final+=r[0].transcript; else interim+=r[0].transcript; }
+    if(final) _finalTranscript=final;
+    showAIOverlay('listening',_finalTranscript||interim||'듣고 있습니다...');
   };
   _voiceRec.onend=async()=>{
-    const txt=document.getElementById('ai-overlay-text')?.textContent||'';
-    if(txt&&txt!=='듣고 있습니다...'){ await processVoiceCommand(txt); }
+    const txt=_finalTranscript; _finalTranscript='';
+    if(txt){ await processVoiceCommand(txt); }
     else { hideAIOverlay(); }
     _isListening=false; updateMicBtn(false);
   };
@@ -5184,13 +5187,18 @@ async function processVoiceCommand(userText){
     });
     if(!res.ok){ const err=await res.json().catch(()=>({})); throw new Error(err.error?.message||`HTTP ${res.status}`); }
     const data=await res.json();
-    const fc=data.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-    if(!fc){ showAIOverlay('result',data.candidates?.[0]?.content?.parts?.[0]?.text||'명령을 이해하지 못했습니다'); return; }
-    const result=await executeAITool(fc.name,fc.args);
+    // Gemini는 parts 배열 안에 functionCall이 있음
+    const parts=data.candidates?.[0]?.content?.parts||[];
+    const fc=parts.find(p=>p.functionCall)?.functionCall;
+    if(!fc){
+      const txt=parts.find(p=>p.text)?.text||'명령을 이해하지 못했습니다';
+      showAIOverlay('result',txt); return;
+    }
+    const result=await executeAITool(fc.name,fc.args||{});
     showAIOverlay('result',result);
   }catch(e){
     console.error('[AI Voice]',e);
-    showAIOverlay('error','AI 오류: '+e.message);
+    showAIOverlay('error','오류: '+e.message);
   }
 }
 
