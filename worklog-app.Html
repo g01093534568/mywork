@@ -380,15 +380,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-popup-time{font-size:12px;color:var(--t2);margin-bottom:12px;}
 .gcal-popup-actions{display:flex;gap:8px;}
 .gcal-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
-/* ── AI Voice Assistant ── */
-#voice-mic-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;}
-#voice-mic-btn:hover{transform:scale(1.08);}
-#voice-mic-btn.listening{background:var(--red);box-shadow:0 0 0 0 rgba(224,85,85,0.4);animation:micPulse 1.2s infinite;}
-@keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(224,85,85,0.5);}70%{box-shadow:0 0 0 18px rgba(224,85,85,0);}100%{box-shadow:0 0 0 0 rgba(224,85,85,0);}}
-#ai-overlay{position:fixed;bottom:96px;right:28px;background:var(--card2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px 16px 16px;max-width:300px;min-width:200px;z-index:9001;display:none;flex-direction:column;gap:8px;box-shadow:var(--shadow);animation:slideUp 0.2s ease;}
-#ai-overlay-label{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:0.5px;}
-#ai-overlay-text{font-size:13px;color:var(--t1);line-height:1.55;word-break:keep-all;}
-#ai-overlay-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--t3);font-size:15px;cursor:pointer;padding:2px 4px;}
 </style>
 </head>
 <body>
@@ -866,7 +857,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
         <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
         <div class="admin-tab" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
-        <div class="admin-tab" id="admin-tab-ai" onclick="switchAdminTab('ai')">🤖 AI 어시스턴트</div>
       </div>
       <!-- Google 계정 Tab -->
       <div id="admin-google" class="admin-panel">
@@ -895,28 +885,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button class="btn btn-primary" onclick="saveAiApiKey()">저장</button>
             <button class="btn btn-danger btn-sm" onclick="clearAiApiKey()">삭제</button>
             <span id="ai-key-status" style="font-size:12px;color:var(--t2);"></span>
-          </div>
-        </div>
-      </div>
-      <!-- AI 어시스턴트 Tab -->
-      <div id="admin-ai" class="admin-panel">
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 음성 어시스턴트</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:16px;">화면 우측 하단 🎙 버튼으로 음성 명령을 내릴 수 있습니다.<br>AI 엔진은 <b>Gemini (무료)</b>를 사용하며, Google 계정 탭의 Gemini API 키를 공유합니다.</div>
-          <div style="padding:12px 16px;background:var(--bg);border-radius:var(--r2);font-size:13px;color:var(--t2);">
-            Gemini API 키 상태: <span id="voice-gemini-key-status" style="font-weight:700;"></span>
-          </div>
-          <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="switchAdminTab('google')">🔗 Google 계정 탭에서 키 등록하기</button>
-        </div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;max-width:480px;margin-top:14px;">
-          <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:10px;">💬 사용 가능한 명령 예시</div>
-          <div style="font-size:13px;color:var(--t2);line-height:2;">
-            <div>• <b>"내일까지 보고서 제출 할일 추가해줘"</b></div>
-            <div>• <b>"상하수도 납부 완료로 표시해줘"</b></div>
-            <div>• <b>"오전에 예산안 검토 업무 일지 기록해줘"</b></div>
-            <div>• <b>"할 일 목록으로 이동해줘"</b></div>
-            <div>• <b>"오늘 할 일 현황 알려줘"</b></div>
-            <div>• <b>"상하수도 키워드로 검색해줘"</b></div>
           </div>
         </div>
       </div>
@@ -4337,7 +4305,7 @@ function importUsersCSV(e){
 
 async function switchAdminTab(tab){
   localStorage.setItem('wl_nav_admin_'+currentUser.사원번호, tab);
-  ['google','goals','facility','users','ai'].forEach(t=>{
+  ['google','goals','facility','users'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
     if(tabEl) tabEl.classList.toggle('active',t===tab);
@@ -4347,10 +4315,6 @@ async function switchAdminTab(tab){
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
   if(tab==='google') loadAiKeySettings();
-  if(tab==='ai'){
-    const st=document.getElementById('voice-gemini-key-status');
-    if(st){ const k=getAiApiKey(); st.textContent=k?'✓ 등록됨':'미등록'; st.style.color=k?'var(--green)':'var(--red)'; }
-  }
 }
 
 // ═══════════════════════════════════════════════
@@ -5091,210 +5055,7 @@ ${actText}
 }
 
 
-// ═══════════════════════════════════════════════
-// AI VOICE ASSISTANT
-// ═══════════════════════════════════════════════
-const GEMINI_TOOLS=[
-  {name:'add_todo',description:'새 할 일을 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'할 일 제목'},category:{type:'STRING',description:'카테고리: 업무/개인/건강/학습/기타, 기본값 업무'},priority:{type:'STRING',description:'우선순위: high/mid/low, 기본값 mid'},dueDate:{type:'STRING',description:'YYYY-MM-DD 마감일, 없으면 생략'},memo:{type:'STRING',description:'메모'}},required:['title']}},
-  {name:'complete_todo',description:'키워드로 할 일을 찾아 완료 처리합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'할 일 제목 키워드'}},required:['keyword']}},
-  {name:'add_daily_log',description:'오늘 업무 활동 일지를 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'활동 제목'},content:{type:'STRING',description:'활동 내용'},time:{type:'STRING',description:'시간대 예: 09:00-10:00'}},required:['title']}},
-  {name:'navigate_page',description:'앱 페이지로 이동합니다',parameters:{type:'OBJECT',properties:{page:{type:'STRING',description:'home/todo/daily/personal/exercise/admin 중 하나'}},required:['page']}},
-  {name:'search_todos',description:'할 일 목록에서 키워드 검색합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'검색 키워드'}},required:['keyword']}},
-  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}}
-];
-
-let _voiceRec=null, _isListening=false, _finalTranscript='', _geminiModel=null, _convHistory=[];
-
-async function getGeminiModel(){
-  if(_geminiModel) return _geminiModel;
-  const key=getAiApiKey();
-  try{
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
-    if(!r.ok) throw new Error();
-    const d=await r.json();
-    const list=(d.models||[])
-      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
-      .map(m=>m.name.replace('models/',''));
-    // 함수 호출 지원 모델 우선: 1.5-flash > 2.0-flash > flash 계열 > 기타
-    _geminiModel=list.find(m=>m==='gemini-1.5-flash')
-      ||list.find(m=>m.includes('1.5')&&m.includes('flash'))
-      ||list.find(m=>m.includes('flash'))
-      ||list[0];
-  }catch(e){ _geminiModel='gemini-1.5-flash'; }
-  return _geminiModel;
-}
-
-function toggleVoiceInput(){
-  if(_isListening) stopVoiceInput(); else startVoiceInput();
-}
-
-function startVoiceInput(){
-  if(!getAiApiKey()){ toast('관리 → Google 계정 탭에서 Gemini API 키를 먼저 등록하세요','error'); return; }
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ toast('이 브라우저는 음성 인식을 지원하지 않습니다 (Chrome 권장)','error'); return; }
-  _voiceRec=new SR();
-  _voiceRec.lang='ko-KR';
-  _voiceRec.continuous=false;
-  _voiceRec.interimResults=true;
-  _isListening=true;
-  updateMicBtn(true);
-  showAIOverlay('listening','듣고 있습니다...');
-  _finalTranscript='';
-  _voiceRec.onresult=(e)=>{
-    let final='', interim='';
-    for(const r of e.results){ if(r.isFinal) final+=r[0].transcript; else interim+=r[0].transcript; }
-    if(final) _finalTranscript=final;
-    showAIOverlay('listening',_finalTranscript||interim||'듣고 있습니다...');
-  };
-  _voiceRec.onend=async()=>{
-    const txt=_finalTranscript; _finalTranscript='';
-    if(txt){ await processVoiceCommand(txt); }
-    else { hideAIOverlay(); }
-    _isListening=false; updateMicBtn(false);
-  };
-  _voiceRec.onerror=(e)=>{
-    if(e.error!=='no-speech') toast('음성 인식 오류: '+e.error,'error');
-    hideAIOverlay();
-    _isListening=false; updateMicBtn(false);
-  };
-  _voiceRec.start();
-}
-
-function stopVoiceInput(){
-  if(_voiceRec) _voiceRec.stop();
-  _isListening=false; updateMicBtn(false);
-  _convHistory=[]; window.speechSynthesis?.cancel();
-  hideAIOverlay();
-}
-
-function speakAI(text, onEnd){
-  if(!window.speechSynthesis){ onEnd&&onEnd(); return; }
-  window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang='ko-KR'; u.rate=1.05;
-  if(onEnd) u.onend=onEnd;
-  window.speechSynthesis.speak(u);
-}
-
-function updateMicBtn(on){
-  const btn=document.getElementById('voice-mic-btn');
-  if(!btn) return;
-  btn.classList.toggle('listening',on);
-  btn.innerHTML=on?'⏹':'🎙';
-}
-
-function showAIOverlay(state,text){
-  const el=document.getElementById('ai-overlay');
-  const lb=document.getElementById('ai-overlay-label');
-  const tx=document.getElementById('ai-overlay-text');
-  if(!el) return;
-  el.style.display='flex';
-  const labels={listening:'🎙 듣고 있어요',processing:'🤖 처리 중...',question:'🤖 AI 질문',result:'✅ 완료',error:'⚠️ 오류'};
-  lb.textContent=labels[state]||state;
-  tx.textContent=text;
-  if(state==='result') setTimeout(hideAIOverlay,2800);
-  if(state==='error'){ _convHistory=[]; setTimeout(hideAIOverlay,3500); }
-}
-
-function hideAIOverlay(){
-  const el=document.getElementById('ai-overlay');
-  if(el) el.style.display='none';
-}
-
-async function processVoiceCommand(userText){
-  const key=getAiApiKey();
-  if(!key) return;
-  showAIOverlay('processing',userText);
-  _convHistory.push({role:'user',parts:[{text:userText}]});
-  const nextDay=new Date(); nextDay.setDate(nextDay.getDate()+1);
-  const sys=`당신은 WorkLog 업무관리 앱의 AI 어시스턴트입니다.
-오늘 날짜: ${today()} / 내일: ${nextDay.toISOString().slice(0,10)} / 사용자: ${currentUser?.name||''}
-- 정보가 충분하면 즉시 함수를 호출하세요
-- 필요한 정보가 부족하면 한 문장으로 짧게 되물어보세요
-- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요`;
-  try{
-    const model=await getGeminiModel();
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({system_instruction:{parts:[{text:sys}]},contents:_convHistory,tools:[{functionDeclarations:GEMINI_TOOLS}],tool_config:{function_calling_config:{mode:'AUTO'}}})
-    });
-    if(!res.ok){ const err=await res.json().catch(()=>({})); throw new Error(err.error?.message||`HTTP ${res.status}`); }
-    const data=await res.json();
-    const parts=data.candidates?.[0]?.content?.parts||[];
-    const fc=parts.find(p=>p.functionCall)?.functionCall;
-    if(fc){
-      // 함수 실행 → 대화 종료
-      _convHistory=[];
-      const result=await executeAITool(fc.name,fc.args||{});
-      speakAI(result);
-      showAIOverlay('result',result);
-    } else {
-      // AI가 되물음 → 히스토리에 추가 후 자동 재청취
-      const aiText=parts.find(p=>p.text)?.text||'다시 말씀해 주세요';
-      _convHistory.push({role:'model',parts:[{text:aiText}]});
-      showAIOverlay('question',aiText);
-      speakAI(aiText,()=>{ if(!_isListening) startVoiceInput(); });
-    }
-  }catch(e){
-    console.error('[AI Voice]',e);
-    _convHistory=[];
-    showAIOverlay('error','오류: '+e.message);
-  }
-}
-
-async function executeAITool(toolName,input){
-  switch(toolName){
-    case 'add_todo':{
-      const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null};
-      await DB.upsertTodo(currentUser.사원번호,todo);
-      navigate('todo'); await renderTodos();
-      return `"${todo.title}" 할 일이 추가되었습니다`;
-    }
-    case 'complete_todo':{
-      const todos=await DB.getTodos(currentUser.사원번호);
-      const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done');
-      if(!t) return `"${input.keyword}" 일치하는 할 일을 찾지 못했습니다`;
-      await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()});
-      navigate('todo'); await renderTodos();
-      return `"${t.title}" 완료 처리되었습니다`;
-    }
-    case 'add_daily_log':{
-      const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''};
-      await DB.upsertActivity(currentUser.사원번호,today(),act);
-      navigate('daily'); await renderDailyPage();
-      return `업무 일지 "${act.title}" 기록되었습니다`;
-    }
-    case 'navigate_page':{
-      navigate(input.page);
-      const names={home:'홈',todo:'할 일',daily:'업무 세션',personal:'개인',exercise:'운동',admin:'관리'};
-      return `${names[input.page]||input.page} 페이지로 이동했습니다`;
-    }
-    case 'search_todos':{
-      navigate('todo');
-      const el=document.getElementById('todo-search');
-      if(el){ el.value=input.keyword; await renderTodos(); }
-      return `"${input.keyword}" 검색 결과를 표시합니다`;
-    }
-    case 'show_today_summary':{
-      const todos=await DB.getTodos(currentUser.사원번호);
-      const t=today();
-      const list=todos.filter(td=>todayVisible(td,t));
-      const done=list.filter(td=>isDoneOnDate(td,t)).length;
-      return `오늘 할 일 ${list.length}개 — 완료 ${done}개, 미완료 ${list.length-done}개`;
-    }
-    default: return '알 수 없는 명령입니다';
-  }
-}
 </script>
-
-<!-- AI Voice Assistant UI -->
-<button id="voice-mic-btn" onclick="toggleVoiceInput()" title="음성 명령 (AI)">🎙</button>
-<div id="ai-overlay">
-  <button id="ai-overlay-close" onclick="hideAIOverlay()">✕</button>
-  <div id="ai-overlay-label">🎙 듣고 있어요</div>
-  <div id="ai-overlay-text"></div>
-</div>
 
 </body>
 </html>
