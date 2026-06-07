@@ -1710,6 +1710,8 @@ async function enterApp(){
   ['org-goals-display','todo-tbody','todo-cards','ag-grid','daily-todo-list-content'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.innerHTML='';
   });
+  const gcalWrap=document.getElementById('gcal-custom-view');
+  if(gcalWrap) gcalWrap.innerHTML='<div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>';
   updateGcalConnectionUI(false,'');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
@@ -1781,6 +1783,8 @@ function doLogout(){
   Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k==='gcal_token'||k==='gcal_token_time').forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
+  gcalEvents=[];
+  gcalCalendars=[];
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -1824,7 +1828,7 @@ function navigate(page){
   if(page==='daily'){
     renderDailyPage();
     startGcalAutoRefresh();
-    if(gcalToken){ renderCustomCalendar(); }
+    renderCustomCalendar();
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='admin'){
@@ -4543,8 +4547,11 @@ function disconnectGoogleCalendar() {
 
 /* ── 커스텀 캘린더 렌더링 ── */
 async function renderCustomCalendar() {
-  if (!gcalToken) return;
   const wrap = document.getElementById('gcal-custom-view');
+  if (!gcalToken) {
+    if(wrap) wrap.innerHTML='<div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>';
+    return;
+  }
   if (!wrap) return;
 
   const gen = ++gcalRenderGen;
