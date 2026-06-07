@@ -419,7 +419,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gmail-msg-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;}
 .gmail-msg-from{font-size:13px;font-weight:600;color:var(--t1);flex:1;}
 .gmail-msg-date{font-size:11px;color:var(--t3);}
-.gmail-msg-body{padding:0 16px 16px;font-size:13px;color:var(--t2);line-height:1.7;white-space:pre-wrap;word-break:break-word;}
+.gmail-msg-body{padding:0 16px 16px;font-size:13px;color:var(--t2);line-height:1.7;word-break:break-word;overflow:hidden;}
 .gmail-msg-body iframe{width:100%;border:none;min-height:200px;}
 .gmail-empty{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
 .gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;text-align:center;padding:40px;}
@@ -5854,26 +5854,37 @@ function gmailBuildRaw(to, subject, body) {
 }
 
 function gmailDecodeBody(payload) {
-  if (!payload) return '';
+  if (!payload) return '<span style="color:var(--t3);font-style:italic;">(내용 없음)</span>';
   const findPart = (p, mime) => {
     if (!p) return null;
     if (p.mimeType === mime) return p;
     if (p.parts) { for (const sub of p.parts) { const r = findPart(sub, mime); if (r) return r; } }
     return null;
   };
+  const decodeBase64 = (data) => {
+    try {
+      const bin = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch { return null; }
+  };
   const htmlPart = findPart(payload, 'text/html');
-  const textPart = findPart(payload, 'text/plain');
-  const part = htmlPart || textPart;
-  if (!part?.body?.data) return '(내용 없음)';
-  const decoded = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-  const text = decodeURIComponent(escape(decoded));
-  if (htmlPart) {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = text;
-    wrap.querySelectorAll('script,style,head').forEach(el => el.remove());
-    return wrap.innerHTML;
+  if (htmlPart?.body?.data) {
+    const text = decodeBase64(htmlPart.body.data);
+    if (text) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = text;
+      wrap.querySelectorAll('script,link,head').forEach(el => el.remove());
+      // 이메일 자체 스타일이 앱 레이아웃에 영향 주지 않도록 scoped으로 감쌈
+      return `<div style="all:initial;display:block;font-family:inherit;font-size:13px;color:#c8d8ec;line-height:1.7;">${wrap.innerHTML}</div>`;
+    }
   }
-  return esc(text);
+  const textPart = findPart(payload, 'text/plain');
+  if (textPart?.body?.data) {
+    const text = decodeBase64(textPart.body.data);
+    if (text) return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${esc(text)}</pre>`;
+  }
+  return '<span style="color:var(--t3);font-style:italic;">(내용 없음)</span>';
 }
 
 function gmailFormatFrom(raw) {
