@@ -169,8 +169,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .day-btn.active{background:var(--accent);border-color:var(--accent);color:#1a1000;}
 .todo-stats-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;gap:16px;}
 /* ---- DAILY ---- */
-.daily-date-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+.daily-date-bar{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap;}
 .daily-date-bar input[type="date"]{width:auto;flex:none;}
+.daily-date-bar #ai-report-btn{margin-left:auto;}
 .daily-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:20px;}
 .daily-todo-list{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .daily-todo-list h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);}
