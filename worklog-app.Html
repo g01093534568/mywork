@@ -4488,6 +4488,24 @@ function restoreGcalToken() {
     const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : '';
     updateGcalConnectionUI(true, email || '');
     renderCustomCalendar();
+    return;
+  }
+  // sessionStorage 토큰 없음 → 저장된 이메일로 silent auth 시도 (사용자 개입 없음)
+  const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
+  if (!email) return;
+  const attempt = () => {
+    if (!window.google?.accounts?.oauth2) return;
+    makeTokenClient(email, 'none', (resp) => {
+      if (resp.error) return; // 조용히 실패 — 사용자가 수동으로 연동해야 함
+      saveGcalToken(resp.access_token, email);
+    }).requestAccessToken({ prompt: 'none' });
+  };
+  if (window.google?.accounts?.oauth2) {
+    attempt();
+  } else {
+    // Google API 비동기 로드 완료 대기 (최대 6초)
+    const tid = setInterval(() => { if (window.google?.accounts?.oauth2) { clearInterval(tid); attempt(); } }, 300);
+    setTimeout(() => clearInterval(tid), 6000);
   }
 }
 
