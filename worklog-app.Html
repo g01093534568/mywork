@@ -923,8 +923,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <!-- Google 계정 Tab -->
       <div id="admin-google" class="admin-panel">
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🔗 Google Calendar 연동</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google 계정을 입력하면 업무 페이지의 캘린더와 자동으로 연동됩니다.</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🔗 Google 계정 연동</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:6px;">Google 계정 하나로 캘린더와 Gmail을 함께 사용합니다.</div>
+          <div style="display:flex;gap:12px;margin-bottom:20px;">
+            <span style="font-size:12px;background:rgba(232,160,32,0.1);color:var(--accent);padding:3px 8px;border-radius:4px;">📅 Google Calendar</span>
+            <span style="font-size:12px;background:rgba(232,160,32,0.1);color:var(--accent);padding:3px 8px;border-radius:4px;">✉️ Gmail</span>
+          </div>
           <div class="form-group">
             <label>Google 계정 (Gmail 주소)</label>
             <input type="email" id="gcal-account-email" placeholder="example@gmail.com" oninput="onGcalEmailInput()" />
@@ -935,20 +939,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button id="gcal-settings-disconnect-btn" class="btn btn-sm btn-danger" onclick="disconnectGoogleCalendar()" style="display:none;">연동 해제</button>
           </div>
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
-        </div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">✉️ Gmail 연동</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google 계정을 연동하면 앱에서 받은편지함을 확인하고 메일을 보낼 수 있습니다.</div>
-          <div class="form-group">
-            <label>Google 계정 (Gmail 주소)</label>
-            <input type="email" id="gmail-account-email" placeholder="example@gmail.com" oninput="onGmailEmailInput()" />
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;margin-top:16px;">
-            <button id="gmail-settings-connect-btn" class="btn btn-primary" onclick="connectGmailWithEmail()" disabled>🔗 연동하기</button>
-            <span id="gmail-settings-status" style="font-size:12px;font-weight:600;color:var(--green);display:none;">✓ 연동됨</span>
-            <button id="gmail-settings-disconnect-btn" class="btn btn-sm btn-danger" onclick="gmailDisconnect()" style="display:none;">연동 해제</button>
-          </div>
-          <div id="gmail-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 리포트 설정</div>
@@ -1924,11 +1914,6 @@ async function enterApp(){
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
   document.getElementById('gcal-account-email').value = savedGcalEmail || '';
   document.getElementById('gcal-settings-connect-btn').disabled = !savedGcalEmail;
-  const savedGmailEmail = localStorage.getItem('gmail_email_' + currentUser.사원번호);
-  const gmailEmailInput = document.getElementById('gmail-account-email');
-  if (gmailEmailInput) gmailEmailInput.value = savedGmailEmail || '';
-  const gmailConnectBtn = document.getElementById('gmail-settings-connect-btn');
-  if (gmailConnectBtn) gmailConnectBtn.disabled = !savedGmailEmail;
   loadAiKeySettings();
   // 세션 토큰만 복원 — OAuth 시도는 daily 페이지 진입 시 처리 (로그인 팝업 방지)
   (function() {
@@ -1936,15 +1921,10 @@ async function enterApp(){
     const ts  = parseInt(sessionStorage.getItem(_gcalTokenTimeKey()) || '0');
     if (tok && Date.now() - ts < 55 * 60 * 1000) {
       gcalToken = tok;
+      gmailToken = tok; // 동일 토큰 공유 (Calendar + Gmail 통합 scope)
       const email = localStorage.getItem('gcal_email_' + currentUser.사원번호) || '';
       updateGcalConnectionUI(true, email);
-    }
-    const gtok = sessionStorage.getItem(_gmailTokenKey());
-    const gts  = parseInt(sessionStorage.getItem(_gmailTokenTimeKey()) || '0');
-    if (gtok && Date.now() - gts < 55 * 60 * 1000) {
-      gmailToken = gtok;
-      const gemail = localStorage.getItem('gmail_email_' + currentUser.사원번호) || '';
-      updateGmailConnectionUI(true, gemail);
+      updateGmailConnectionUI(true, email);
     }
   })();
 
@@ -1996,9 +1976,7 @@ function doLogout(){
   // 사용자별 캐시 + GCal 토큰 + 세션 모두 초기화
   const _logoutTokenKey = _gcalTokenKey();
   const _logoutTokenTimeKey = _gcalTokenTimeKey();
-  const _logoutGmailKey = _gmailTokenKey();
-  const _logoutGmailTimeKey = _gmailTokenTimeKey();
-  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey||k===_logoutGmailKey||k===_logoutGmailTimeKey).forEach(k=>sessionStorage.removeItem(k));
+  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
   gcalEvents=[];
@@ -2012,8 +1990,8 @@ function doLogout(){
 
 // GCal·Gmail 변수 — IIFE보다 먼저 선언 필요 (TDZ 방지)
 const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
-const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
-const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_SCOPE = GCAL_SCOPE; // 통합 scope 공유
 let gmailToken = null;
 let gmailCurrentLabel = 'INBOX';
 let gmailThreads = [];
@@ -4701,10 +4679,12 @@ function stopGcalAutoRefresh() {
 /* ── 토큰 관리 ── */
 function saveGcalToken(token, email) {
   gcalToken = token;
-  gcalCalendars = []; // 새 토큰 발급 시 목록 초기화 → 다음 렌더에서 새로 가져옴
+  gmailToken = token; // 동일 토큰 공유
+  gcalCalendars = [];
   sessionStorage.setItem(_gcalTokenKey(), token);
   sessionStorage.setItem(_gcalTokenTimeKey(), Date.now().toString());
   updateGcalConnectionUI(true, email);
+  updateGmailConnectionUI(true, email);
   renderCustomCalendar();
 }
 
@@ -4713,8 +4693,10 @@ function restoreGcalToken() {
   const time = parseInt(sessionStorage.getItem(_gcalTokenTimeKey()) || '0');
   if (token && Date.now() - time < 55 * 60 * 1000) {
     gcalToken = token;
+    gmailToken = token;
     const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : '';
     updateGcalConnectionUI(true, email || '');
+    updateGmailConnectionUI(true, email || '');
     renderCustomCalendar();
     return;
   }
@@ -4810,7 +4792,7 @@ function connectGoogleCalendarWithEmail() {
     if (resp.error) { toast('연동 실패: ' + resp.error, 'error'); return; }
     if (currentUser) localStorage.setItem('gcal_email_' + currentUser.사원번호, email);
     saveGcalToken(resp.access_token, email);
-    toast('Google Calendar 연동 완료!');
+    toast('Google 계정 연동 완료! (Calendar + Gmail)');
   }).requestAccessToken();
 }
 
@@ -4818,12 +4800,15 @@ function disconnectGoogleCalendar() {
   gcalToken = null;
   gcalEvents = [];
   gcalCalendars = [];
+  gmailToken = null;
+  gmailThreads = [];
   sessionStorage.removeItem(_gcalTokenKey());
   sessionStorage.removeItem(_gcalTokenTimeKey());
   if (currentUser) localStorage.removeItem('gcal_email_' + currentUser.사원번호);
   updateGcalConnectionUI(false, '');
+  updateGmailConnectionUI(false, '');
   document.getElementById('gcal-custom-view').innerHTML = '<div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>';
-  toast('Google Calendar 연동이 해제되었습니다.');
+  toast('Google 계정 연동이 해제되었습니다.');
 }
 
 /* ── 커스텀 캘린더 렌더링 ── */
@@ -5560,112 +5545,38 @@ async function executeAITool(toolName,input){
 }
 
 // ═══════════════════════════════════════════════
-// GMAIL
+// GMAIL — GCal과 동일 토큰 공유 (통합 scope)
 // ═══════════════════════════════════════════════
-function _gmailTokenKey() { return 'gmail_token_' + (currentUser?.사원번호 || '_guest'); }
-function _gmailTokenTimeKey() { return 'gmail_token_time_' + (currentUser?.사원번호 || '_guest'); }
-
-function saveGmailToken(token, email) {
-  gmailToken = token;
-  sessionStorage.setItem(_gmailTokenKey(), token);
-  sessionStorage.setItem(_gmailTokenTimeKey(), Date.now().toString());
-  updateGmailConnectionUI(true, email);
-}
-
-function restoreGmailToken() {
-  const token = sessionStorage.getItem(_gmailTokenKey());
-  const time = parseInt(sessionStorage.getItem(_gmailTokenTimeKey()) || '0');
-  if (token && Date.now() - time < 55 * 60 * 1000) {
-    gmailToken = token;
-    const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : '';
-    updateGmailConnectionUI(true, email || '');
-    return true;
-  }
-  const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : null;
-  if (!email || !window.google?.accounts?.oauth2) return false;
-  makeGmailTokenClient(email, 'none', (resp) => {
-    if (resp.error) return;
-    saveGmailToken(resp.access_token, email);
-    renderGmailInbox();
-  }).requestAccessToken({ prompt: 'none' });
-  return false;
-}
-
-function makeGmailTokenClient(email, pr, callback) {
-  return google.accounts.oauth2.initTokenClient({
-    client_id: GCAL_CLIENT_ID,
-    scope: GMAIL_SCOPE,
-    ...(email && { login_hint: email }),
-    prompt: pr,
-    callback,
-  });
-}
-
-function gmailEnsureToken(onReady) {
-  if (gmailToken) { onReady(); return; }
-  const email = currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : null;
-  if (!window.google?.accounts?.oauth2) { toast('설정 탭에서 Gmail을 먼저 연동해주세요.', 'error'); return; }
-  const tryAuth = (pr) => {
-    makeGmailTokenClient(email, pr, (resp) => {
-      if (resp.error === 'interaction_required' || resp.error === 'access_denied') { tryAuth(''); return; }
-      if (resp.error) { toast('Gmail 연동 실패: ' + resp.error, 'error'); return; }
-      saveGmailToken(resp.access_token, email || '');
-      onReady();
-    }).requestAccessToken({ prompt: pr });
-  };
-  tryAuth(email ? 'none' : '');
-}
-
 function updateGmailConnectionUI(connected, email) {
-  const s = document.getElementById('gmail-settings-status');
-  const d = document.getElementById('gmail-settings-disconnect-btn');
-  const e = document.getElementById('gmail-connected-email');
-  if (s) s.style.display = connected ? 'inline' : 'none';
-  if (d) d.style.display = connected ? 'inline-flex' : 'none';
-  if (e) { e.style.display = connected && email ? 'block' : 'none'; e.textContent = connected && email ? `연동된 계정: ${email}` : ''; }
   const prompt = document.getElementById('gmail-connect-prompt');
   const body = document.getElementById('gmail-body');
   if (prompt) prompt.style.display = connected ? 'none' : 'flex';
   if (body) body.style.display = connected ? 'flex' : 'none';
 }
 
-function onGmailEmailInput() {
-  const btn = document.getElementById('gmail-settings-connect-btn');
-  if (btn) btn.disabled = !document.getElementById('gmail-account-email').value.trim();
-}
-
-function connectGmailWithEmail() {
-  const email = document.getElementById('gmail-account-email').value.trim();
-  if (!email) { toast('Gmail 주소를 입력하세요.', 'error'); return; }
-  if (!window.google?.accounts?.oauth2) { toast('Google API 로딩 중입니다.', 'error'); return; }
-  makeGmailTokenClient(email, '', (resp) => {
-    if (resp.error) { toast('연동 실패: ' + resp.error, 'error'); return; }
-    if (currentUser) localStorage.setItem('gmail_email_' + currentUser.사원번호, email);
-    saveGmailToken(resp.access_token, email);
-    toast('Gmail 연동 완료!');
-  }).requestAccessToken();
+function gmailEnsureToken(onReady) {
+  // gcalEnsureToken이 saveGcalToken을 호출 → gmailToken도 자동 동기화
+  gcalEnsureToken(onReady);
 }
 
 function gmailDisconnect() {
-  gmailToken = null;
-  gmailThreads = [];
-  sessionStorage.removeItem(_gmailTokenKey());
-  sessionStorage.removeItem(_gmailTokenTimeKey());
-  if (currentUser) localStorage.removeItem('gmail_email_' + currentUser.사원번호);
-  updateGmailConnectionUI(false, '');
-  const tl = document.getElementById('gmail-thread-list');
-  if (tl) tl.innerHTML = '';
-  toast('Gmail 연동이 해제되었습니다.');
+  // 통합 계정이므로 GCal도 함께 해제
+  disconnectGoogleCalendar();
 }
 
 /* ── 페이지 렌더 ── */
 function renderGmailPage() {
-  const hasStored = currentUser ? !!localStorage.getItem('gmail_email_' + currentUser.사원번호) : false;
-  const restored = restoreGmailToken();
-  if (gmailToken || restored) {
-    updateGmailConnectionUI(true, currentUser ? localStorage.getItem('gmail_email_' + currentUser.사원번호) : '');
+  const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : '';
+  if (gcalToken) {
+    gmailToken = gcalToken;
+    updateGmailConnectionUI(true, email);
     renderGmailInbox();
-  } else if (!hasStored) {
+  } else if (email) {
+    // GCal silent re-auth → saveGcalToken이 gmailToken도 동기화
+    restoreGcalToken();
+    updateGmailConnectionUI(!!gcalToken, email);
+    if (gcalToken) renderGmailInbox();
+  } else {
     updateGmailConnectionUI(false, '');
   }
 }
@@ -5892,10 +5803,13 @@ async function gmailFetch(url, opts = {}) {
   const headers = { 'Authorization': `Bearer ${gmailToken}`, 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const res = await fetch(url, { ...opts, headers });
   if (res.status === 401) {
+    gcalToken = null;
     gmailToken = null;
-    sessionStorage.removeItem(_gmailTokenKey());
+    sessionStorage.removeItem(_gcalTokenKey());
+    sessionStorage.removeItem(_gcalTokenTimeKey());
+    updateGcalConnectionUI(false, '');
     updateGmailConnectionUI(false, '');
-    toast('Gmail 인증이 만료됐습니다. 다시 연동해주세요.', 'error');
+    toast('Google 인증이 만료됐습니다. 설정에서 다시 연동해주세요.', 'error');
     return null;
   }
   return res;
