@@ -5108,7 +5108,11 @@ async function saveUser(){
     closeModal('user-modal');
     await renderAdminUsers();
     toast('저장되었습니다');
-  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
+  }catch(e){
+    const msg = e?.message || e?.code || JSON.stringify(e);
+    toast(`저장 실패: ${msg}`, 'error');
+    console.error('[saveUser]', e);
+  }
 }
 
 async function deleteUser(id){
