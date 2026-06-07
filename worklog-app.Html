@@ -1706,10 +1706,12 @@ async function doLogin(){
 }
 
 async function enterApp(){
-  // 이전 사용자 DOM 즉시 초기화 — app-screen 표시 전에 수행
+  // 이전 사용자 DOM·연결 상태 즉시 초기화 — app-screen 표시 전에 수행
   ['org-goals-display','todo-tbody','todo-cards','ag-grid','daily-todo-list-content'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.innerHTML='';
   });
+  updateGcalConnectionUI(false,'');
+  document.getElementById('gcal-account-email').value='';
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   document.getElementById('user-name-display').textContent = currentUser.시설명;
@@ -1776,8 +1778,12 @@ async function migrateLocalStorageToSupabase(){
 function doLogout(){
   stopGcalAutoRefresh();
   DB.clearCache();
-  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')).forEach(k=>sessionStorage.removeItem(k));
+  // 사용자별 캐시 + GCal 토큰 + 세션 모두 초기화
+  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k==='gcal_token'||k==='gcal_token_time').forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
+  gcalToken=null;
+  updateGcalConnectionUI(false,'');
+  document.getElementById('gcal-account-email').value='';
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -4948,7 +4954,8 @@ async function addGcalEvent() {
 // ═══════════════════════════════════════════════
 // AI DAILY REPORT
 // ═══════════════════════════════════════════════
-function getAiApiKey(){ return localStorage.getItem('worklog_anthropic_key')||''; }
+function _aiKeyName(){ return 'worklog_ai_key_'+(currentUser?.사원번호||''); }
+function getAiApiKey(){ return localStorage.getItem(_aiKeyName())||''; }
 
 function loadAiKeySettings(){
   const k=getAiApiKey();
@@ -4961,13 +4968,13 @@ function loadAiKeySettings(){
 function saveAiApiKey(){
   const v=document.getElementById('ai-api-key-input').value.trim();
   if(!v||v.startsWith('•')){ toast('새 API 키를 입력하세요','error'); return; }
-  localStorage.setItem('worklog_anthropic_key',v);
+  localStorage.setItem(_aiKeyName(),v);
   loadAiKeySettings();
   toast('API 키가 저장되었습니다');
 }
 
 function clearAiApiKey(){
-  localStorage.removeItem('worklog_anthropic_key');
+  localStorage.removeItem(_aiKeyName());
   const inp=document.getElementById('ai-api-key-input');
   if(inp) inp.value='';
   loadAiKeySettings();
