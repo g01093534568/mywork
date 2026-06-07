@@ -1695,6 +1695,9 @@ async function doLogin(){
       }
     }
     if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
+    // 이전 사용자 캐시 선제 초기화
+    DB.clearCache();
+    Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')).forEach(k=>sessionStorage.removeItem(k));
     currentUser = user;
     sessionStorage.setItem('wl_session', JSON.stringify(user));
     enterApp();
@@ -1703,6 +1706,10 @@ async function doLogin(){
 }
 
 async function enterApp(){
+  // 이전 사용자 DOM 즉시 초기화 — app-screen 표시 전에 수행
+  ['org-goals-display','todo-tbody','todo-cards','ag-grid','daily-todo-list-content'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML='';
+  });
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   document.getElementById('user-name-display').textContent = currentUser.시설명;
