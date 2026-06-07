@@ -1724,12 +1724,11 @@ async function enterApp(){
   document.getElementById('admin-tab-facility').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
   document.getElementById('admin-tab-users').style.display = isAdmin ? '' : 'none';
 
-  // 저장된 Google 계정·토큰 복원
+  // 저장된 Google 계정·API키 복원 — 이전 사용자 값 잔류 방지를 위해 항상 덮어씀
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
-  if (savedGcalEmail) {
-    document.getElementById('gcal-account-email').value = savedGcalEmail;
-    document.getElementById('gcal-settings-connect-btn').disabled = false;
-  }
+  document.getElementById('gcal-account-email').value = savedGcalEmail || '';
+  document.getElementById('gcal-settings-connect-btn').disabled = !savedGcalEmail;
+  loadAiKeySettings();
   // 세션 토큰만 복원 — OAuth 시도는 daily 페이지 진입 시 처리 (로그인 팝업 방지)
   (function() {
     const tok = sessionStorage.getItem(_gcalTokenKey());
