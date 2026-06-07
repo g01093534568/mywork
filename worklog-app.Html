@@ -5100,9 +5100,6 @@ async function saveUser(){
   const editId=document.getElementById('um-edit-id').value;
   const hashedPw=isHashed(패스워드)?패스워드:await hashPassword(패스워드);
   const data={id:editId||uid(), 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
-  const users=await DB.getUsers();
-  const dup=users.find(u=>u.사원번호===사원번호 && u.시설명===시설명 && u.id!==editId);
-  if(dup){ toast('이미 사용 중인 사원번호입니다 (같은 시설 내 중복 불가)','error'); return; }
   try{
     await DB.upsertUser(data);
     closeModal('user-modal');
@@ -5146,17 +5143,7 @@ function importUsersCSV(e){
       시설명:r[0]||'',사원번호:r[1]||'',패스워드:r[2]||'',role:r[3]||'user'
     })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
     if(!raw.length){ toast('유효한 데이터가 없습니다','error'); return; }
-    const seen=new Set();
-    const deduped=raw.filter(u=>{ const k=u.시설명+'|'+u.사원번호; if(seen.has(k)) return false; seen.add(k); return true; });
-    const existingUsers=await DB.getUsers();
-    const existingKeys=new Set(existingUsers.map(u=>u.시설명+'|'+u.사원번호));
-    const conflicts=deduped.filter(u=>existingKeys.has(u.시설명+'|'+u.사원번호));
-    if(conflicts.length){
-      const nos=conflicts.map(u=>`${u.시설명}/${u.사원번호}`).join(', ');
-      toast(`이미 사용 중인 사원번호: ${nos}`, 'error');
-      return;
-    }
-    const data=await Promise.all(deduped.map(async u=>({...u, 패스워드:isHashed(u.패스워드)?u.패스워드:await hashPassword(u.패스워드)})));
+    const data=await Promise.all(raw.map(async u=>({...u, 패스워드:isHashed(u.패스워드)?u.패스워드:await hashPassword(u.패스워드)})));
     for(const u of data) await DB.upsertUser(u);
     await renderAdminUsers();
     toast(`${data.length}명 사용자가 업로드되었습니다`);
