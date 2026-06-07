@@ -481,6 +481,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <button class="btn btn-primary" onclick="openTodoModal()">+ 할 일 추가</button>
       </div>
+      <div class="personal-tabs" style="margin-bottom:18px">
+        <div class="personal-tab active" id="todo-tab-work" onclick="switchTodoTab('업무')">📁 업무</div>
+        <div class="personal-tab" id="todo-tab-personal" onclick="switchTodoTab('개인')">👤 개인</div>
+      </div>
       <div class="todo-toolbar">
         <input type="text" id="todo-search" placeholder="🔍  검색..." oninput="renderTodos()" style="max-width:260px" />
         <select id="todo-filter-status" onchange="renderTodos()" style="width:120px">
@@ -488,12 +492,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <option value="todo">미완료</option>
           <option value="done">완료</option>
           <option value="overdue">마감 초과</option>
-        </select>
-        <select id="todo-filter-category" onchange="renderTodos()" style="width:120px">
-          <option value="all">전체 분류</option>
-          <option value="업무">업무</option>
-          <option value="개인">개인</option>
-          <option value="기타">기타</option>
         </select>
         <select id="todo-filter-priority" onchange="renderTodos()" style="width:120px">
           <option value="all">전체 우선순위</option>
@@ -1657,6 +1655,7 @@ const DB = {
 // ═══════════════════════════════════════════════
 let currentUser = null;
 let currentPage = 'home';
+let currentTodoTab = '업무';
 let strategyDraft = [];
 let pgKpiDraft = [];
 let fgKpiDraft = [];
@@ -1780,7 +1779,9 @@ function doLogout(){
   stopGcalAutoRefresh();
   DB.clearCache();
   // 사용자별 캐시 + GCal 토큰 + 세션 모두 초기화
-  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k==='gcal_token'||k==='gcal_token_time').forEach(k=>sessionStorage.removeItem(k));
+  const _logoutTokenKey = _gcalTokenKey();
+  const _logoutTokenTimeKey = _gcalTokenTimeKey();
+  Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
   gcalEvents=[];
@@ -1794,8 +1795,8 @@ function doLogout(){
 // GCal 변수 — IIFE보다 먼저 선언 필요 (TDZ 방지)
 const GCAL_CLIENT_ID = '863929651334-d4nj1esscp7q2b5fcb22htra6kvo1cf7.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar';
-const GCAL_TOKEN_KEY = 'gcal_token';
-const GCAL_TOKEN_TIME_KEY = 'gcal_token_time';
+function _gcalTokenKey() { return 'gcal_token_' + (currentUser?.사원번호 || '_guest'); }
+function _gcalTokenTimeKey() { return 'gcal_token_time_' + (currentUser?.사원번호 || '_guest'); }
 let gcalToken = null;
 let gcalCalendars = [];
 let gcalViewYear = new Date().getFullYear();
@@ -3623,18 +3624,26 @@ function setRecurringDays(days){
 }
 
 
+function switchTodoTab(tab){
+  currentTodoTab=tab;
+  document.getElementById('todo-tab-work').classList.toggle('active', tab==='업무');
+  document.getElementById('todo-tab-personal').classList.toggle('active', tab==='개인');
+  renderTodos();
+}
+
 async function renderTodos(){
   const todos=await DB.getTodos(currentUser.사원번호);
   const search=document.getElementById('todo-search').value.toLowerCase();
   const filterStatus=document.getElementById('todo-filter-status').value;
-  const filterCat=document.getElementById('todo-filter-category').value;
   const filterPri=document.getElementById('todo-filter-priority').value;
   const t=today();
   let list=todos.filter(todo=>{
     // 반복 할일은 요일 무관 전체 표시, 일반 할일은 기존 로직 유지
     if(!todo.isRecurring && !todayVisible(todo, t)) return false;
     if(search && !todo.title.toLowerCase().includes(search)) return false;
-    if(filterCat!=='all' && todo.category!==filterCat) return false;
+    // 탭 기준 분류 필터: 업무 탭은 업무·기타, 개인 탭은 개인
+    if(currentTodoTab==='업무' && todo.category==='개인') return false;
+    if(currentTodoTab==='개인' && todo.category!=='개인') return false;
     if(filterStatus==='todo'){
       if(!todo.isRecurring && todo.status!=='todo' && todo.completedDate!==t) return false;
       if(todo.isRecurring && isDoneOnDate(todo, t)) return false;
@@ -3782,7 +3791,7 @@ async function openTodoModal(id){
     document.getElementById('todo-modal-title').textContent='할 일 추가';
     document.getElementById('todo-edit-id').value='';
     document.getElementById('tm-title').value='';
-    document.getElementById('tm-category').value='업무';
+    document.getElementById('tm-category').value=currentTodoTab==='개인'?'개인':'업무';
     document.getElementById('tm-priority').value='mid';
     document.getElementById('tm-status').value='todo';
     document.getElementById('tm-start').value=today();
@@ -4465,15 +4474,15 @@ function stopGcalAutoRefresh() {
 function saveGcalToken(token, email) {
   gcalToken = token;
   gcalCalendars = []; // 새 토큰 발급 시 목록 초기화 → 다음 렌더에서 새로 가져옴
-  sessionStorage.setItem(GCAL_TOKEN_KEY, token);
-  sessionStorage.setItem(GCAL_TOKEN_TIME_KEY, Date.now().toString());
+  sessionStorage.setItem(_gcalTokenKey(), token);
+  sessionStorage.setItem(_gcalTokenTimeKey(), Date.now().toString());
   updateGcalConnectionUI(true, email);
   renderCustomCalendar();
 }
 
 function restoreGcalToken() {
-  const token = sessionStorage.getItem(GCAL_TOKEN_KEY);
-  const time = parseInt(sessionStorage.getItem(GCAL_TOKEN_TIME_KEY) || '0');
+  const token = sessionStorage.getItem(_gcalTokenKey());
+  const time = parseInt(sessionStorage.getItem(_gcalTokenTimeKey()) || '0');
   if (token && Date.now() - time < 55 * 60 * 1000) {
     gcalToken = token;
     const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : '';
@@ -4537,8 +4546,8 @@ function disconnectGoogleCalendar() {
   gcalToken = null;
   gcalEvents = [];
   gcalCalendars = [];
-  sessionStorage.removeItem(GCAL_TOKEN_KEY);
-  sessionStorage.removeItem(GCAL_TOKEN_TIME_KEY);
+  sessionStorage.removeItem(_gcalTokenKey());
+  sessionStorage.removeItem(_gcalTokenTimeKey());
   if (currentUser) localStorage.removeItem('gcal_email_' + currentUser.사원번호);
   updateGcalConnectionUI(false, '');
   document.getElementById('gcal-custom-view').innerHTML = '<div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>';
