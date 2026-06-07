@@ -6664,11 +6664,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const facilityForm = document.getElementById('facilityForm');
 
     addFacilityBtn.addEventListener('click', () => {
-        openModal(false);
+        openFacilityModal(false);
     });
 
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeFacilityModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeFacilityModal);
 
     // 선택 항목 수정 버튼 이벤트
     const editSelectedFacilityBtn = document.getElementById('editSelectedFacilityBtn');
@@ -6698,7 +6698,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
-            closeModal();
+            closeFacilityModal();
         }
     });
 
@@ -6734,7 +6734,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.success) {
                 alert(data.message);
-                closeModal();
+                closeFacilityModal();
                 loadFacilities();
             } else {
                 alert(data.message);
@@ -7114,7 +7114,7 @@ window.goToFacilityPage = function(page) {
     renderFacilities(allFacilities, page);
 };
 
-function openModal(isEdit = false, index = null) {
+function openFacilityModal(isEdit = false, index = null) {
     currentEditIndex = index;
     const modalTitle = document.getElementById('modalTitle');
     modalTitle.textContent = isEdit ? '시설 수정' : '시설 추가';
@@ -7170,7 +7170,7 @@ function updateRoleDropdown() {
     }
 }
 
-function closeModal() {
+function closeFacilityModal() {
     const modal = document.getElementById('facilityModal');
     modal.style.display = 'none';
     currentEditIndex = null;
@@ -7210,7 +7210,7 @@ window.editSelectedFacility = function() {
         document.getElementById('editId').value = facility.username;
         document.getElementById('editPassword').value = facility.password;
         document.getElementById('editRole').value = facility.role || '시설담당자';
-        openModal(true, facility.id);
+        openFacilityModal(true, facility.id);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
     }
@@ -7223,7 +7223,7 @@ window.editFacility = function(index) {
         document.getElementById('editId').value = facility.username;
         document.getElementById('editPassword').value = facility.password;
         document.getElementById('editRole').value = facility.role || '시설담당자';
-        openModal(true, facility.id);
+        openFacilityModal(true, facility.id);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
     }
