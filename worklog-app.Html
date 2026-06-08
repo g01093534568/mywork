@@ -7183,60 +7183,38 @@ async function loadEnergyRecords() {
     }
 }
 
+async function getWorklogFacilityNames() {
+    const users = await DB.getUsers();
+    return [...new Set(users.map(u => u.시설명).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko-KR'));
+}
+
 async function loadFacilityOptionsForEnergyInput() {
     try {
-        const userStr = sessionStorage.getItem('currentUser');
-        console.log('=== 시설 옵션 로드 ===');
-        console.log('userStr:', userStr);
+        if (!currentUser) return;
 
-        if (!userStr) {
-            console.log('사용자 정보 없음');
-            return;
-        }
-
-        const currentUser = JSON.parse(userStr);
-        const role = currentUser.role;
-        console.log('사용자 역할:', role);
-        console.log('사용자 시설:', currentUser.facilityName);
-
-        // 관리자 또는 시설관리자만 시설 선택 가능
         const facilitySelectRow = document.getElementById('facilitySelectRow');
         const facilityNameSelect = document.getElementById('facilityNameSelect');
+        if (!facilityNameSelect || !facilitySelectRow) return;
 
-        if (role === '관리자' || role === '시설관리자') {
-            // 시설 목록 로드
-            const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
-            const data = await response.json();
+        const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility-admin';
 
-            if (data.success && Array.isArray(data.facilities)) {
-                if (!facilityNameSelect || !facilitySelectRow) return;
-                
-                // 드롭다운 초기화 및 옵션 추가
-                facilityNameSelect.innerHTML = '<option value="">선택하세요</option>';
-                
-                // 원래의 단순한 목록 표시 방식으로 복구
-                data.facilities.forEach(facility => {
-                    const option = document.createElement('option');
-                    option.value = facility.facilityName;
-                    option.textContent = facility.facilityName;
-                    facilityNameSelect.appendChild(option);
-                });
-
-                // 시설 선택 행 표시
-                facilitySelectRow.style.display = 'flex';
-                facilityNameSelect.required = true;
-            } else {
-                console.log('시설 데이터 없음 또는 실패:', data.message);
-            }
+        if (isAdmin) {
+            const names = await getWorklogFacilityNames();
+            facilityNameSelect.innerHTML = '<option value="">선택하세요</option>';
+            names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                facilityNameSelect.appendChild(option);
+            });
+            facilityNameSelect.required = true;
+            facilityNameSelect.disabled = false;
         } else {
-            // 시설담당자는 시설 선택에 본인 시설만 표시
-            if (facilityNameSelect) {
-                facilityNameSelect.innerHTML = `<option value="${currentUser.facilityName}">${currentUser.facilityName}</option>`;
-                facilityNameSelect.required = true;
-                facilityNameSelect.disabled = true;
-            }
-            if (facilitySelectRow) facilitySelectRow.style.display = 'flex';
+            facilityNameSelect.innerHTML = `<option value="${currentUser.시설명}">${currentUser.시설명}</option>`;
+            facilityNameSelect.required = true;
+            facilityNameSelect.disabled = true;
         }
+        facilitySelectRow.style.display = 'flex';
     } catch (error) {
         console.error('시설 옵션 로드 오류:', error);
     }
@@ -7406,26 +7384,16 @@ async function loadDataViewTab() {
 
 async function loadFacilityOptions() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success) {
-            const filterFacility = document.getElementById('filterFacility');
-            filterFacility.innerHTML = '<option value="">전체</option>';
-
-            data.facilities
-                .sort((a, b) => {
-                    const nameA = a.facilityName || a.username || '';
-                    const nameB = b.facilityName || b.username || '';
-                    return nameA.localeCompare(nameB, 'ko-KR');
-                })
-                .forEach(facility => {
-                    const option = document.createElement('option');
-                    option.value = facility.facilityName || facility.username;
-                    option.textContent = facility.facilityName || facility.username;
-                    filterFacility.appendChild(option);
-                });
-        }
+        const names = await getWorklogFacilityNames();
+        const filterFacility = document.getElementById('filterFacility');
+        if (!filterFacility) return;
+        filterFacility.innerHTML = '<option value="">전체</option>';
+        names.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            filterFacility.appendChild(option);
+        });
     } catch (error) {
         console.error('시설 목록 로드 오류:', error);
     }
@@ -8239,26 +8207,16 @@ function closeEnergyInfoModal() {
 
 async function loadFacilityOptionsForEnergyInfo() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success) {
-            const select = document.getElementById('editInfoFacilityName');
-            select.innerHTML = '<option value="">선택하세요</option>';
-
-            data.facilities
-                .sort((a, b) => {
-                    const nameA = a.facilityName || a.username || '';
-                    const nameB = b.facilityName || b.username || '';
-                    return nameA.localeCompare(nameB, 'ko-KR');
-                })
-                .forEach(facility => {
-                    const option = document.createElement('option');
-                    option.value = facility.facilityName || facility.username;
-                    option.textContent = facility.facilityName || facility.username;
-                    select.appendChild(option);
-                });
-        }
+        const names = await getWorklogFacilityNames();
+        const select = document.getElementById('editInfoFacilityName');
+        if (!select) return;
+        select.innerHTML = '<option value="">선택하세요</option>';
+        names.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
     } catch (error) {
         console.error('시설 목록 로드 오류:', error);
     }
