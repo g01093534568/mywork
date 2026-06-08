@@ -24,6 +24,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+<script src="https://unpkg.com/docx@8/build/index.js"></script>
 <style>
 :root {
   --bg: #0b1622;
@@ -1661,9 +1662,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <label for="editRole">역할</label>
         <select id="editRole" required>
           <option value="">선택하세요</option>
-          <option value="관리자">관리자</option>
-          <option value="시설관리자">시설관리자</option>
-          <option value="시설담당자">시설담당자</option>
+          <option value="admin">관리자</option>
+          <option value="facility-admin">시설관리자</option>
+          <option value="user">사용자</option>
         </select>
       </div>
       <div class="em-modal-buttons">
@@ -6435,58 +6436,201 @@ if('serviceWorker' in navigator){
 
 <script>
 // =========================================================
-// ⚡ 에너지 관리 시스템 — 통합 JavaScript
+// ⚡ 에너지 관리 시스템 — Supabase 직접 연동 (서버 없음)
 // =========================================================
-const EM_API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'http://localhost:3001'
-  : 'https://energy-management-ygve.vercel.app';
 
-// X-Worklog-Token: Vercel 서버리스에서 cross-origin 세션 쿠키 대체 인증
-let __emToken = null;
-(function patchEmFetch() {
-  const _orig = window.fetch.bind(window);
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith(EM_API_BASE) && __emToken) {
-      opts = Object.assign({}, opts, {
-        headers: Object.assign({ 'X-Worklog-Token': __emToken }, opts.headers || {})
-      });
+// 역할 헬퍼 — worklog 값(admin/facility-admin/user) 그대로 사용
+function _emRole() { return currentUser?.role || 'user'; }
+function _emFacility() { return currentUser?.시설명 || ''; }
+
+// 역할 표시명 변환 (UI용)
+function _emRoleDisplay(role) {
+  if (role === 'admin') return '관리자';
+  if (role === 'facility-admin') return '시설관리자';
+  return '사용자';
+}
+
+// DB 행 변환 헬퍼
+function _rowToRecord(r) {
+  return { id: r.id, facilityName: r.facility_name, billingMonth: r.billing_month, startDate: r.start_date, endDate: r.end_date, energyType: r.energy_type, usageAmount: r.usage_amount, usageCost: r.usage_cost, bankName: r.bank_name || '', virtualAccount: r.virtual_account || '', customerNumber: r.customer_number || '' };
+}
+function _rowToInfo(r) {
+  return { id: r.id, facilityName: r.facility_name, energyType: r.energy_type, customerNumber: r.customer_number || '', bankName: r.bank_name || '', accountNumber: r.account_number || '' };
+}
+// role 은 worklog 값 그대로 유지 (변환 없음)
+function _wlUserToFacility(u) {
+  return { id: u.id, facilityName: u.시설명 || '', username: u.사원번호 || '', password: u.패스워드 || '', role: u.role || 'user', parentFacility: u.parent_facility || '' };
+}
+
+// 시설관리자가 관리하는 시설명 목록 (자신 + parent_facility로 연결된 하위 시설)
+async function _getManagedFacilityNames(facilityName) {
+  const [{ data: own }, { data: child }] = await Promise.all([
+    SB.from('users').select('시설명').eq('시설명', facilityName),
+    SB.from('users').select('시설명').eq('parent_facility', facilityName)
+  ]);
+  return [...new Set([...(own || []), ...(child || [])].map(u => u.시설명).filter(Boolean))];
+}
+
+// 에너지 레코드 쿼리 (역할 기반 필터 포함)
+async function _emEnergyQuery(filters = {}) {
+  const role = _emRole(), facility = _emFacility();
+  let q = SB.from('energy_records').select('*');
+
+  // 역할별 기본 범위 제한
+  if (role === 'user') {
+    q = q.eq('facility_name', facility);
+  } else if (role === 'facility-admin') {
+    const names = await _getManagedFacilityNames(facility);
+    if (names.length) q = q.in('facility_name', names);
+  }
+  // admin: 전체 조회 (추가 필터 없음)
+
+  // 시설 필터 — 하위 시설 포함
+  if (filters.facility) {
+    const { data: childData } = await SB.from('users').select('시설명').eq('parent_facility', filters.facility);
+    const filterFacilities = [filters.facility, ...(childData || []).map(u => u.시설명).filter(Boolean)];
+    q = q.in('facility_name', filterFacilities);
+  }
+
+  if (filters.energyType) q = q.eq('energy_type', filters.energyType);
+  if (filters.startDate) q = q.gte('billing_month', filters.startDate.substring(0, 7));
+  if (filters.endDate) q = q.lte('billing_month', filters.endDate.substring(0, 7));
+  const { data, error } = await q.order('billing_month', { ascending: true });
+  if (error) throw error;
+  return (data || []).map(_rowToRecord);
+}
+
+// 에너지 정보 쿼리
+async function _emInfoQuery() {
+  const role = _emRole(), facility = _emFacility();
+  let q = SB.from('energy_info').select('*');
+  if (role === 'user') {
+    q = q.eq('facility_name', facility);
+  } else if (role === 'facility-admin') {
+    const names = await _getManagedFacilityNames(facility);
+    if (names.length) q = q.in('facility_name', names);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []).map(_rowToInfo);
+}
+
+// 시설(users) 쿼리
+async function _emFacilitiesQuery() {
+  const role = _emRole(), facility = _emFacility();
+  let q = SB.from('users').select('*');
+  if (role === 'user') {
+    q = q.eq('시설명', facility);
+  } else if (role === 'facility-admin') {
+    const names = await _getManagedFacilityNames(facility);
+    if (names.length) q = q.in('시설명', names);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []).map(_wlUserToFacility);
+}
+
+// 한글 숫자 변환 (공문용)
+function numberToKorean(num) {
+  let number = parseInt(num);
+  if (number === 0) return '영';
+  const units = ['', '만', '억', '조'];
+  const digits = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+  const positions = ['', '십', '백', '천'];
+  let result = '', unitIndex = 0;
+  while (number > 0) {
+    const part = number % 10000;
+    if (part > 0) {
+      let partStr = '', tempPart = part, posIndex = 0;
+      while (tempPart > 0) {
+        const digit = tempPart % 10;
+        if (digit > 0) partStr = digits[digit] + positions[posIndex] + partStr;
+        tempPart = Math.floor(tempPart / 10);
+        posIndex++;
+      }
+      result = partStr + units[unitIndex] + result;
     }
-    return _orig(url, opts);
-  };
-})();
+    number = Math.floor(number / 10000);
+    unitIndex++;
+  }
+  return result;
+}
+
+// 파일 다운로드 헬퍼
+function _downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  URL.revokeObjectURL(url); document.body.removeChild(a);
+}
+
+// 공문(docx) 클라이언트 생성
+async function _generateDocxBlob(record) {
+  const { Document, Packer, Paragraph, TextRun, AlignmentType } = window.docx;
+  let year, month;
+  if (record.billingMonth) {
+    const p = record.billingMonth.split('-');
+    year = parseInt(p[0]); month = parseInt(p[1]);
+  } else {
+    const d = new Date(record.startDate);
+    year = d.getFullYear(); month = d.getMonth() + 1;
+  }
+  const costNum = parseInt(record.usageCost) || 0;
+  const costKorean = numberToKorean(costNum);
+  let paymentMethod = '첨부 2 고지서 참조';
+  if (record.bankName && record.virtualAccount) paymentMethod = `계좌입금(${record.bankName} ${record.virtualAccount})`;
+  else if (record.virtualAccount) paymentMethod = `계좌입금(${record.virtualAccount})`;
+  const doc = new Document({ sections: [{ properties: {}, children: [
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '지출결의서', bold: true, size: 32 })], spacing: { after: 400 } }),
+    new Paragraph({ children: [new TextRun({ text: `${year}년 ${month}월 ${record.facilityName} ${record.energyType} 요금을 아래와 같이 납부하고자 합니다.`, size: 24 })], spacing: { after: 300 } }),
+    new Paragraph({ children: [new TextRun({ text: '', size: 24 })], spacing: { after: 200 } }),
+    new Paragraph({ children: [new TextRun({ text: `  1. 소요금액: 금${costNum.toLocaleString('ko-KR')}원(금${costKorean}원)`, size: 24 })], spacing: { after: 200 } }),
+    new Paragraph({ children: [new TextRun({ text: '  2. 세부내역: 첨부 1 참조', size: 24 })], spacing: { after: 200 } }),
+    new Paragraph({ children: [new TextRun({ text: `  3. 납부방법: ${paymentMethod}`, size: 24 })], spacing: { after: 200 } }),
+    new Paragraph({ children: [new TextRun({ text: '  4. 예산과목: ', size: 24 })], spacing: { after: 400 } })
+  ]}]});
+  return await Packer.toBlob(doc);
+}
+
+// 첨부1(xlsx) 클라이언트 생성
+async function _generateAttachmentBlob(record, energyInfos) {
+  let matchingInfo = (energyInfos || []).find(i => i.facilityName === record.facilityName && i.energyType === record.energyType);
+  if (!matchingInfo) {
+    const parentMatch = record.facilityName ? record.facilityName.match(/^(.+?)\(/) : null;
+    if (parentMatch) matchingInfo = (energyInfos || []).find(i => i.facilityName === parentMatch[1] && i.energyType === record.energyType);
+  }
+  const bankName = matchingInfo?.bankName || record.bankName || '';
+  const accountNumber = matchingInfo?.accountNumber || record.virtualAccount || '';
+  let year, month;
+  if (record.billingMonth) {
+    const p = record.billingMonth.split('-');
+    year = parseInt(p[0]); month = parseInt(p[1]);
+  } else {
+    const d = new Date(record.startDate);
+    year = d.getFullYear(); month = d.getMonth() + 1;
+  }
+  const rows = [
+    ['세부내역'], [], ['년', '월', '시설명', '금융기관', '계좌번호', '사용기간시작', '', '사용기간종료', '사용금액', '에너지종류'], [], [],
+    [year, month, record.facilityName || '', bankName, accountNumber, record.startDate || '', '~', record.endDate || '', parseFloat(record.usageCost) || 0, record.energyType || '']
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:8},{wch:6},{wch:25},{wch:12},{wch:18},{wch:12},{wch:3},{wch:12},{wch:15},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '세부내역');
+  const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
 
 let emMgmtInitialized = false;
 async function initEnergyMgmt() {
-    if (emMgmtInitialized) return;
-    emMgmtInitialized = true;
-
-    // worklog 로그인 정보로 에너지 관리 서버 세션 자동 생성
-    const wlUser = (() => {
-        try { return JSON.parse(sessionStorage.getItem('wl_session')); } catch(e) { return null; }
-    })();
-    const facilityName = wlUser?.시설명 || '';
-    const username = wlUser?.사원번호 || '';
-
-    try {
-        const loginRes = await fetch(EM_API_BASE + '/api/auto-login-worklog', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ facilityName, username })
-        });
-        const loginData = await loginRes.json();
-        if (loginData.token) __emToken = loginData.token.trim();
-    } catch(e) {
-        console.warn('에너지 관리 서버 연결 실패:', e);
-    }
-
-    // 세션 성공 여부와 무관하게 대시보드 표시 (API 오류는 각 함수에서 처리)
-    const userNameDisplay = document.getElementById('em-userName');
-    if (userNameDisplay && facilityName) userNameDisplay.textContent = facilityName;
-    showDashboard();
-    loadFacilityOptionsForEnergyInput();
-    loadEnergyRecords();
+  if (emMgmtInitialized) return;
+  emMgmtInitialized = true;
+  const userNameDisplay = document.getElementById('em-userName');
+  if (userNameDisplay && currentUser) userNameDisplay.textContent = currentUser.시설명 || '';
+  showDashboard();
+  loadFacilityOptionsForEnergyInput();
+  loadEnergyRecords();
 }
 
 // ---- app.js ----
@@ -6521,51 +6665,23 @@ function showDashboard() {
 }
 
 async function checkAuth() {
-    try {
-        const response = await fetch(EM_API_BASE + '/api/check-auth', { credentials: 'include' });
-        if (!response.ok) throw new Error('Auth check failed');
-        const data = await response.json();
-
-        if (data.authenticated) {
-            // 로그인 폼의 'username' input과 겹치지 않도록 'userName' 디스플레이 요소 확인
-            // 디스플레이 전용 ID인 'userName'을 우선 참조합니다.
-            const userNameDisplay = document.getElementById('em-userName');
-            const headerTitle = document.querySelector('.em-header h1');
-            const user = data.user || {};
-            const role = user.role || '시설담당자';
-
-            // 세션 스토리지에 사용자 정보 저장
-            sessionStorage.setItem('currentUser', JSON.stringify(user));
-
-            // 상단 타이틀에 시설명 추가
-            if (headerTitle) {
-                const titleSuffix = (role === '관리자' || role === '시설관리자') 
-                    ? ` (${role})` 
-                    : (user.facilityName ? ` (${user.facilityName})` : '');
-                headerTitle.textContent = `에너지 관리 시스템${titleSuffix}`;
-            }
-
-            // 사용자 정보 표시 (요소가 존재할 때만 실행하여 크래시 방지)
-            if (userNameDisplay) {
-                const displayId = user.id || user.username || '';
-                userNameDisplay.textContent = user.facilityName 
-                    ? `${user.facilityName} (${displayId}) - ${role}`
-                    : `${displayId} - ${role}`;
-            }
-
-            // 역할에 따라 탭 표시 제어
-            updateTabVisibility(role);
-            showDashboard();
-
-            // 에너지 입력 탭의 시설명 옵션 로드
-            loadFacilityOptionsForEnergyInput();
-        } else {
-            console.warn("에너지 관리 로그인 불필요");
-        }
-    } catch (error) {
-        console.error('인증 확인 오류:', error);
-        console.warn('에너지 관리 서버 미연결');
+    if (!currentUser) return;
+    const userNameDisplay = document.getElementById('em-userName');
+    const headerTitle = document.querySelector('.em-header h1');
+    const role = _emRole();
+    const roleDisplay = _emRoleDisplay(role);
+    if (headerTitle) {
+        const suffix = (role === 'admin' || role === 'facility-admin') ? ` (${roleDisplay})` : (currentUser.시설명 ? ` (${currentUser.시설명})` : '');
+        headerTitle.textContent = `에너지 관리 시스템${suffix}`;
     }
+    if (userNameDisplay) {
+        userNameDisplay.textContent = currentUser.시설명
+            ? `${currentUser.시설명} (${currentUser.사원번호}) - ${roleDisplay}`
+            : `${currentUser.사원번호} - ${roleDisplay}`;
+    }
+    updateTabVisibility(role);
+    showDashboard();
+    loadFacilityOptionsForEnergyInput();
 }
 
 function updateTabVisibility(role) {
@@ -6650,35 +6766,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const password = document.getElementById('editPassword').value.trim();
         const role = document.getElementById('editRole').value;
 
-        const facilityData = { facilityName, id, password, role };
-
         try {
-            let response;
+            let sbError;
             if (currentEditIndex !== null) {
-                response = await fetch(EM_API_BASE + `/api/facilities/${currentEditIndex}`, {
-                credentials: 'include',
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(facilityData)
-                });
+                const { error } = await SB.from('users').update({ '시설명': facilityName, '사원번호': id, '패스워드': password, role }).eq('id', currentEditIndex);
+                sbError = error;
             } else {
-                response = await fetch(EM_API_BASE + '/api/facilities', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(facilityData)
-                });
+                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': password, role });
+                sbError = error;
             }
-
-            const data = await response.json();
-
-            if (data.success) {
-                alert(data.message);
-                closeFacilityModal();
-                loadFacilities();
-            } else {
-                alert(data.message);
-            }
+            if (sbError) { alert('저장 실패: ' + sbError.message); return; }
+            alert(currentEditIndex !== null ? '시설 정보가 수정되었습니다.' : '시설이 추가되었습니다.');
+            closeFacilityModal();
+            loadFacilities();
         } catch (error) {
             console.error('시설 저장 오류:', error);
             alert('시설 저장 중 오류가 발생했습니다.');
@@ -6754,15 +6854,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const facilityNameSelect = document.getElementById('facilityNameSelect');
             const facilitySelectRow = document.getElementById('facilitySelectRow');
 
-            if (facilitySelectRow && facilitySelectRow.style.display !== 'none' && facilityNameSelect) {
+            if (facilityNameSelect && facilityNameSelect.value) {
                 facilityName = facilityNameSelect.value;
             } else {
-                // 시설담당자는 자동으로 본인 시설명 사용
-                const userStr = sessionStorage.getItem('currentUser');
-                if (userStr) {
-                    const currentUser = JSON.parse(userStr);
-                    facilityName = currentUser.facilityName;
-                }
+                facilityName = currentUser?.시설명 || '';
             }
 
             // 필드 검증 - 통신의 경우 사용량은 선택사항
@@ -6810,23 +6905,19 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             try {
-                const response = await fetch(EM_API_BASE + '/api/energy', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(energyData)
+                const { error } = await SB.from('energy_records').insert({
+                    facility_name: energyData.facilityName,
+                    energy_type: energyData.energyType,
+                    billing_month: energyData.billingMonth,
+                    start_date: energyData.startDate,
+                    end_date: energyData.endDate,
+                    usage_amount: energyData.usageAmount,
+                    usage_cost: energyData.usageCost
                 });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert('에너지 사용량이 저장되었습니다.');
-                    energyForm.reset();
-
-                    loadEnergyRecords();
-                } else {
-                    alert(data.message || '저장 중 오류가 발생했습니다.');
-                }
+                if (error) { alert('저장 실패: ' + error.message); return; }
+                alert('에너지 사용량이 저장되었습니다.');
+                energyForm.reset();
+                loadEnergyRecords();
             } catch (error) {
                 console.error('에너지 데이터 저장 오류:', error);
                 alert('에너지 데이터 저장 중 오류가 발생했습니다.');
@@ -6920,31 +7011,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadFacilities() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success) {
-            // 시설명 가나다순으로 정렬
-            const sortedFacilities = data.facilities.sort((a, b) => {
-                const nameA = a.facilityName || a.username || '';
-                const nameB = b.facilityName || b.username || '';
-                return nameA.localeCompare(nameB, 'ko-KR');
-            });
-
-            renderFacilities(sortedFacilities);
-
-            // 시설 추가 버튼 표시 제어
-            const addFacilityBtn = document.getElementById('addFacilityBtn');
-            const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-
-            if (addFacilityBtn && currentUser) {
-                // 관리자, 시설관리자는 시설 추가 가능
-                if (currentUser.role === '관리자' || currentUser.role === '시설관리자') {
-                    addFacilityBtn.style.display = 'inline-block';
-                } else {
-                    addFacilityBtn.style.display = 'none';
-                }
-            }
+        const facilities = await _emFacilitiesQuery();
+        const sortedFacilities = facilities.sort((a, b) => {
+            const nameA = a.facilityName || a.username || '';
+            const nameB = b.facilityName || b.username || '';
+            return nameA.localeCompare(nameB, 'ko-KR');
+        });
+        renderFacilities(sortedFacilities);
+        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        if (addFacilityBtn) {
+            const role = _emRole();
+            addFacilityBtn.style.display = (role === 'admin' || role === 'facility-admin') ? 'inline-block' : 'none';
         }
     } catch (error) {
         console.error('시설 목록 로드 오류:', error);
@@ -6981,7 +7058,7 @@ function renderFacilities(facilities, page = 1) {
             <td>${facility.facilityName || facility.username}</td>
             <td>${facility.username}</td>
             <td>${facility.password}</td>
-            <td>${facility.role || '시설담당자'}</td>
+            <td>${_emRoleDisplay(facility.role)}</td>
             <td>${facility.parentFacility || '-'}</td>
             <td>
                 <button class="edit-btn" onclick="editFacility(${index})">수정</button>
@@ -7072,8 +7149,6 @@ function openFacilityModal(isEdit = false, index = null) {
 
 function updateRoleDropdown() {
     const roleSelect = document.getElementById('editRole');
-    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-
     if (!currentUser) return;
 
     // 기존 옵션 제거 (첫 번째 "선택하세요" 옵션 제외)
@@ -7082,27 +7157,23 @@ function updateRoleDropdown() {
     }
 
     // 관리자는 모든 역할 선택 가능
-    if (currentUser.role === '관리자') {
+    if (currentUser.role === 'admin') {
         const option1 = document.createElement('option');
-        option1.value = '관리자';
-        option1.textContent = '관리자';
+        option1.value = 'admin'; option1.textContent = '관리자';
         roleSelect.appendChild(option1);
 
         const option2 = document.createElement('option');
-        option2.value = '시설관리자';
-        option2.textContent = '시설관리자';
+        option2.value = 'facility-admin'; option2.textContent = '시설관리자';
         roleSelect.appendChild(option2);
 
         const option3 = document.createElement('option');
-        option3.value = '시설담당자';
-        option3.textContent = '시설담당자';
+        option3.value = 'user'; option3.textContent = '사용자';
         roleSelect.appendChild(option3);
     }
-    // 시설관리자는 시설담당자만 선택 가능
-    else if (currentUser.role === '시설관리자') {
+    // 시설관리자는 사용자만 추가 가능
+    else if (currentUser.role === 'facility-admin') {
         const option = document.createElement('option');
-        option.value = '시설담당자';
-        option.textContent = '시설담당자';
+        option.value = 'user'; option.textContent = '사용자';
         roleSelect.appendChild(option);
     }
 }
@@ -7146,7 +7217,7 @@ window.editSelectedFacility = function() {
         document.getElementById('editFacilityName').value = facility.facilityName;
         document.getElementById('editId').value = facility.username;
         document.getElementById('editPassword').value = facility.password;
-        document.getElementById('editRole').value = facility.role || '시설담당자';
+        document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
@@ -7159,7 +7230,7 @@ window.editFacility = function(index) {
         document.getElementById('editFacilityName').value = facility.facilityName;
         document.getElementById('editId').value = facility.username;
         document.getElementById('editPassword').value = facility.password;
-        document.getElementById('editRole').value = facility.role || '시설담당자';
+        document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
@@ -7167,24 +7238,12 @@ window.editFacility = function(index) {
 };
 
 window.deleteFacility = async function(dbId) {
-    if (!confirm('정말 이 시설을 삭제하시겠습니까?')) {
-        return;
-    }
-
+    if (!confirm('정말 이 시설을 삭제하시겠습니까?')) return;
     try {
-        const response = await fetch(EM_API_BASE + `/api/facilities/${dbId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert(data.message);
-            loadFacilities();
-        } else {
-            alert(data.message);
-        }
+        const { error } = await SB.from('users').delete().eq('id', dbId);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        alert('시설이 삭제되었습니다.');
+        loadFacilities();
     } catch (error) {
         console.error('시설 삭제 오류:', error);
         alert('시설 삭제 중 오류가 발생했습니다.');
@@ -7193,14 +7252,12 @@ window.deleteFacility = async function(dbId) {
 
 async function loadEnergyRecords() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success) {
-            renderEnergyRecords(data.records);
-        }
+        const records = await _emEnergyQuery();
+        renderEnergyRecords(records);
     } catch (error) {
         console.error('에너지 데이터 로드 오류:', error);
+        const tbody = document.getElementById('energyTableBody');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:red;padding:20px;">데이터 로드 오류: ${error.message}</td></tr>`;
     }
 }
 
@@ -7217,12 +7274,18 @@ async function loadFacilityOptionsForEnergyInput() {
         const facilityNameSelect = document.getElementById('facilityNameSelect');
         if (!facilityNameSelect || !facilitySelectRow) return;
 
-        const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility-admin';
+        let facilityNames;
+        if (currentUser.role === 'admin') {
+            facilityNames = await getWorklogFacilityNames();
+        } else if (currentUser.role === 'facility-admin') {
+            facilityNames = await _getManagedFacilityNames(currentUser.시설명 || '');
+        } else {
+            facilityNames = null; // 사용자(user): 자기 시설만
+        }
 
-        if (isAdmin) {
-            const names = await getWorklogFacilityNames();
+        if (facilityNames) {
             facilityNameSelect.innerHTML = '<option value="">선택하세요</option>';
-            names.forEach(name => {
+            facilityNames.forEach(name => {
                 const option = document.createElement('option');
                 option.value = name;
                 option.textContent = name;
@@ -7283,44 +7346,14 @@ function renderEnergyRecords(records) {
 
 window.generateDocument = async function(index) {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success && data.records[index]) {
-            const record = data.records[index];
-
-            // 공문 생성 API 호출
-            const docResponse = await fetch(EM_API_BASE + '/api/generate-document', {
-                credentials: 'include',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(record)
-            });
-
-            if (docResponse.ok) {
-                // 파일 다운로드
-                const blob = await docResponse.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-
-                // 파일명 생성: {년도}-{월}-{시설명}-{에너지종류}-공문.docx
-                const startDate = new Date(record.startDate);
-                const year = startDate.getFullYear();
-                const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                const filename = `${year}-${month}-${record.facilityName}-${record.energyType}-공문.docx`;
-
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                alert('공문이 생성되었습니다.');
-            } else {
-                alert('공문 생성 중 오류가 발생했습니다.');
-            }
-        }
+        const records = await _emEnergyQuery();
+        const record = records[index];
+        if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
+        const blob = await _generateDocxBlob(record);
+        const d = new Date(record.startDate);
+        const filename = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${record.facilityName}-${record.energyType}-공문.docx`;
+        _downloadBlob(blob, filename);
+        alert('공문이 생성되었습니다.');
     } catch (error) {
         console.error('공문 생성 오류:', error);
         alert('공문 생성 중 오류가 발생했습니다.');
@@ -7329,44 +7362,15 @@ window.generateDocument = async function(index) {
 
 window.generateAttachment1 = async function(index) {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success && data.records[index]) {
-            const record = data.records[index];
-
-            // 첨부1 생성 API 호출
-            const attachmentResponse = await fetch(EM_API_BASE + '/api/generate-attachment1', {
-                credentials: 'include',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(record)
-            });
-
-            if (attachmentResponse.ok) {
-                // 파일 다운로드
-                const blob = await attachmentResponse.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-
-                // 파일명 생성: {년도}-{월}-{시설명}-{에너지종류}-첨부1.xlsx
-                const startDate = new Date(record.startDate);
-                const year = startDate.getFullYear();
-                const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                const filename = `${year}-${month}-${record.facilityName}-${record.energyType}-첨부1.xlsx`;
-
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                alert('첨부1이 생성되었습니다.');
-            } else {
-                alert('첨부1 생성 중 오류가 발생했습니다.');
-            }
-        }
+        const records = await _emEnergyQuery();
+        const record = records[index];
+        if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
+        const infos = await _emInfoQuery();
+        const blob = await _generateAttachmentBlob(record, infos);
+        const d = new Date(record.startDate);
+        const filename = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${record.facilityName}-${record.energyType}-첨부1.xlsx`;
+        _downloadBlob(blob, filename);
+        alert('첨부1이 생성되었습니다.');
     } catch (error) {
         console.error('첨부1 생성 오류:', error);
         alert('첨부1 생성 중 오류가 발생했습니다.');
@@ -7374,24 +7378,15 @@ window.generateAttachment1 = async function(index) {
 };
 
 window.deleteEnergyRecord = async function(index) {
-    if (!confirm('정말 이 기록을 삭제하시겠습니까?')) {
-        return;
-    }
-
+    if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
     try {
-        const response = await fetch(EM_API_BASE + `/api/energy/${index}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert(data.message);
-            loadEnergyRecords();
-        } else {
-            alert(data.message);
-        }
+        const records = await _emEnergyQuery();
+        const record = records[index];
+        if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
+        const { error } = await SB.from('energy_records').delete().eq('id', record.id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        alert('에너지 데이터가 삭제되었습니다.');
+        loadEnergyRecords();
     } catch (error) {
         console.error('에너지 데이터 삭제 오류:', error);
         alert('에너지 데이터 삭제 중 오류가 발생했습니다.');
@@ -7406,7 +7401,15 @@ async function loadDataViewTab() {
 
 async function loadFacilityOptions() {
     try {
-        const names = await getWorklogFacilityNames();
+        const role = _emRole(), facility = _emFacility();
+        let names;
+        if (role === 'user') {
+            names = [facility].filter(Boolean);
+        } else if (role === 'facility-admin') {
+            names = await _getManagedFacilityNames(facility);
+        } else {
+            names = await getWorklogFacilityNames();
+        }
         const filterFacility = document.getElementById('filterFacility');
         if (!filterFacility) return;
         filterFacility.innerHTML = '<option value="">전체</option>';
@@ -7428,25 +7431,17 @@ async function searchData() {
     const filterEndMonth = document.getElementById('filterEndMonth').value;
 
     try {
-        const params = new URLSearchParams();
-        if (filterFacility) params.append('facility', filterFacility);
-        if (filterEnergyType) params.append('energyType', filterEnergyType);
-        // 월분 기준으로 필터링 (YYYY-MM 형식)
-        if (filterStartMonth) params.append('startDate', filterStartMonth + '-01');
-        if (filterEndMonth) params.append('endDate', filterEndMonth + '-28');
-
-        const response = await fetch(EM_API_BASE + `/api/data-view?${params.toString()}`, { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success) {
-            currentViewRecords = data.records; // 전역 변수에 저장
-            window.currentViewRecords = data.records; // window 객체에도 저장하여 다른 파일에서 접근 가능
-            renderDataView(data.records, 1); // 검색 시 첫 페이지부터 시작
-            updateSummary(data.records);
-            renderCharts(data.records);
-        } else {
-            alert(data.message || '데이터 조회 중 오류가 발생했습니다.');
-        }
+        const records = await _emEnergyQuery({
+            facility: filterFacility || '',
+            energyType: filterEnergyType || '',
+            startDate: filterStartMonth ? filterStartMonth + '-01' : '',
+            endDate: filterEndMonth ? filterEndMonth + '-28' : ''
+        });
+        currentViewRecords = records;
+        window.currentViewRecords = records;
+        renderDataView(records, 1);
+        updateSummary(records);
+        renderCharts(records);
     } catch (error) {
         console.error('데이터 조회 오류:', error);
         alert('데이터 조회 중 오류가 발생했습니다.');
@@ -7551,7 +7546,7 @@ function renderPagination(totalItems, totalPages) {
 
     if (!paginationContainer) {
         // 페이지네이션 컨테이너가 없으면 테이블 아래에 생성
-        const dataViewTable = document.querySelector('#dataView .data-table');
+        const dataViewTable = document.querySelector('#em-dataView .energy-table');
         if (dataViewTable) {
             paginationContainer = document.createElement('div');
             paginationContainer.id = 'paginationContainer';
@@ -7614,7 +7609,7 @@ window.goToPage = function(page) {
     renderDataView(records, page);
 
     // 테이블 상단으로 스크롤
-    const dataViewTable = document.querySelector('#dataView .data-table');
+    const dataViewTable = document.querySelector('#em-dataView .energy-table');
     if (dataViewTable) {
         dataViewTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -7815,29 +7810,14 @@ async function deleteSelectedRecords() {
     const recordsToDelete = indices.map(i => sortedRecords[i]).filter(r => r);
 
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy-data/delete-multiple', {
-                credentials: 'include',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ records: recordsToDelete })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            alert('선택한 항목이 삭제되었습니다.');
-            searchData(); // 데이터 다시 조회
-
-            // 전체 선택 체크박스 해제
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-            if (selectAllCheckbox) {
-                selectAllCheckbox.checked = false;
-            }
-        } else {
-            alert('삭제 중 오류가 발생했습니다: ' + result.message);
-        }
+        const ids = recordsToDelete.filter(r => r.id).map(r => r.id);
+        if (ids.length === 0) { alert('삭제할 항목을 찾을 수 없습니다.'); return; }
+        const { error } = await SB.from('energy_records').delete().in('id', ids);
+        if (error) { alert('삭제 중 오류가 발생했습니다: ' + error.message); return; }
+        alert('선택한 항목이 삭제되었습니다.');
+        searchData();
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
     } catch (error) {
         console.error('삭제 오류:', error);
         alert('삭제 중 오류가 발생했습니다.');
@@ -7997,61 +7977,36 @@ document.addEventListener('DOMContentLoaded', function() {
             const energyInfoData = { facilityName, energyType, customerNumber, bankName, accountNumber };
 
             try {
-                let response;
+                let sbError;
                 if (currentEditEnergyInfoIndex !== null) {
-                    response = await fetch(EM_API_BASE + `/api/energy-info/${currentEditEnergyInfoIndex}`, {
-                        method: 'PUT',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(energyInfoData)
-                    });
+                    const { error } = await SB.from('energy_info').update({
+                        facility_name: energyInfoData.facilityName,
+                        energy_type: energyInfoData.energyType,
+                        customer_number: energyInfoData.customerNumber,
+                        bank_name: energyInfoData.bankName,
+                        account_number: energyInfoData.accountNumber
+                    }).eq('id', currentEditEnergyInfoIndex);
+                    sbError = error;
                 } else {
-                    response = await fetch(EM_API_BASE + '/api/energy-info', {
-                credentials: 'include',
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(energyInfoData)
+                    const { data: existing } = await SB.from('energy_info').select('id')
+                        .eq('facility_name', energyInfoData.facilityName).eq('energy_type', energyInfoData.energyType).maybeSingle();
+                    if (existing) { alert('해당 시설의 동일한 에너지 종류 정보가 이미 존재합니다.'); return; }
+                    const { error } = await SB.from('energy_info').insert({
+                        facility_name: energyInfoData.facilityName,
+                        energy_type: energyInfoData.energyType,
+                        customer_number: energyInfoData.customerNumber,
+                        bank_name: energyInfoData.bankName,
+                        account_number: energyInfoData.accountNumber
                     });
+                    sbError = error;
                 }
-
-                // HTTP 상태 코드 확인
-                if (!response.ok) {
-                    console.error('HTTP 오류:', response.status, response.statusText);
-
-                    if (response.status === 401) {
-                        alert('로그인이 필요합니다. 다시 로그인해주세요.');
-                        console.warn("에너지 관리 로그인 불필요");
-                        return;
-                    }
-
-                    if (response.status === 500) {
-                        alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-                        return;
-                    }
-
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert(data.message);
-                    closeEnergyInfoModal();
-                    loadEnergyInfos();
-                } else {
-                    alert(data.message || '에너지 정보 저장에 실패했습니다.');
-                }
+                if (sbError) { alert('저장 실패: ' + sbError.message); return; }
+                alert(currentEditEnergyInfoIndex !== null ? '에너지 정보가 수정되었습니다.' : '에너지 정보가 추가되었습니다.');
+                closeEnergyInfoModal();
+                loadEnergyInfos();
             } catch (error) {
                 console.error('에너지 정보 저장 오류:', error);
-
-                // 네트워크 오류와 기타 오류 구분
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    alert('서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.');
-                } else if (error.message.includes('JSON')) {
-                    alert('서버 응답 형식이 올바르지 않습니다. 관리자에게 문의하세요.');
-                } else {
-                    alert(`에너지 정보 저장 중 오류가 발생했습니다.\n${error.message}`);
-                }
+                alert('에너지 정보 저장 중 오류가 발생했습니다.\n' + error.message);
             }
         });
     }
@@ -8060,32 +8015,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // 에너지 정보 관리 함수들
 async function loadEnergyInfos() {
     try {
-        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-            // 시설명 가나다순으로 정렬, 같은 시설명이면 에너지종류로 정렬
-            const sortedInfos = (data.infos || []).sort((a, b) => {
-                const facilityCompare = a.facilityName.localeCompare(b.facilityName, 'ko-KR');
-                if (facilityCompare !== 0) return facilityCompare;
-                return a.energyType.localeCompare(b.energyType, 'ko-KR');
-            });
-
-            renderEnergyInfos(sortedInfos);
-        } else {
-            console.error('에너지 정보 로드 실패:', data.message);
-            renderEnergyInfos([]);
-        }
+        const infos = await _emInfoQuery();
+        const sortedInfos = infos.sort((a, b) => {
+            const facilityCompare = a.facilityName.localeCompare(b.facilityName, 'ko-KR');
+            if (facilityCompare !== 0) return facilityCompare;
+            return a.energyType.localeCompare(b.energyType, 'ko-KR');
+        });
+        renderEnergyInfos(sortedInfos);
     } catch (error) {
         console.error('에너지 정보 로드 오류:', error);
         renderEnergyInfos([]);
 
-        // 서버 연결 오류인 경우에만 알림 표시
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             alert('서버 연결 오류가 발생했습니다. 서버가 실행 중인지 확인하세요.');
         }
@@ -8246,45 +8186,25 @@ async function loadFacilityOptionsForEnergyInfo() {
 }
 
 window.editEnergyInfo = async function(index) {
-    try {
-        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
-        const data = await response.json();
-
-        if (data.success && data.infos[index]) {
-            const info = data.infos[index];
-            await openEnergyInfoModal(true, index);
-
-            document.getElementById('editInfoFacilityName').value = info.facilityName;
-            document.getElementById('editInfoEnergyType').value = info.energyType;
-            document.getElementById('editInfoCustomerNumber').value = info.customerNumber;
-            document.getElementById('editInfoBankName').value = info.bankName;
-            document.getElementById('editInfoAccountNumber').value = info.accountNumber;
-        }
-    } catch (error) {
-        console.error('에너지 정보 로드 오류:', error);
-        alert('에너지 정보를 불러오는 중 오류가 발생했습니다.');
-    }
+    const info = allEnergyInfos[index];
+    if (!info) { alert('에너지 정보를 찾을 수 없습니다.'); return; }
+    await openEnergyInfoModal(true, info.id);
+    document.getElementById('editInfoFacilityName').value = info.facilityName;
+    document.getElementById('editInfoEnergyType').value = info.energyType;
+    document.getElementById('editInfoCustomerNumber').value = info.customerNumber;
+    document.getElementById('editInfoBankName').value = info.bankName;
+    document.getElementById('editInfoAccountNumber').value = info.accountNumber;
 };
 
 window.deleteEnergyInfo = async function(index) {
-    if (!confirm('정말 이 에너지 정보를 삭제하시겠습니까?')) {
-        return;
-    }
-
+    if (!confirm('정말 이 에너지 정보를 삭제하시겠습니까?')) return;
+    const info = allEnergyInfos[index];
+    if (!info) return;
     try {
-        const response = await fetch(EM_API_BASE + `/api/energy-info/${index}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert(data.message);
-            loadEnergyInfos();
-        } else {
-            alert(data.message);
-        }
+        const { error } = await SB.from('energy_info').delete().eq('id', info.id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        alert('에너지 정보가 삭제되었습니다.');
+        loadEnergyInfos();
     } catch (error) {
         console.error('에너지 정보 삭제 오류:', error);
         alert('에너지 정보 삭제 중 오류가 발생했습니다.');
@@ -8319,52 +8239,17 @@ async function deleteAllEnergyData() {
     }
 
     try {
-        // 먼저 현재 데이터 개수 확인
-        const checkResponse = await fetch(EM_API_BASE + '/api/data-view', { credentials: 'include' });
-        const checkData = await checkResponse.json();
-
-        if (!checkData.success) {
-            throw new Error('데이터 조회 실패');
-        }
-
-        const totalRecords = checkData.records ? checkData.records.length : 0;
-
-        if (totalRecords === 0) {
-            alert('삭제할 데이터가 없습니다.');
-            return;
-        }
-
-        // 최종 확인
-        const finalConfirm = confirm(`총 ${totalRecords}개의 데이터를 삭제합니다.\n\n마지막 확인입니다. 계속하시겠습니까?`);
-
-        if (!finalConfirm) {
-            return;
-        }
-
-        // 모든 데이터 삭제 요청
-        const response = await fetch(EM_API_BASE + '/api/energy-data/delete-all', {
-                credentials: 'include',
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' }
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            alert(`성공적으로 ${result.deletedCount || totalRecords}개의 데이터가 삭제되었습니다.`);
-
-            // 전역 변수 초기화
-            window.currentViewRecords = [];
-            currentViewRecords = [];
-
-            // 화면 새로고침
-            if (typeof searchData === 'function') {
-                searchData();
-            }
-        } else {
-            throw new Error(result.message || '삭제 실패');
-        }
-
+        const records = await _emEnergyQuery();
+        const totalRecords = records.length;
+        if (totalRecords === 0) { alert('삭제할 데이터가 없습니다.'); return; }
+        if (!confirm(`총 ${totalRecords}개의 데이터를 삭제합니다.\n\n마지막 확인입니다. 계속하시겠습니까?`)) return;
+        const ids = records.map(r => r.id).filter(Boolean);
+        const { error } = await SB.from('energy_records').delete().in('id', ids);
+        if (error) throw error;
+        alert(`성공적으로 ${totalRecords}개의 데이터가 삭제되었습니다.`);
+        window.currentViewRecords = [];
+        currentViewRecords = [];
+        if (typeof searchData === 'function') searchData();
     } catch (error) {
         console.error('데이터 삭제 오류:', error);
         alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
@@ -8381,37 +8266,12 @@ async function generateOfficialDocument(record) {
 
         console.log('공문 생성:', record);
 
-        const response = await fetch(EM_API_BASE + '/api/generate-document', {
-                credentials: 'include',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(record)
-        });
-
-        if (!response.ok) {
-            throw new Error('공문 생성에 실패했습니다.');
-        }
-
-        // Blob으로 변환하여 다운로드
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // 파일명 생성
+        const blob = await _generateDocxBlob(record);
         const startDate = new Date(record.startDate);
         const year = startDate.getFullYear();
         const month = String(startDate.getMonth() + 1).padStart(2, '0');
         const filename = `${year}-${month}-${record.facilityName}-${record.energyType}-공문.docx`;
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
+        _downloadBlob(blob, filename);
         console.log('공문 생성 완료:', filename);
 
     } catch (error) {
@@ -8429,33 +8289,8 @@ async function generateAttachmentDocument(record) {
             throw new Error('레코드 데이터가 없습니다.');
         }
 
-        const response = await fetch(EM_API_BASE + '/api/generate-attachment1', {
-                credentials: 'include',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(record)
-        });
-
-        if (!response.ok) {
-            // 오류 응답 내용 확인
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || '첨부문서 생성에 실패했습니다.');
-            } else {
-                throw new Error(`서버 오류 (${response.status})`);
-            }
-        }
-
-        // Blob으로 변환하여 다운로드
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // 파일명 생성 - billingMonth 우선 사용
+        const energyInfos = await _emInfoQuery();
+        const blob = await _generateAttachmentBlob(record, energyInfos);
         let year, month;
         if (record.billingMonth) {
             const parts = record.billingMonth.split('-');
@@ -8471,13 +8306,7 @@ async function generateAttachmentDocument(record) {
             month = String(now.getMonth() + 1).padStart(2, '0');
         }
         const filename = `${year}-${month}-${record.facilityName}-${record.energyType}-첨부1.xlsx`;
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
+        _downloadBlob(blob, filename);
         console.log('첨부문서 생성 완료:', filename);
 
     } catch (error) {
@@ -8554,37 +8383,12 @@ async function generateOfficialDocumentCombined(records) {
             isCombined: true // 합계 공문임을 표시
         };
 
-        const response = await fetch(EM_API_BASE + '/api/generate-document', {
-                credentials: 'include',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(combinedRecord)
-        });
-
-        if (!response.ok) {
-            throw new Error('공문 생성에 실패했습니다.');
-        }
-
-        // Blob으로 변환하여 다운로드
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // 파일명 생성
+        const blob = await _generateDocxBlob(combinedRecord);
         const now = new Date();
         const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const facilityStr = facilities.length === 1 ? facilities[0] : '통합';
         const filename = `${dateStr}-${facilityStr}-합계공문.docx`;
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
+        _downloadBlob(blob, filename);
         console.log('합계 공문 생성 완료:', filename);
         alert(`공문 생성이 완료되었습니다.\n\n파일명: ${filename}\n합계 금액: ${totalCost.toLocaleString('ko-KR')}원`);
 
@@ -8622,38 +8426,26 @@ async function generateAttachmentDocumentCombined(records) {
             return;
         }
 
-        // 통합 첨부문서 생성 요청
-        const response = await fetch(EM_API_BASE + '/api/generate-attachment-combined', {
-                credentials: 'include',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ records: records })
-        });
-
-        if (!response.ok) {
-            throw new Error('첨부문서 생성에 실패했습니다.');
+        // 에너지 정보 조회 후 통합 첨부문서 생성
+        const energyInfos = await _emInfoQuery();
+        const wb = XLSX.utils.book_new();
+        for (const record of records) {
+            const tempBlob = await _generateAttachmentBlob(record, energyInfos);
+            const tempBuf = await tempBlob.arrayBuffer();
+            const tempWb = XLSX.read(new Uint8Array(tempBuf), { type: 'array' });
+            tempWb.SheetNames.forEach(sn => {
+                const ws = tempWb.Sheets[sn];
+                const sheetName = (record.facilityName + '-' + (record.energyType || '')).slice(0, 31);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
         }
-
-        // Blob으로 변환하여 다운로드
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // 파일명 생성
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const now = new Date();
         const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const facilityStr = facilities.length === 1 ? facilities[0] : '통합';
         const filename = `${dateStr}-${facilityStr}-첨부문서.xlsx`;
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
+        _downloadBlob(blob, filename);
         console.log('통합 첨부문서 생성 완료:', filename);
         alert(`첨부문서 생성이 완료되었습니다.\n\n파일명: ${filename}\n데이터 건수: ${records.length}건`);
 
@@ -8741,60 +8533,6 @@ async function generateAttachmentDocumentBulk(records) {
     }
 }
 
-// ==================== 자동 로그아웃 기능 ====================
-
-// 페이지 종료(브라우저 탭/창 닫기) 시 자동 로그아웃
-window.addEventListener('beforeunload', function(e) {
-    // 로그인 상태 확인
-    const currentUser = sessionStorage.getItem('currentUser');
-
-    if (currentUser) {
-        // 세션 스토리지 삭제
-        sessionStorage.removeItem('currentUser');
-
-        // 서버에 로그아웃 요청 (비동기, 응답 대기 안 함)
-        navigator.sendBeacon(EM_API_BASE + '/api/logout');
-    }
-});
-
-// 페이지 이탈 시 자동 로그아웃 (뒤로가기, 다른 페이지 이동 등)
-window.addEventListener('pagehide', function(e) {
-    const currentUser = sessionStorage.getItem('currentUser');
-
-    if (currentUser) {
-        sessionStorage.removeItem('currentUser');
-        navigator.sendBeacon(EM_API_BASE + '/api/logout');
-    }
-});
-
-// 브라우저 숨김/보임 감지 (탭 전환)
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'hidden') {
-        // 탭이 숨겨졌을 때 세션 타임스탬프 저장
-        const currentUser = sessionStorage.getItem('currentUser');
-        if (currentUser) {
-            sessionStorage.setItem('lastActiveTime', Date.now().toString());
-        }
-    } else if (document.visibilityState === 'visible') {
-        // 탭이 다시 보일 때 세션 타임아웃 확인 (30분)
-        const lastActiveTime = sessionStorage.getItem('lastActiveTime');
-        const currentUser = sessionStorage.getItem('currentUser');
-
-        if (lastActiveTime && currentUser) {
-            const inactiveTime = Date.now() - parseInt(lastActiveTime);
-            const timeoutDuration = 30 * 60 * 1000; // 30분
-
-            if (inactiveTime > timeoutDuration) {
-                // 30분 이상 비활성 상태였으면 자동 로그아웃
-                sessionStorage.removeItem('currentUser');
-                sessionStorage.removeItem('lastActiveTime');
-                navigator.sendBeacon(EM_API_BASE + '/api/logout');
-                console.warn("에너지 관리 로그인 불필요");
-                alert('장시간 사용하지 않아 자동으로 로그아웃되었습니다.');
-            }
-        }
-    }
-});
 
 // 에너지 데이터 엑셀 다운로드 (energy_data.xlsx 서식)
 function downloadEnergyDataExcel() {
@@ -8962,22 +8700,23 @@ async function uploadEnergyDataExcel(event) {
             return;
         }
 
-        // 서버에 데이터 업로드
-        const response = await fetch(EM_API_BASE + '/api/energy-data/upload', {
-                credentials: 'include',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            alert(`${records.length}건의 데이터가 업로드되었습니다.`);
-            searchData(); // 데이터 새로고침
-        } else {
-            alert('데이터 업로드 실패: ' + (result.message || '알 수 없는 오류'));
-        }
+        // Supabase에 데이터 업로드
+        const insertData = records.map(r => ({
+            facility_name: r.facilityName,
+            billing_month: r.billingMonth,
+            start_date: r.startDate,
+            end_date: r.endDate,
+            energy_type: r.energyType,
+            usage_amount: r.usageAmount,
+            usage_cost: r.usageCost,
+            customer_number: r.customerNumber || '',
+            bank_name: r.bankName || '',
+            virtual_account: r.virtualAccount || ''
+        }));
+        const { error: upErr } = await SB.from('energy_records').insert(insertData);
+        if (upErr) throw upErr;
+        alert(`${records.length}건의 데이터가 업로드되었습니다.`);
+        searchData();
     } catch (error) {
         console.error('엑셀 업로드 오류:', error);
         alert('엑셀 파일 처리 중 오류가 발생했습니다.');
@@ -9344,38 +9083,21 @@ async function handleExcelUpload(event) {
             return;
         }
 
-        // 서버에 데이터 전송
-        let successCount = 0;
-        let errorCount = 0;
+        // Supabase에 일괄 저장
+        const insertRows = importedData.map(r => ({
+            facility_name: r.facilityName,
+            start_date: r.startDate,
+            end_date: r.endDate,
+            energy_type: r.energyType,
+            usage_amount: r.usageAmount || 0,
+            usage_cost: r.usageCost || 0
+        }));
+        const { error: importErr } = await SB.from('energy_records').insert(insertRows);
+        if (importErr) throw importErr;
 
-        for (const record of importedData) {
-            try {
-                const response = await fetch(EM_API_BASE + '/api/energy', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(record)
-                });
+        alert('데이터 저장 완료!\n' + importedData.length + '개 저장되었습니다.');
 
-                const result = await response.json();
-                if (result.success) {
-                    successCount++;
-                } else {
-                    errorCount++;
-                    console.error('저장 실패:', record, result.message);
-                }
-            } catch (error) {
-                errorCount++;
-                console.error('저장 오류:', record, error);
-            }
-        }
-
-        alert('데이터 저장 완료!\n성공: ' + successCount + '개\n실패: ' + errorCount + '개');
-
-        // 데이터 조회 탭 새로고침
-        if (successCount > 0 && typeof searchData === 'function') {
-            await searchData();
-        }
+        if (typeof searchData === 'function') await searchData();
 
     } catch (error) {
         console.error('엑셀 업로드 오류:', error);
@@ -9420,29 +9142,17 @@ async function deleteSelectedFacilities() {
         return;
     }
 
-    const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.originalIndex));
+    const ids = Array.from(checkboxes).map(cb => cb.dataset.originalIndex);
 
     try {
-        const response = await fetch(EM_API_BASE + '/api/facilities/bulk-delete', {
-                credentials: 'include',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: indices })
-        });
+        const { error } = await SB.from('users').delete().in('id', ids);
+        if (error) throw error;
+        alert(`${ids.length}개 시설이 삭제되었습니다.`);
 
-        const result = await response.json();
-        alert(result.message);
-
-        // 전체 선택 체크박스 해제
         const selectAllCheckbox = document.getElementById('selectAllFacilitiesCheckbox');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.checked = false;
-        }
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
-        // 목록 새로고침
-        if (typeof loadFacilities === 'function') {
-            loadFacilities();
-        }
+        if (typeof loadFacilities === 'function') loadFacilities();
     } catch (error) {
         console.error('시설 삭제 오류:', error);
         alert('시설 삭제 중 오류가 발생했습니다.');
@@ -9457,15 +9167,11 @@ async function downloadFacilitiesExcel() {
             return;
         }
 
-        const response = await fetch(EM_API_BASE + '/api/facilities', { credentials: 'include' });
-        const data = await response.json();
-
-        if (!data.success || !data.facilities || data.facilities.length === 0) {
+        const facilities = await _emFacilitiesQuery();
+        if (!facilities || facilities.length === 0) {
             alert('다운로드할 시설 데이터가 없습니다.');
             return;
         }
-
-        const facilities = data.facilities;
 
         // 엑셀 데이터 생성
         const worksheetData = [
@@ -9477,7 +9183,7 @@ async function downloadFacilitiesExcel() {
                 facility.facilityName || '',
                 facility.id || '',
                 facility.password || '',
-                facility.role || '시설담당자',
+                _emRoleDisplay(facility.role),
                 facility.parentFacility || ''
             ]);
         });
@@ -9535,7 +9241,7 @@ async function uploadFacilitiesExcel(event) {
                     facilityName: String(row[0] || '').trim(),
                     id: String(row[1]).trim(),
                     password: String(row[2]).trim(),
-                    role: row[3] ? String(row[3]).trim() : '시설담당자',
+                    role: (r => r==='관리자'?'admin':r==='시설관리자'?'facility-admin':'user')(row[3]?String(row[3]).trim():''),
                     parentFacility: row[4] ? String(row[4]).trim() : ''
                 });
             }
@@ -9553,34 +9259,17 @@ async function uploadFacilitiesExcel(event) {
             return;
         }
 
-        let successCount = 0;
-        let errorCount = 0;
-
-        for (const facility of facilities) {
-            try {
-                const response = await fetch(EM_API_BASE + '/api/facilities', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(facility)
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    successCount++;
-                } else {
-                    errorCount++;
-                }
-            } catch (error) {
-                errorCount++;
-            }
-        }
-
-        alert(`시설 추가 완료!\n성공: ${successCount}개\n실패: ${errorCount}개`);
-
-        if (successCount > 0 && typeof loadFacilities === 'function') {
-            loadFacilities();
-        }
+        const insertRows = facilities.map(f => ({
+            시설명: f.facilityName || '',
+            사원번호: f.username || '',
+            패스워드: f.password || '',
+            role: f.role || 'user',
+            parent_facility: f.parentFacility || ''
+        }));
+        const { error: insErr } = await SB.from('users').insert(insertRows);
+        if (insErr) throw insErr;
+        alert(`시설 추가 완료!\n${facilities.length}개 추가되었습니다.`);
+        if (typeof loadFacilities === 'function') loadFacilities();
     } catch (error) {
         console.error('엑셀 업로드 오류:', error);
         alert('엑셀 파일 처리 중 오류가 발생했습니다: ' + error.message);
@@ -9616,37 +9305,17 @@ async function deleteSelectedEnergyInfo() {
     }
 
     const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+    const ids = indices.map(i => allEnergyInfos[i]?.id).filter(Boolean);
 
     try {
-        let successCount = 0;
-        let errorCount = 0;
+        const { error } = await SB.from('energy_info').delete().in('id', ids);
+        if (error) throw error;
+        alert(`${ids.length}개 에너지 정보가 삭제되었습니다.`);
 
-        for (const index of indices) {
-            const response = await fetch(EM_API_BASE + `/api/energy-info/${index}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                successCount++;
-            } else {
-                errorCount++;
-            }
-        }
-
-        alert(`삭제 완료!\n성공: ${successCount}개\n실패: ${errorCount}개`);
-
-        // 전체 선택 체크박스 해제
         const selectAllCheckbox = document.getElementById('selectAllEnergyInfoCheckbox');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.checked = false;
-        }
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
-        // 목록 새로고침
-        if (typeof loadEnergyInfo === 'function') {
-            loadEnergyInfo();
-        }
+        if (typeof loadEnergyInfos === 'function') loadEnergyInfos();
     } catch (error) {
         console.error('에너지 정보 삭제 오류:', error);
         alert('에너지 정보 삭제 중 오류가 발생했습니다.');
@@ -9661,18 +9330,11 @@ async function downloadEnergyInfoExcel() {
             return;
         }
 
-        const response = await fetch(EM_API_BASE + '/api/energy-info', { credentials: 'include' });
-        const data = await response.json();
-
-        console.log('에너지 정보 응답:', data);
-
-        // 서버에서 'infos'라는 키로 반환함
-        if (!data.success || !data.infos || data.infos.length === 0) {
+        const energyInfo = await _emInfoQuery();
+        if (!energyInfo || energyInfo.length === 0) {
             alert('다운로드할 에너지 정보가 없습니다.');
             return;
         }
-
-        const energyInfo = data.infos;
 
         // 엑셀 데이터 생성
         const worksheetData = [
@@ -9760,34 +9422,17 @@ async function uploadEnergyInfoExcel(event) {
             return;
         }
 
-        let successCount = 0;
-        let errorCount = 0;
-
-        for (const info of energyInfoList) {
-            try {
-                const response = await fetch(EM_API_BASE + '/api/energy-info', {
-                credentials: 'include',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(info)
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    successCount++;
-                } else {
-                    errorCount++;
-                }
-            } catch (error) {
-                errorCount++;
-            }
-        }
-
-        alert(`에너지 정보 추가 완료!\n성공: ${successCount}개\n실패: ${errorCount}개`);
-
-        if (successCount > 0 && typeof loadEnergyInfo === 'function') {
-            loadEnergyInfo();
-        }
+        const insertInfos = energyInfoList.map(info => ({
+            facility_name: info.facilityName,
+            energy_type: info.energyType,
+            customer_number: info.customerNumber || '',
+            bank_name: info.bankName || '',
+            account_number: info.accountNumber || ''
+        }));
+        const { error: infoErr } = await SB.from('energy_info').insert(insertInfos);
+        if (infoErr) throw infoErr;
+        alert(`에너지 정보 추가 완료!\n${energyInfoList.length}개 추가되었습니다.`);
+        if (typeof loadEnergyInfos === 'function') loadEnergyInfos();
     } catch (error) {
         console.error('엑셀 업로드 오류:', error);
         alert('엑셀 파일 처리 중 오류가 발생했습니다: ' + error.message);
