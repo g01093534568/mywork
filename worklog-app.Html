@@ -300,6 +300,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .stock-card-meta .pnl-pos{color:var(--red);}
 .stock-card-meta .pnl-neg{color:#3d8ef0;}
 .stock-card-meta .pnl-flat{color:var(--t2);}
+.stock-nxt-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 10px;background:rgba(255,200,0,0.07);border:1px solid rgba(255,200,0,0.15);border-radius:6px;}
+.stock-nxt-badge{font-size:10px;font-weight:800;letter-spacing:0.5px;color:#f0b429;background:rgba(240,180,41,0.15);padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.stock-nxt-price{font-size:14px;font-weight:700;color:var(--t1);}
+.stock-nxt-chg{font-size:12px;font-weight:600;margin-left:auto;}
 .stock-card-actions{position:absolute;top:10px;right:10px;display:flex;gap:3px;opacity:0;transition:var(--tr);}
 .stock-card:hover .stock-card-actions{opacity:1;}
 /* Responsive basics */
@@ -3881,6 +3885,15 @@ async function renderStocks(){
     const pnl=qty?(cur-avg)*qty:null;
     const pnlPct=avg&&qty?((cur-avg)/avg*100):null;
     const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'pnl-flat');
+    const nxt=s.ticker?stockNxtMap.get(s.ticker):null;
+    const nxtRow=nxt&&nxt.nxtPrice?(()=>{
+      const nd=nxt.nxtPrice, nc=nxt.nxtChg||0, np=prev||cur;
+      const ndiff=nc; const npct=np?(nc/np*100):0;
+      const ndir=nc>0?'up':nc<0?'down':'flat';
+      const narrow=nc>0?'▲':nc<0?'▼':'─'; const nsign=nc>=0?'+':'';
+      const ncls=ndir==='up'?'color:var(--red)':ndir==='down'?'color:#3d8ef0':'color:var(--t2)';
+      return `<div class="stock-nxt-row"><span class="stock-nxt-badge">NXT</span><span class="stock-nxt-price">₩${fmtNum(nd)}</span><span class="stock-nxt-chg" style="${ncls}">${narrow} ${nsign}${fmtNum(nc)}원 (${nsign}${npct.toFixed(2)}%)</span></div>`;
+    })():'';
     return `<div class="stock-card stock-${dir}" data-id="${s.id}">
       <div class="stock-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="openTradeModal('${s.id}')" title="매매 기록">📋</button>
@@ -3891,6 +3904,7 @@ async function renderStocks(){
       <div class="stock-card-ticker">${s.ticker?esc(s.ticker):'&nbsp;'}</div>
       <div class="stock-card-price">${cur?'₩'+fmtNum(cur):'─'}</div>
       <div class="stock-card-change stock-${dir}">${cur&&prev?`${arrow} ${sign}${fmtNum(diff)}원 (${sign}${pct.toFixed(2)}%)`:'시세 없음 · 🔄 갱신 필요'}</div>
+      ${nxtRow}
       <div class="stock-card-meta">
         <div class="stock-card-meta-grid">
           <div class="stock-meta-item">
@@ -4004,10 +4018,18 @@ async function fetchNaverQuote(code){
   const cur=toN(data.closePrice);
   if(cur<=0) throw new Error(`네이버 시세 없음 (${code})`);
   const chg=toN(data.compareToPreviousClosePrice);
+  // NXT(넥스트트레이드) 시간외 시세 시도 (08:00~09:00, 15:40~20:00)
+  let nxtPrice=null, nxtChg=null;
+  try{
+    const nr=await naverFetch(`https://m.stock.naver.com/api/stock/${code}/nxt`);
+    const nd=await nr.json();
+    const np=toN(nd.closePrice||nd.nxtClosePrice||nd.price);
+    if(np>0){ nxtPrice=np; nxtChg=toN(nd.compareToPreviousClosePrice||nd.nxtCompareToPreviousClosePrice||nd.change); }
+  }catch(e){}
   return{
     ticker:code, name:data.stockName||code,
     currentPrice:cur, prevClose:Math.round((cur-chg)*100)/100,
-    currency:'KRW', source:'naver'
+    currency:'KRW', source:'naver', nxtPrice, nxtChg
   };
 }
 
@@ -4061,6 +4083,8 @@ async function refreshAllStocks(silent=false){
     try{
       const q=await fetchStockQuote(s.ticker);
       priceMap.set(s.ticker,{currentPrice:q.currentPrice,prevClose:q.prevClose});
+      if(q.nxtPrice) stockNxtMap.set(s.ticker,{nxtPrice:q.nxtPrice,nxtChg:q.nxtChg});
+      else stockNxtMap.delete(s.ticker);
       ok++;
     }catch(e){ fail++; }
   }
@@ -4086,13 +4110,32 @@ const STOCK_REFRESH_SEC=30;
 let stockRefreshTimer=null;
 let stockTickTimer=null;
 let stockCountdown=STOCK_REFRESH_SEC;
+const stockNxtMap=new Map(); // ticker -> {nxtPrice, nxtChg}  (메모리 전용, DB 미저장)
+
+function isWithinTradingHours(){
+  const t=new Date(); const m=t.getHours()*60+t.getMinutes();
+  return m>=8*60 && m<20*60; // 08:00~20:00
+}
 
 function startStockAutoRefresh(){
   stopStockAutoRefresh();
+  if(!isWithinTradingHours()){
+    const el=document.getElementById('stock-last-updated');
+    if(el) el.textContent='장 운영시간(08:00~20:00) 외 — 자동 갱신 중단';
+    return;
+  }
   stockCountdown=STOCK_REFRESH_SEC;
   (async()=>{ const stocks=await DB.getStocks(currentUser.사원번호); if(stocks.length&&stocks.some(s=>s.ticker)) refreshAllStocks(true); })();
   // 30초 주기 갱신
-  stockRefreshTimer=setInterval(()=>{ refreshAllStocks(true); stockCountdown=STOCK_REFRESH_SEC; },STOCK_REFRESH_SEC*1000);
+  stockRefreshTimer=setInterval(()=>{
+    if(!isWithinTradingHours()){
+      stopStockAutoRefresh();
+      const el=document.getElementById('stock-last-updated');
+      if(el) el.textContent+=' · 자동 갱신 종료 (20:00 이후)';
+      return;
+    }
+    refreshAllStocks(true); stockCountdown=STOCK_REFRESH_SEC;
+  },STOCK_REFRESH_SEC*1000);
   // 1초마다 버튼 카운트다운 업데이트
   stockTickTimer=setInterval(()=>{
     stockCountdown--;
