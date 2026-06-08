@@ -30,8 +30,8 @@
   --bg: #0b1622;
   --bg2: #111f30;
   --bg3: #172840;
-  --card: #1a2f47;
-  --card2: #1e3550;
+  --card: #1a2f473
+  --ca. rd2: #1e3550;
   --accent: #e8a020;
   --accent2: #f5c148;
   --blue: #3d8ef0;
@@ -6521,9 +6521,16 @@ async function _emEnergyQuery(filters = {}) {
   }
 
   if (filters.energyType) q = q.eq('energy_type', filters.energyType);
-  if (filters.startDate) q = q.gte('billing_month', filters.startDate.substring(0, 7));
-  if (filters.endDate) q = q.lte('billing_month', filters.endDate.substring(0, 7));
-  const { data, error } = await q.order('billing_month', { ascending: true });
+
+  // start_date는 항상 존재(필수 입력)하므로 날짜 필터를 start_date 기준으로 처리
+  if (filters.startDate) q = q.gte('start_date', filters.startDate);
+  if (filters.endDate) {
+    const [yr, mo] = filters.endDate.substring(0, 7).split('-');
+    const lastDay = new Date(parseInt(yr), parseInt(mo), 0).getDate();
+    q = q.lte('start_date', `${yr}-${mo}-${String(lastDay).padStart(2, '0')}`);
+  }
+
+  const { data, error } = await q.order('start_date', { ascending: true });
   if (error) throw error;
   return (data || []).map(_rowToRecord);
 }
@@ -7511,15 +7518,24 @@ async function loadFacilityOptions() {
 async function searchData() {
     const filterFacility = document.getElementById('filterFacility').value;
     const filterEnergyType = document.getElementById('filterEnergyType').value;
+    const filterYear = document.getElementById('filterYear')?.value || '';
     const filterStartMonth = document.getElementById('filterStartMonth').value;
     const filterEndMonth = document.getElementById('filterEndMonth').value;
+
+    // 연도만 선택하고 월 범위가 없으면 해당 연도 전체로 설정
+    let startDate = filterStartMonth ? filterStartMonth + '-01' : '';
+    let endDate = filterEndMonth ? filterEndMonth + '-28' : '';
+    if (filterYear && !filterStartMonth && !filterEndMonth) {
+        startDate = filterYear + '-01-01';
+        endDate = filterYear + '-12-31';
+    }
 
     try {
         const records = await _emEnergyQuery({
             facility: filterFacility || '',
             energyType: filterEnergyType || '',
-            startDate: filterStartMonth ? filterStartMonth + '-01' : '',
-            endDate: filterEndMonth ? filterEndMonth + '-28' : ''
+            startDate,
+            endDate
         });
         currentViewRecords = records;
         window.currentViewRecords = records;
