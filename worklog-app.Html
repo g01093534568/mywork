@@ -6510,7 +6510,8 @@ async function _emEnergyQuery(filters = {}) {
     // facility 없으면 필터 없이 전체 반환 (어드민 계정으로 테스트하는 경우 등)
   } else if (role === 'facility-admin') {
     const names = await _getManagedFacilityNames(facility);
-    if (names.length) q = q.in('facility_name', names);
+    if (!names.length) return [];  // 관리 시설 없으면 빈 결과
+    q = q.in('facility_name', names);
   }
   // admin: 전체 조회 (추가 필터 없음)
 
@@ -6531,7 +6532,13 @@ async function _emEnergyQuery(filters = {}) {
     q = q.lte('start_date', `${yr}-${mo}-${String(lastDay).padStart(2, '0')}`);
   }
 
-  const { data, error } = await q.order('start_date', { ascending: true });
+  let { data, error } = await q.order('start_date', { ascending: true });
+  // start_date 컬럼 없으면 billing_month로 재시도
+  if (error && error.message && error.message.includes('start_date')) {
+    const res2 = await q.order('billing_month', { ascending: true });
+    data = res2.data;
+    error = res2.error;
+  }
   if (error) throw error;
   return (data || []).map(_rowToRecord);
 }
@@ -6541,10 +6548,11 @@ async function _emInfoQuery() {
   const role = _emRole(), facility = _emFacility();
   let q = SB.from('energy_info').select('*');
   if (role === 'user') {
-    q = q.eq('facility_name', facility);
+    if (facility) q = q.eq('facility_name', facility);
   } else if (role === 'facility-admin') {
     const names = await _getManagedFacilityNames(facility);
-    if (names.length) q = q.in('facility_name', names);
+    if (!names.length) return [];
+    q = q.in('facility_name', names);
   }
   const { data, error } = await q;
   if (error) throw error;
@@ -7797,6 +7805,7 @@ let otherChart = null;
 let costChart = null;
 
 function renderCharts(records) {
+    if (typeof Chart === 'undefined') return;  // Chart.js 미로드 시 무시
     const selectedYear = document.getElementById('filterYear')?.value
         || String(new Date().getFullYear());
     const months = Array.from({length: 12}, (_, i) => `${i + 1}월`);
@@ -8008,22 +8017,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // 선택된 데이터를 하나의 엑셀 파일로 생성
             generateAttachmentDocumentCombined(selectedRecords);
         });
-    }
-
-    // 엑셀 다운로드 버튼 이벤트
-    const downloadExcelBtn = document.getElementById('downloadExcelBtn');
-    if (downloadExcelBtn) {
-        downloadExcelBtn.addEventListener('click', downloadEnergyDataExcel);
-    }
-
-    // 엑셀 업로드 버튼 이벤트
-    const uploadExcelBtn = document.getElementById('uploadExcelBtn');
-    const excelFileInput = document.getElementById('excelFileInput');
-    if (uploadExcelBtn && excelFileInput) {
-        uploadExcelBtn.addEventListener('click', () => {
-            excelFileInput.click();
-        });
-        excelFileInput.addEventListener('change', uploadEnergyDataExcel);
     }
 
     // 에너지 정보 관리 이벤트 리스너
