@@ -2328,11 +2328,12 @@ function todoToDb(todo, 사원번호) {
 function dbToTodo(r) {
   return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
 }
+function _normTime(s){ s=s.trim(); if(!s) return s; return s.split('~').map(t=>{ t=t.trim(); if(/^\d{4}$/.test(t)) return t.slice(0,2)+':'+t.slice(2); if(/^\d{3}$/.test(t)) return t[0]+':'+t.slice(1); return t; }).join('~'); }
 function activityToDb(a, 사원번호, date) {
-  return { id:a.id, 사원번호, log_date:date, title:a.title, time_range:a.time||'', linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
+  return { id:a.id, 사원번호, log_date:date, title:a.title, time_range:_normTime(a.time||''), linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
 }
 function dbToActivity(r) {
-  return { id:r.id, title:r.title, time:r.time_range||'', linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'', createdAt:r.created_at||'' };
+  return { id:r.id, title:r.title, time:_normTime(r.time_range||''), linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'', createdAt:r.created_at||'' };
 }
 function pgToDb(g, 사원번호) {
   return { id:g.id, 사원번호, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked:g.linked||'' };
