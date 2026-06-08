@@ -1842,13 +1842,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>시간</label>
-        <input type="text" id="am-time" placeholder="예: 09:00~10:30" />
+        <label>시작 시간</label>
+        <input type="time" id="am-start-time" />
       </div>
       <div class="form-group">
-        <label>전략과제 연계</label>
-        <select id="am-linked"></select>
+        <label>종료 시간</label>
+        <input type="time" id="am-end-time" />
       </div>
+    </div>
+    <div class="form-group">
+      <label>전략과제 연계</label>
+      <select id="am-linked"></select>
     </div>
     <div class="form-group">
       <label>주요 내용</label>
@@ -4571,20 +4575,20 @@ function showTodoLogPrompt(todo, date){
     <div class="todo-log-prompt-title">✓ 완료 — 업무일지에 추가할까요?</div>
     <div class="todo-log-prompt-item" title="${esc(todo.title)}">${esc(todo.title)}</div>
     <div class="todo-log-prompt-row">
-      <input type="text" id="tlp-time" placeholder="시간 (예: 09:00~10:30)" />
+      <input type="time" id="tlp-start-time" placeholder="시작 시간" />
     </div>
     <div class="todo-log-prompt-actions">
       <button class="tlp-btn-skip" onclick="this.closest('.todo-log-prompt').remove()">건너뛰기</button>
       <button class="tlp-btn-add" onclick="confirmTodoToLog('${esc(todo.id)}','${esc(todo.title)}','${date}')">업무일지 추가</button>
     </div>`;
   document.body.appendChild(el);
-  el.querySelector('#tlp-time').focus();
+  el.querySelector('#tlp-start-time').focus();
   // 8초 후 자동 닫힘
   setTimeout(()=>{ if(el.parentNode){ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }},8000);
 }
 
 async function confirmTodoToLog(todoId, todoTitle, date){
-  const timeEl=document.getElementById('tlp-time');
+  const timeEl=document.getElementById('tlp-start-time');
   const time=timeEl?timeEl.value.trim():'';
   const data={ id:uid(), title:todoTitle, time, linked:'', content:'', reflection:'' };
   try{
@@ -4782,7 +4786,9 @@ async function openActivityModal(date, id){
     document.getElementById('activity-modal-title').textContent='활동 수정';
     document.getElementById('am-edit-id').value=id;
     document.getElementById('am-title').value=a.title;
-    document.getElementById('am-time').value=a.time||'';
+    const _tp=(a.time||'').split('~').map(s=>s.trim());
+    document.getElementById('am-start-time').value=_tp[0]||'';
+    document.getElementById('am-end-time').value=_tp[1]||'';
     sel.value=a.linked||'';
     document.getElementById('am-content').value=a.content||'';
     document.getElementById('am-reflection').value=a.reflection||'';
@@ -4790,7 +4796,8 @@ async function openActivityModal(date, id){
     document.getElementById('activity-modal-title').textContent='활동 추가';
     document.getElementById('am-edit-id').value='';
     document.getElementById('am-title').value='';
-    document.getElementById('am-time').value='';
+    document.getElementById('am-start-time').value='';
+    document.getElementById('am-end-time').value='';
     sel.value='';
     document.getElementById('am-content').value='';
     document.getElementById('am-reflection').value='';
@@ -4805,7 +4812,7 @@ async function saveActivity(){
   const editId=document.getElementById('am-edit-id').value;
   const data={
     id:editId||uid(), title,
-    time:document.getElementById('am-time').value.trim(),
+    time:(()=>{const s=document.getElementById('am-start-time').value,e=document.getElementById('am-end-time').value;return s?(e?`${s}~${e}`:s):'';})(),
     linked:document.getElementById('am-linked').value,
     content:document.getElementById('am-content').value.trim(),
     reflection:document.getElementById('am-reflection').value.trim()
@@ -5230,7 +5237,7 @@ document.addEventListener('keydown',e=>{
     document.querySelectorAll('.todo-log-prompt').forEach(el=>el.remove());
     document.querySelectorAll('.confirm-overlay').forEach(el=>el.remove());
   }
-  if(e.key==='Enter' && e.target.id==='tlp-time'){
+  if(e.key==='Enter' && e.target.id==='tlp-start-time'){
     const prompt=e.target.closest('.todo-log-prompt');
     if(prompt) prompt.querySelector('.tlp-btn-add').click();
   }
