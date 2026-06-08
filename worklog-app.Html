@@ -6437,7 +6437,9 @@ if('serviceWorker' in navigator){
 // =========================================================
 // ⚡ 에너지 관리 시스템 — 통합 JavaScript
 // =========================================================
-const EM_API_BASE = 'http://localhost:3001';
+const EM_API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:3001'
+  : 'https://energy-management-ygve.vercel.app';
 
 let emMgmtInitialized = false;
 async function initEnergyMgmt() {
