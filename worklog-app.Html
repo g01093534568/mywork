@@ -6437,7 +6437,7 @@ if('serviceWorker' in navigator){
 // =========================================================
 // ⚡ 에너지 관리 시스템 — 통합 JavaScript
 // =========================================================
-const EM_API_BASE = 'http://localhost:3000';
+const EM_API_BASE = 'http://localhost:3001';
 
 let emMgmtInitialized = false;
 async function initEnergyMgmt() {
@@ -7153,8 +7153,9 @@ window.deleteFacility = async function(dbId) {
     }
 
     try {
-        const response = await fetch(`/api/facilities/${dbId}`, {
-            method: 'DELETE'
+        const response = await fetch(EM_API_BASE + `/api/facilities/${dbId}`, {
+            method: 'DELETE',
+            credentials: 'include'
         });
 
         const data = await response.json();
@@ -7359,8 +7360,9 @@ window.deleteEnergyRecord = async function(index) {
     }
 
     try {
-        const response = await fetch(`/api/energy/${index}`, {
-            method: 'DELETE'
+        const response = await fetch(EM_API_BASE + `/api/energy/${index}`, {
+            method: 'DELETE',
+            credentials: 'include'
         });
 
         const data = await response.json();
@@ -7414,7 +7416,7 @@ async function searchData() {
         if (filterStartMonth) params.append('startDate', filterStartMonth + '-01');
         if (filterEndMonth) params.append('endDate', filterEndMonth + '-28');
 
-        const response = await fetch(`/api/data-view?${params.toString()}`);
+        const response = await fetch(EM_API_BASE + `/api/data-view?${params.toString()}`, { credentials: 'include' });
         const data = await response.json();
 
         if (data.success) {
@@ -7978,8 +7980,9 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 let response;
                 if (currentEditEnergyInfoIndex !== null) {
-                    response = await fetch(`/api/energy-info/${currentEditEnergyInfoIndex}`, {
+                    response = await fetch(EM_API_BASE + `/api/energy-info/${currentEditEnergyInfoIndex}`, {
                         method: 'PUT',
+                        credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(energyInfoData)
                     });
@@ -8250,8 +8253,9 @@ window.deleteEnergyInfo = async function(index) {
     }
 
     try {
-        const response = await fetch(`/api/energy-info/${index}`, {
-            method: 'DELETE'
+        const response = await fetch(EM_API_BASE + `/api/energy-info/${index}`, {
+            method: 'DELETE',
+            credentials: 'include'
         });
 
         const data = await response.json();
@@ -9599,8 +9603,9 @@ async function deleteSelectedEnergyInfo() {
         let errorCount = 0;
 
         for (const index of indices) {
-            const response = await fetch(`/api/energy-info/${index}`, {
-                method: 'DELETE'
+            const response = await fetch(EM_API_BASE + `/api/energy-info/${index}`, {
+                method: 'DELETE',
+                credentials: 'include'
             });
 
             const result = await response.json();
