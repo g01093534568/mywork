@@ -1688,6 +1688,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <option value="user">사용자</option>
         </select>
       </div>
+      <div class="em-form-group" id="parentFacilityRow" style="display:none;">
+        <label for="editParentFacility">상위시설</label>
+        <select id="editParentFacility">
+          <option value="">없음 (독립 시설)</option>
+        </select>
+        <small style="color:var(--t3);margin-top:4px;display:block;">상위시설(시설관리자)을 지정하면 해당 시설관리자가 이 시설 데이터를 조회·수정·삭제할 수 있습니다.</small>
+      </div>
       <div class="em-modal-buttons">
         <button type="submit" class="em-save-btn">저장</button>
         <button type="button" class="em-cancel-btn">취소</button>
@@ -6786,14 +6793,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const id = document.getElementById('editId').value.trim();
         const password = document.getElementById('editPassword').value.trim();
         const role = document.getElementById('editRole').value;
+        const parentFacility = (role === 'user')
+            ? (document.getElementById('editParentFacility')?.value || '')
+            : '';
 
         try {
             let sbError;
             if (currentEditIndex !== null) {
-                const { error } = await SB.from('users').update({ '시설명': facilityName, '사원번호': id, '패스워드': password, role }).eq('id', currentEditIndex);
+                const { error } = await SB.from('users').update({ '시설명': facilityName, '사원번호': id, '패스워드': password, role, parent_facility: parentFacility }).eq('id', currentEditIndex);
                 sbError = error;
             } else {
-                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': password, role });
+                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': password, role, parent_facility: parentFacility });
                 sbError = error;
             }
             if (sbError) { alert('저장 실패: ' + sbError.message); return; }
@@ -7159,10 +7169,13 @@ function openFacilityModal(isEdit = false, index = null) {
         document.getElementById('editId').value = '';
         document.getElementById('editPassword').value = '';
         document.getElementById('editRole').value = '';
+        document.getElementById('editParentFacility').value = '';
     }
 
     // 역할 드롭다운을 현재 사용자 권한에 따라 설정
     updateRoleDropdown();
+    // 상위시설 드롭다운 채우기
+    populateParentFacilityDropdown();
 
     const modal = document.getElementById('facilityModal');
     modal.style.display = 'block';
@@ -7196,6 +7209,53 @@ function updateRoleDropdown() {
         const option = document.createElement('option');
         option.value = 'user'; option.textContent = '사용자';
         roleSelect.appendChild(option);
+    }
+
+    // 역할 변경 시 상위시설 행 표시/숨김 (이벤트 중복 방지)
+    roleSelect.onchange = function() {
+        toggleParentFacilityRow(this.value);
+        if (this.value !== 'user') {
+            document.getElementById('editParentFacility').value = '';
+        }
+    };
+    toggleParentFacilityRow(roleSelect.value);
+}
+
+function toggleParentFacilityRow(role) {
+    const row = document.getElementById('parentFacilityRow');
+    if (row) row.style.display = role === 'user' ? 'flex' : 'none';
+}
+
+// 상위시설(시설관리자) 목록을 드롭다운에 채움
+async function populateParentFacilityDropdown(selectedParent = '') {
+    const select = document.getElementById('editParentFacility');
+    if (!select) return;
+    select.innerHTML = '<option value="">없음 (독립 시설)</option>';
+
+    let facilityAdmins = [];
+    if (currentUser.role === 'admin') {
+        // 관리자: 모든 시설관리자 목록
+        const { data } = await SB.from('users').select('시설명').eq('role', 'facility-admin').order('시설명');
+        facilityAdmins = (data || []).map(u => u.시설명).filter(Boolean);
+    } else if (currentUser.role === 'facility-admin') {
+        // 시설관리자: 자기 자신만 상위시설로 지정 가능
+        facilityAdmins = [currentUser.시설명 || ''];
+    }
+
+    facilityAdmins.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === selectedParent) opt.selected = true;
+        select.appendChild(opt);
+    });
+
+    // 시설관리자가 추가하는 경우 자신의 시설로 고정
+    if (currentUser.role === 'facility-admin') {
+        select.value = currentUser.시설명 || '';
+        select.disabled = true;
+    } else {
+        select.disabled = false;
     }
 }
 
@@ -7240,6 +7300,8 @@ window.editSelectedFacility = function() {
         document.getElementById('editPassword').value = facility.password;
         document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
+        // 상위시설은 모달이 열린 후(드롭다운 채워진 후) 설정
+        setTimeout(() => populateParentFacilityDropdown(facility.parentFacility || ''), 50);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
     }
@@ -7253,6 +7315,7 @@ window.editFacility = function(index) {
         document.getElementById('editPassword').value = facility.password;
         document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
+        setTimeout(() => populateParentFacilityDropdown(facility.parentFacility || ''), 50);
     } else {
         alert('시설 정보를 찾을 수 없습니다.');
     }
