@@ -6524,21 +6524,17 @@ async function _emEnergyQuery(filters = {}) {
 
   if (filters.energyType) q = q.eq('energy_type', filters.energyType);
 
-  // start_date는 항상 존재(필수 입력)하므로 날짜 필터를 start_date 기준으로 처리
-  if (filters.startDate) q = q.gte('start_date', filters.startDate);
+  // billing_month(항상 존재)로 날짜 범위 필터 — start_date는 null일 수 있어 제외
+  if (filters.startDate) {
+    const billingStart = filters.startDate.substring(0, 7); // 'YYYY-MM'
+    q = q.gte('billing_month', billingStart);
+  }
   if (filters.endDate) {
-    const [yr, mo] = filters.endDate.substring(0, 7).split('-');
-    const lastDay = new Date(parseInt(yr), parseInt(mo), 0).getDate();
-    q = q.lte('start_date', `${yr}-${mo}-${String(lastDay).padStart(2, '0')}`);
+    const billingEnd = filters.endDate.substring(0, 7); // 'YYYY-MM'
+    q = q.lte('billing_month', billingEnd);
   }
 
-  let { data, error } = await q.order('start_date', { ascending: true });
-  // start_date 컬럼 없으면 billing_month로 재시도
-  if (error && error.message && error.message.includes('start_date')) {
-    const res2 = await q.order('billing_month', { ascending: true });
-    data = res2.data;
-    error = res2.error;
-  }
+  const { data, error } = await q.order('billing_month', { ascending: true });
   if (error) throw error;
   return (data || []).map(_rowToRecord);
 }
@@ -7499,7 +7495,7 @@ window.deleteEnergyRecord = async function(index) {
 // 데이터 조회 탭 관련 함수들
 async function loadDataViewTab() {
     await loadFacilityOptions();
-    searchData();
+    await searchData();
 }
 
 async function loadFacilityOptions() {
