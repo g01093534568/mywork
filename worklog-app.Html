@@ -6476,7 +6476,7 @@ async function initEnergyMgmt() {
             body: JSON.stringify({ facilityName, username })
         });
         const loginData = await loginRes.json();
-        if (loginData.token) __emToken = loginData.token;
+        if (loginData.token) __emToken = loginData.token.trim();
     } catch(e) {
         console.warn('에너지 관리 서버 연결 실패:', e);
     }
