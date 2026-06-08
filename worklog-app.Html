@@ -7547,8 +7547,8 @@ async function searchData() {
         updateSummary(records);
         renderCharts(records);
     } catch (error) {
-        console.error('데이터 조회 오류:', error);
-        alert('데이터 조회 중 오류가 발생했습니다.');
+        console.error('데이터 조회 오류:', error?.message || error);
+        alert('데이터 조회 중 오류가 발생했습니다.\n' + (error?.message || ''));
     }
 }
 
@@ -7558,6 +7558,7 @@ const itemsPerPage = 20;
 
 function renderDataView(records, page = 1) {
     const tbody = document.getElementById('dataViewTableBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     if (records.length === 0) {
