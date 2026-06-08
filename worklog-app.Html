@@ -6441,6 +6441,21 @@ const EM_API_BASE = (location.hostname === 'localhost' || location.hostname === 
   ? 'http://localhost:3001'
   : 'https://energy-management-ygve.vercel.app';
 
+// X-Worklog-Token: Vercel 서버리스에서 cross-origin 세션 쿠키 대체 인증
+let __emToken = null;
+(function patchEmFetch() {
+  const _orig = window.fetch.bind(window);
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith(EM_API_BASE) && __emToken) {
+      opts = Object.assign({}, opts, {
+        headers: Object.assign({ 'X-Worklog-Token': __emToken }, opts.headers || {})
+      });
+    }
+    return _orig(url, opts);
+  };
+})();
+
 let emMgmtInitialized = false;
 async function initEnergyMgmt() {
     if (emMgmtInitialized) return;
@@ -6454,12 +6469,14 @@ async function initEnergyMgmt() {
     const username = wlUser?.사원번호 || '';
 
     try {
-        await fetch(EM_API_BASE + '/api/auto-login-worklog', {
+        const loginRes = await fetch(EM_API_BASE + '/api/auto-login-worklog', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ facilityName, username })
         });
+        const loginData = await loginRes.json();
+        if (loginData.token) __emToken = loginData.token;
     } catch(e) {
         console.warn('에너지 관리 서버 연결 실패:', e);
     }
