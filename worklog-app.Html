@@ -1611,7 +1611,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <div id="subTabResults" class="sub-tab-content active">
                 <div class="data-summary">
                   <h3 style="margin-top:25px;">조회 결과 요약 (에너지 종류별)</h3>
-                  <div class="summary-cards"></div>
+                  <div class="summary-cards" id="energySummaryCards"></div>
                 </div>
                 <div class="data-results">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
@@ -7534,8 +7534,12 @@ async function searchData() {
         endDate = filterYear + '-12-31';
     }
 
+    // 카드 로딩 상태 즉시 표시
+    updateSummary([]);
+
+    let records = [];
     try {
-        const records = await _emEnergyQuery({
+        records = await _emEnergyQuery({
             facility: filterFacility || '',
             energyType: filterEnergyType || '',
             startDate,
@@ -7543,13 +7547,15 @@ async function searchData() {
         });
         currentViewRecords = records;
         window.currentViewRecords = records;
-        renderDataView(records, 1);
-        updateSummary(records);
-        renderCharts(records);
     } catch (error) {
         console.error('데이터 조회 오류:', error?.message || error);
         alert('데이터 조회 중 오류가 발생했습니다.\n' + (error?.message || ''));
     }
+
+    // 쿼리 성공/실패 무관하게 항상 렌더링
+    renderDataView(records, 1);
+    updateSummary(records);
+    renderCharts(records);
 }
 
 // 페이지네이션 관련 전역 변수
@@ -7740,7 +7746,8 @@ function updateSummary(records) {
         }
     });
 
-    const container = document.querySelector('.summary-cards');
+    const container = document.getElementById('energySummaryCards')
+        || document.querySelector('.summary-cards');
     if (!container) return;
     container.innerHTML = '';
 
