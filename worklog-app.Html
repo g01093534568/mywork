@@ -679,24 +679,45 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
 /* 요약 카드 */
 #page-energy .summary-cards {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px; margin-bottom: 24px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  #page-energy .summary-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  #page-energy .summary-cards { grid-template-columns: 1fr; }
 }
 #page-energy .summary-card {
   background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 18px;
-  transition: var(--tr);
+  border-radius: var(--r); overflow: hidden;
+  transition: var(--tr); box-shadow: 0 1px 4px rgba(0,0,0,.12);
 }
 #page-energy .summary-card:hover {
-  border-color: rgba(232,160,32,0.3); transform: translateY(-2px);
+  transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.18);
 }
-#page-energy .summary-label {
-  font-size: 11px; font-weight: 700; color: var(--t3);
-  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+/* 카드 상단 컬러 바 */
+#page-energy .sc-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 16px; font-weight: 700; font-size: 13px; color: #fff;
 }
-#page-energy .summary-value {
-  font-size: 13px; color: var(--t1); line-height: 1.6;
+#page-energy .sc-icon { font-size: 18px; line-height: 1; }
+#page-energy .sc-type { letter-spacing: .3px; }
+#page-energy .sc-header.elec   { background: #D97706; }
+#page-energy .sc-header.water  { background: #2563EB; }
+#page-energy .sc-header.gas    { background: #DC2626; }
+#page-energy .sc-header.comm   { background: #7C3AED; }
+/* 카드 본문 */
+#page-energy .sc-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+#page-energy .sc-row  { display: flex; justify-content: space-between; align-items: baseline; }
+#page-energy .sc-key  { font-size: 11px; color: var(--t3); font-weight: 600; letter-spacing: .2px; }
+#page-energy .sc-num  { font-size: 15px; font-weight: 700; color: var(--t1); }
+#page-energy .sc-unit { font-size: 11px; color: var(--t2); margin-left: 2px; }
+#page-energy .sc-divider {
+  height: 1px; background: var(--border); margin: 2px 0;
 }
+/* 데이터 없음 표시 */
+#page-energy .sc-empty .sc-num { color: var(--t3); font-weight: 400; }
 
 /* 차트 */
 #page-energy .chart-container {
@@ -7616,71 +7637,67 @@ window.goToPage = function(page) {
 }
 
 function updateSummary(records) {
-    // 에너지 종류별로 집계
-    const energyTypeSummary = {};
+    const TYPES = [
+        { key: '전기',    icon: '⚡', cls: 'elec',  unit: 'kWh', showUsage: true  },
+        { key: '상하수도', icon: '💧', cls: 'water', unit: 'm³',  showUsage: true  },
+        { key: '도시가스', icon: '🔥', cls: 'gas',   unit: 'm³',  showUsage: true  },
+        { key: '통신',    icon: '📡', cls: 'comm',  unit: '건',  showUsage: false }
+    ];
 
-    records.forEach(record => {
-        const type = record.energyType;
-        if (!energyTypeSummary[type]) {
-            energyTypeSummary[type] = {
-                usage: 0,
-                cost: 0,
-                count: 0
-            };
+    // 에너지 종류별 집계
+    const agg = {};
+    TYPES.forEach(t => { agg[t.key] = { usage: 0, cost: 0, count: 0 }; });
+    records.forEach(r => {
+        const t = r.energyType;
+        if (agg[t]) {
+            agg[t].usage += parseFloat(r.usageAmount) || 0;
+            agg[t].cost  += parseFloat(r.usageCost)   || 0;
+            agg[t].count += 1;
         }
-        energyTypeSummary[type].usage += parseFloat(record.usageAmount) || 0;
-        energyTypeSummary[type].cost += parseFloat(record.usageCost) || 0;
-        energyTypeSummary[type].count += 1;
     });
 
-    // 요약 카드 영역 업데이트
-    const summaryCards = document.querySelector('.summary-cards');
-    summaryCards.innerHTML = '';
+    const container = document.querySelector('.summary-cards');
+    if (!container) return;
+    container.innerHTML = '';
 
-    // 에너지 종류별 카드 생성
-    Object.keys(energyTypeSummary).forEach(type => {
-        const data = energyTypeSummary[type];
+    TYPES.forEach(({ key, icon, cls, unit, showUsage }) => {
+        const d = agg[key];
+        const isEmpty = d.count === 0;
+        const usageStr = d.usage % 1 === 0
+            ? d.usage.toLocaleString('ko-KR')
+            : d.usage.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+        const costStr  = d.cost.toLocaleString('ko-KR');
 
-        // 에너지 종류별 이모티콘 설정
-        let emoji = '';
-        if (type === '전기') emoji = '⚡';
-        else if (type === '도시가스') emoji = '🔥';
-        else if (type === '통신') emoji = '📱';
-        else if (type === '상하수도') emoji = '💧';
-
-        let unit = 'kWh';
-        if (type === '상하수도' || type === '도시가스') {
-            unit = 'm³';
-        } else if (type === '통신') {
-            unit = '건';
-        }
+        // 사용량 행 — 통신은 건수로 대체 표시
+        const usageRow = showUsage
+            ? `<div class="sc-row${isEmpty ? ' sc-empty' : ''}">
+                 <span class="sc-key">사용량</span>
+                 <span><span class="sc-num">${isEmpty ? '-' : usageStr}</span><span class="sc-unit">${isEmpty ? '' : unit}</span></span>
+               </div>
+               <div class="sc-divider"></div>`
+            : '';
 
         const card = document.createElement('div');
         card.className = 'summary-card';
-
-        // 통신의 경우 사용량이 0이면 표시하지 않음
-        let usageDisplay = '';
-        if (type === '통신' && data.usage > 0) {
-            usageDisplay = `사용량: ${data.usage.toLocaleString('ko-KR')} ${unit}<br>`;
-        } else if (type !== '통신') {
-            usageDisplay = `사용량: ${data.usage.toLocaleString('ko-KR')} ${unit}<br>`;
-        }
-
         card.innerHTML = `
-            <div class="summary-label">${emoji} ${type}</div>
-            <div class="summary-value">
-                ${usageDisplay}
-                금액: ${data.cost.toLocaleString('ko-KR')}원<br>
-                건수: ${data.count}건${type === '통신' && !usageDisplay ? '<br>&nbsp;' : ''}
+            <div class="sc-header ${cls}">
+              <span class="sc-icon">${icon}</span>
+              <span class="sc-type">${key}</span>
             </div>
-        `;
-        summaryCards.appendChild(card);
+            <div class="sc-body">
+              ${usageRow}
+              <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
+                <span class="sc-key">금&nbsp;&nbsp;액</span>
+                <span><span class="sc-num">${isEmpty ? '-' : costStr}</span><span class="sc-unit">${isEmpty ? '' : '원'}</span></span>
+              </div>
+              <div class="sc-divider"></div>
+              <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
+                <span class="sc-key">건&nbsp;&nbsp;수</span>
+                <span><span class="sc-num">${d.count}</span><span class="sc-unit">건</span></span>
+              </div>
+            </div>`;
+        container.appendChild(card);
     });
-
-    // 카드가 없으면 기본 메시지 표시
-    if (Object.keys(energyTypeSummary).length === 0) {
-        summaryCards.innerHTML = '<div class="summary-card"><div class="summary-label">조회 결과 없음</div><div class="summary-value">0</div></div>';
-    }
 }
 
 // 차트 관련 변수
