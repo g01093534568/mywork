@@ -4255,17 +4255,16 @@ async function loadExchangeRates(){
     </div>`;
   }
 
+  const _fxYstStr=(()=>{ const d=new Date(); d.setDate(d.getDate()-1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+
   // 1차: 두나무 (매매기준율)
   try{
-    const res=await fetch(`https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=${currencies.map(c=>c.code).join(',')}`);
+    const res=await fetch(`https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=${currencies.map(c=>c.code).join(',')}`,{signal:AbortSignal.timeout(5000)});
     if(!res.ok) throw new Error('status '+res.status);
     const data=await res.json();
     if(!Array.isArray(data)||!data.length) throw new Error('empty response');
-
     if(statusEl) statusEl.textContent=`매매기준율 (${timeStr} 갱신 · 60초마다 자동 갱신)`;
-    fxCountdown=FX_REFRESH_SEC;
-    if(btn) btn.disabled=false;
-
+    fxCountdown=FX_REFRESH_SEC; if(btn) btn.disabled=false;
     renderCards(currencies.map(cur=>{
       const d=data.find(x=>x.currencyCode===cur.iso);
       if(!d||!d.basePrice) return '';
@@ -4276,24 +4275,19 @@ async function loadExchangeRates(){
       return fxCard(cur,rate,diff,pct,'매매기준율');
     }));
     return;
-  }catch(e){ console.warn('[FX] 두나무 실패, frankfurter 전환:', e.message); }
+  }catch(e){ console.warn('[FX] 1차(두나무) 실패:', e.message); }
 
-  // 2차: Frankfurter (ECB 기준)
+  // 2차: Frankfurter .app (ECB 기준)
   try{
-    const ystD=new Date(); ystD.setDate(ystD.getDate()-1);
-    const ystStr=`${ystD.getFullYear()}-${String(ystD.getMonth()+1).padStart(2,'0')}-${String(ystD.getDate()).padStart(2,'0')}`;
     const [todayRes,ystRes]=await Promise.all([
-      fetch('https://api.frankfurter.dev/v1/latest?from=KRW&to=USD,EUR,JPY'),
-      fetch(`https://api.frankfurter.dev/v1/${ystStr}?from=KRW&to=USD,EUR,JPY`)
+      fetch('https://api.frankfurter.app/latest?from=KRW&to=USD,EUR,JPY',{signal:AbortSignal.timeout(6000)}),
+      fetch(`https://api.frankfurter.app/${_fxYstStr}?from=KRW&to=USD,EUR,JPY`,{signal:AbortSignal.timeout(6000)})
     ]);
-    if(!todayRes.ok) throw new Error('frankfurter error');
+    if(!todayRes.ok) throw new Error('frankfurter error '+todayRes.status);
     const td=await todayRes.json();
     const yd=ystRes.ok?await ystRes.json():null;
-
     if(statusEl) statusEl.textContent=`${td.date} 기준 (${timeStr} 갱신 · 60초마다 자동 갱신)`;
-    fxCountdown=FX_REFRESH_SEC;
-    if(btn) btn.disabled=false;
-
+    fxCountdown=FX_REFRESH_SEC; if(btn) btn.disabled=false;
     renderCards(currencies.map(cur=>{
       const rate=cur.mult/td.rates[cur.fk];
       const ystRate=(yd&&yd.rates&&yd.rates[cur.fk])?(cur.mult/yd.rates[cur.fk]):null;
@@ -4301,12 +4295,52 @@ async function loadExchangeRates(){
       const pct=ystRate!=null?(diff/ystRate*100):0;
       return fxCard(cur,rate,diff,pct,'참고환율');
     }));
-  }catch(e2){
-    console.error('[FX]',e2);
-    if(grid) grid.innerHTML=`<div class="fx-card" style="grid-column:1/-1"><div class="empty-state"><div class="icon">⚠️</div><p>환율 데이터를 불러오지 못했습니다</p></div></div>`;
-    if(statusEl) statusEl.textContent='데이터 로드 실패 — 새로고침을 눌러주세요';
-    if(btn){ btn.disabled=false; btn.textContent='🔄 환율 갱신'; }
-  }
+    return;
+  }catch(e2){ console.warn('[FX] 2차(Frankfurter) 실패:', e2.message); }
+
+  // 3차: open.er-api.com (무인증 무료)
+  try{
+    const [todayRes,ystRes]=await Promise.all([
+      fetch('https://open.er-api.com/v6/latest/USD',{signal:AbortSignal.timeout(6000)}),
+      fetch(`https://open.er-api.com/v6/latest/USD`,{signal:AbortSignal.timeout(6000)})
+    ]);
+    if(!todayRes.ok) throw new Error('er-api error '+todayRes.status);
+    const td=await todayRes.json();
+    if(td.result!=='success') throw new Error('er-api result: '+td.result);
+    const usdKrw=td.rates['KRW']||0;
+    if(!usdKrw) throw new Error('KRW rate missing');
+    const rateMap={ USD:usdKrw, EUR:usdKrw/(td.rates['EUR']||1), JPY:(usdKrw/(td.rates['JPY']||1))*100 };
+    if(statusEl) statusEl.textContent=`USD 기준 환산 (${timeStr} 갱신 · 60초마다 자동 갱신)`;
+    fxCountdown=FX_REFRESH_SEC; if(btn) btn.disabled=false;
+    renderCards(currencies.map(cur=>fxCard(cur,rateMap[cur.iso]??0,null,0,'참고환율')));
+    return;
+  }catch(e3){ console.warn('[FX] 3차(er-api) 실패:', e3.message); }
+
+  // 4차: fawazahmed0 CDN
+  try{
+    const [todayRes,ystRes]=await Promise.all([
+      fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/krw.json',{signal:AbortSignal.timeout(6000)}),
+      fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${_fxYstStr}/v1/currencies/krw.json`,{signal:AbortSignal.timeout(6000)})
+    ]);
+    if(!todayRes.ok) throw new Error('fawaz error '+todayRes.status);
+    const td=await todayRes.json(); const yd=ystRes.ok?await ystRes.json():null;
+    const get=(obj,key)=>{ const r=obj?.krw?.[key]; return (r&&r>0)?1/r:0; };
+    const getJ=(obj)=>{ const r=obj?.krw?.jpy; return (r&&r>0)?100/r:0; };
+    if(statusEl) statusEl.textContent=`${td.date||''} 기준 (${timeStr} 갱신 · 60초마다 자동 갱신)`;
+    fxCountdown=FX_REFRESH_SEC; if(btn) btn.disabled=false;
+    renderCards(currencies.map(cur=>{
+      const rate=cur.iso==='JPY'?getJ(td):get(td,cur.iso.toLowerCase());
+      const ystRate=cur.iso==='JPY'?getJ(yd):get(yd,cur.iso.toLowerCase());
+      const diff=(ystRate&&rate)?rate-ystRate:null;
+      const pct=(diff!=null&&ystRate)?diff/ystRate*100:0;
+      return fxCard(cur,rate,diff,pct,'참고환율');
+    }));
+    return;
+  }catch(e4){ console.error('[FX] 4차(fawaz) 실패:', e4.message); }
+
+  if(grid) grid.innerHTML=`<div class="fx-card" style="grid-column:1/-1"><div class="empty-state"><div class="icon">⚠️</div><p>환율 데이터를 불러오지 못했습니다</p></div></div>`;
+  if(statusEl) statusEl.textContent='데이터 로드 실패 — 새로고침을 눌러주세요';
+  if(btn){ btn.disabled=false; btn.textContent='🔄 환율 갱신'; }
 }
 
 // ── 환율 자동 갱신 (60초) ────────────────────────
