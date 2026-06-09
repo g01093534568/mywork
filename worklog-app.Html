@@ -4900,11 +4900,21 @@ async function renderDailyTodos(date){
   </div>`:'<div style="color:var(--t3);font-size:13px;text-align:center;padding:20px 0">할 일이 없습니다. 위 "+ 추가" 버튼으로 추가하세요</div>';
   const cats=[{key:'업무',icon:'📁'},{key:'개인',icon:'👤'},{key:'기타',icon:'✨'}];
   const priLabel={high:'높음',mid:'중간',low:'낮음'};
+  const priOrder={high:0,mid:1,low:2};
   let bodyHtml='';
   if(total) cats.forEach(({key,icon})=>{
     const items=relevant.filter(t=>(t.category||'업무')===key);
     if(!items.length) return;
-    items.sort((a,b)=>(isDoneOnDate(a,date)?1:0)-(isDoneOnDate(b,date)?1:0));
+    items.sort((a,b)=>{
+      // 완료 항목은 항상 아래로
+      const aDone=isDoneOnDate(a,date)?1:0, bDone=isDoneOnDate(b,date)?1:0;
+      if(aDone!==bDone) return aDone-bDone;
+      // 1순위: 우선순위 (높음→중간→낮음)
+      const pa=priOrder[a.priority]??1, pb=priOrder[b.priority]??1;
+      if(pa!==pb) return pa-pb;
+      // 2순위: 제목 가나다 순
+      return (a.title||'').localeCompare(b.title||'','ko');
+    });
     bodyHtml+=`<div style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:2px 0 6px">${icon} ${key}</div>`;
     items.forEach(t=>{
