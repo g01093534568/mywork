@@ -4880,9 +4880,12 @@ async function renderDailyTodos(date){
   date=date||document.getElementById('daily-date').value||today();
   const todos=await DB.getTodos(currentUser.사원번호);
   const relevant=todos.filter(t=>{
-    if(!todayVisible(t, date)) return false;
-    if(!t.isRecurring && t.startDate && t.startDate>date) return false;
-    return true;
+    // 반복: 해당 요일이면 표시
+    if(t.isRecurring) return isRecurringOnDate(t, date);
+    // 미완료: 시작일이 없거나 선택일 이하면 표시 (마감일·todayVisible 무관)
+    if(t.status==='todo') return !t.startDate || t.startDate <= date;
+    // 완료: 해당 날짜에 완료된 것만
+    return t.completedDate === date;
   });
   const cont=document.getElementById('daily-todo-list-content');
   const total=relevant.length;
