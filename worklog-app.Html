@@ -6151,9 +6151,10 @@ function renderGmailPage() {
 
 let gmailAllLabels = [];
 
-const _GMAIL_SYSTEM_ORDER = ['INBOX','STARRED','IMPORTANT','SENT','DRAFTS','SPAM','TRASH','ALL_MAIL'];
-const _GMAIL_SYSTEM_ICON  = { INBOX:'📥', SENT:'📤', STARRED:'⭐', DRAFTS:'📝', SPAM:'🚫', TRASH:'🗑', IMPORTANT:'❗', ALL_MAIL:'📂' };
-const _GMAIL_SYSTEM_NAME  = { INBOX:'받은편지함', SENT:'보낸편지함', STARRED:'별표', DRAFTS:'임시보관함', SPAM:'스팸', TRASH:'휴지통', IMPORTANT:'중요', ALL_MAIL:'모든 메일' };
+const _GMAIL_SYSTEM_ORDER = ['INBOX','STARRED','SENT','DRAFT','TRASH','ALL_MAIL'];
+const _GMAIL_SYSTEM_ICON  = { INBOX:'📥', SENT:'📤', STARRED:'⭐', DRAFT:'📝', TRASH:'🗑', ALL_MAIL:'📂' };
+const _GMAIL_SYSTEM_NAME  = { INBOX:'받은편지함', SENT:'보낸편지함', STARRED:'별표', DRAFT:'임시보관함', TRASH:'휴지통', ALL_MAIL:'모든 메일' };
+const _GMAIL_LABEL_EXCLUDE = new Set(['[notion]', '개인', '업무', '중요', '스팸']);
 
 async function gmailLoadLabels() {
   const res = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/labels');
@@ -6170,7 +6171,7 @@ function gmailRenderSidebar() {
     .map(id => gmailAllLabels.find(l => l.id === id))
     .filter(Boolean);
   const userLabels = gmailAllLabels
-    .filter(l => l.type === 'user')
+    .filter(l => l.type === 'user' && !_GMAIL_LABEL_EXCLUDE.has(l.name))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const all = [...systemLabels, ...userLabels];
   container.innerHTML = all.map(l => {
