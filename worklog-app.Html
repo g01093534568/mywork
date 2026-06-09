@@ -2494,6 +2494,68 @@ const DB = {
 // ═══════════════════════════════════════════════
 let currentUser = null;
 let currentPage = 'home';
+
+// ── Supabase Realtime 실시간 동기화 ──────────────────
+let _rtChannel = null;
+let _rtTimer = null;
+
+function _rtDebounce(fn) {
+  if (_rtTimer) clearTimeout(_rtTimer);
+  _rtTimer = setTimeout(() => { _rtTimer = null; fn(); }, 800);
+}
+
+function startRealtimeSync() {
+  if (_rtChannel) return;
+  const uid = currentUser.사원번호;
+  const facility = currentUser.시설명;
+
+  _rtChannel = SB.channel('worklog-rt-' + uid)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs', filter: `사원번호=eq.${uid}` }, () => {
+      Object.keys(_C).filter(k => k.startsWith(`act:${uid}:`)).forEach(k => delete _C[k]);
+      if (currentPage === 'daily') _rtDebounce(renderDailyPage);
+      else if (currentPage === 'home') _rtDebounce(renderHome);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`todos:${uid}`);
+      if (currentPage === 'todo') _rtDebounce(renderTodos);
+      else if (currentPage === 'home') _rtDebounce(renderHome);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_goals', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`pg:${uid}`);
+      if (currentPage === 'personal') _rtDebounce(renderPersonalGoals);
+      else if (currentPage === 'home') _rtDebounce(renderHome);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'annual_goals', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`ag:${uid}`);
+      if (currentPage === 'personal') _rtDebounce(renderAnnualGoals);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stocks', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`stocks:${uid}`);
+      if (currentPage === 'personal') _rtDebounce(() => Promise.all([renderStocks(), renderTrades()]));
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`trades:${uid}`);
+      if (currentPage === 'personal') _rtDebounce(() => Promise.all([renderStocks(), renderTrades()]));
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'org_goals' }, () => {
+      _cd('org');
+      if (currentPage === 'home') _rtDebounce(renderHome);
+      else if (currentPage === 'admin') _rtDebounce(renderOrgGoals);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'facility_goals', filter: `시설명=eq.${facility}` }, () => {
+      _cd(`fg:${facility}`);
+      if (currentPage === 'home') _rtDebounce(renderHome);
+      else if (currentPage === 'admin') _rtDebounce(renderAdminFacilityGoals);
+    })
+    .subscribe((status) => {
+      console.log('[Realtime]', status);
+    });
+}
+
+function stopRealtimeSync() {
+  if (_rtChannel) { SB.removeChannel(_rtChannel); _rtChannel = null; }
+  if (_rtTimer) { clearTimeout(_rtTimer); _rtTimer = null; }
+}
 let currentTodoTab = '업무';
 let strategyDraft = [];
 let pgKpiDraft = [];
@@ -2588,6 +2650,7 @@ async function enterApp(){
   // localStorage → Supabase 1회 자동 이전 (백그라운드 — navigate 블로킹 방지)
   migrateLocalStorageToSupabase();
 
+  startRealtimeSync();
   navigate('home');
 }
 
@@ -2627,6 +2690,7 @@ async function migrateLocalStorageToSupabase(){
 
 function doLogout(){
   stopGcalAutoRefresh();
+  stopRealtimeSync();
   DB.clearCache();
   // 사용자별 캐시 + GCal 토큰 + 세션 모두 초기화
   const _logoutTokenKey = _gcalTokenKey();
