@@ -1469,16 +1469,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button class="gmail-compose-btn" onclick="openGmailCompose()">
               <span>✏️</span><span>편지쓰기</span>
             </button>
-            <button class="gmail-label-btn active" id="gmail-lbl-INBOX" onclick="gmailSelectLabel('INBOX')">
-              <span>📥</span><span>받은편지함</span><span class="gmail-badge" id="gmail-unread-count" style="display:none"></span>
-            </button>
-            <button class="gmail-label-btn" id="gmail-lbl-SENT" onclick="gmailSelectLabel('SENT')">
-              <span>📤</span><span>보낸편지함</span>
-            </button>
-            <button class="gmail-label-btn" id="gmail-lbl-STARRED" onclick="gmailSelectLabel('STARRED')">
-              <span>⭐</span><span>중요</span>
-            </button>
-            <div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+            <div id="gmail-label-list" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;">
+              <button class="gmail-label-btn active" id="gmail-lbl-INBOX" onclick="gmailSelectLabel('INBOX')">
+                <span>📥</span><span>받은편지함</span><span class="gmail-badge" id="gmail-unread-count" style="display:none"></span>
+              </button>
+            </div>
+            <div style="padding-top:8px;border-top:1px solid var(--border);flex-shrink:0;">
               <button class="gmail-label-btn" onclick="gmailDisconnect()" style="color:var(--red);">
                 <span>🔌</span><span>연동 해제</span>
               </button>
@@ -6142,20 +6138,56 @@ function renderGmailPage() {
   if (gcalToken) {
     gmailToken = gcalToken;
     updateGmailConnectionUI(true, email);
+    gmailLoadLabels();
     renderGmailInbox();
   } else if (email) {
-    // GCal silent re-auth → saveGcalToken이 gmailToken도 동기화
     restoreGcalToken();
     updateGmailConnectionUI(!!gcalToken, email);
-    if (gcalToken) renderGmailInbox();
+    if (gcalToken) { gmailLoadLabels(); renderGmailInbox(); }
   } else {
     updateGmailConnectionUI(false, '');
   }
 }
 
+let gmailAllLabels = [];
+
+const _GMAIL_SYSTEM_ORDER = ['INBOX','STARRED','IMPORTANT','SENT','DRAFTS','SPAM','TRASH','ALL_MAIL'];
+const _GMAIL_SYSTEM_ICON  = { INBOX:'📥', SENT:'📤', STARRED:'⭐', DRAFTS:'📝', SPAM:'🚫', TRASH:'🗑', IMPORTANT:'❗', ALL_MAIL:'📂' };
+const _GMAIL_SYSTEM_NAME  = { INBOX:'받은편지함', SENT:'보낸편지함', STARRED:'별표', DRAFTS:'임시보관함', SPAM:'스팸', TRASH:'휴지통', IMPORTANT:'중요', ALL_MAIL:'모든 메일' };
+
+async function gmailLoadLabels() {
+  const res = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/labels');
+  if (!res || !res.ok) return;
+  const data = await res.json();
+  gmailAllLabels = data.labels || [];
+  gmailRenderSidebar();
+}
+
+function gmailRenderSidebar() {
+  const container = document.getElementById('gmail-label-list');
+  if (!container) return;
+  const systemLabels = _GMAIL_SYSTEM_ORDER
+    .map(id => gmailAllLabels.find(l => l.id === id))
+    .filter(Boolean);
+  const userLabels = gmailAllLabels
+    .filter(l => l.type === 'user')
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const all = [...systemLabels, ...userLabels];
+  container.innerHTML = all.map(l => {
+    const icon = _GMAIL_SYSTEM_ICON[l.id] || '🏷';
+    const name = _GMAIL_SYSTEM_NAME[l.id] || l.name;
+    const active = gmailCurrentLabel === l.id ? ' active' : '';
+    const badge = l.id === 'INBOX' ? '<span class="gmail-badge" id="gmail-unread-count" style="display:none"></span>' : '';
+    return `<button class="gmail-label-btn${active}" id="gmail-lbl-${esc(l.id)}" onclick="gmailSelectLabel('${l.id}')">
+      <span>${icon}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>${badge}
+    </button>`;
+  }).join('');
+}
+
 function gmailSelectLabel(label) {
   gmailCurrentLabel = label;
-  document.querySelectorAll('.gmail-label-btn').forEach(b => b.classList.remove('active'));
+  // 사이드바 active 상태 갱신 (동적 렌더된 경우 포함)
+  document.querySelectorAll('#gmail-label-list .gmail-label-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById('gmail-lbl-' + label);
   if (btn) btn.classList.add('active');
   document.getElementById('gmail-detail-wrap').style.display = 'none';
