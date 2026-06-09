@@ -453,6 +453,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gmail-msg-date{font-size:11px;color:var(--t3);white-space:nowrap;}
 .gmail-msg-body{padding:18px;font-size:13px;color:var(--t2);line-height:1.8;word-break:break-word;overflow:hidden;border-top:none;}
 .gmail-empty{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:13px;}
+.gmail-thread-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.15s;flex-shrink:0;margin-left:8px;}
+.gmail-thread-item:hover .gmail-thread-actions{opacity:1;}
+.gmail-act-btn{background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 7px;font-size:12px;cursor:pointer;color:var(--t2);transition:var(--tr);}
+.gmail-act-btn:hover{background:var(--bg3);color:var(--t1);}
 .gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;text-align:center;padding:40px;}
 @media(max-width:700px){.gmail-sidebar{width:52px;}.gmail-label-btn span,.gmail-compose-btn span{display:none;}.gmail-compose-btn{padding:10px;border-radius:50%;}.gmail-thread-snippet{display:none;}}
 /* ---- AI VOICE ---- */
@@ -6207,6 +6211,10 @@ async function renderGmailInbox() {
               <div class="gmail-thread-snippet">${esc(snippet)}</div>
             </div>
           </div>
+          <div class="gmail-thread-actions" onclick="event.stopPropagation()">
+            <button class="gmail-act-btn" title="보관" onclick="gmailArchiveThread('${thread.id}',true)">📦</button>
+            <button class="gmail-act-btn" title="삭제" onclick="gmailTrashThread('${thread.id}',true)">🗑</button>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -6263,11 +6271,17 @@ async function renderGmailThread(threadId) {
     unreadIds.forEach(id => gmailMarkRead(id));
     const lastFrom = msgs[msgs.length - 1].payload?.headers?.find(h => h.name === 'From')?.value || '';
     const replyEmail = gmailExtractEmail(lastFrom);
+    const isStarred = msgs.some(m => m.labelIds?.includes('STARRED'));
+    const lastMsgId = msgs[msgs.length - 1].id;
     dw.innerHTML = `
       <div class="gmail-detail-header">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
           <button class="btn btn-sm btn-secondary" onclick="gmailBackToList()">← 목록으로</button>
           <button class="btn btn-sm btn-primary" onclick="openGmailReply('${esc(replyEmail)}','${esc(subject)}','${threadId}')">↩️ 답장</button>
+          <button class="btn btn-sm btn-secondary" onclick="gmailToggleStar('${threadId}',${isStarred})">${isStarred?'★ 별표 해제':'☆ 별표'}</button>
+          <button class="btn btn-sm btn-secondary" onclick="gmailMarkUnread('${lastMsgId}')">📧 읽지않음</button>
+          <button class="btn btn-sm btn-secondary" onclick="gmailArchiveThread('${threadId}')">📦 보관</button>
+          <button class="btn btn-sm btn-danger" onclick="gmailTrashThread('${threadId}')">🗑 삭제</button>
         </div>
         <div class="gmail-detail-subject">${esc(subject)}</div>
       </div>
@@ -6363,6 +6377,41 @@ async function gmailMarkRead(messageId) {
     method: 'POST',
     body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
   }).catch(() => {});
+}
+
+async function gmailMarkUnread(messageId) {
+  const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({ addLabelIds: ['UNREAD'] }),
+  });
+  if (res && res.ok) { toast('읽지 않음으로 표시했습니다'); gmailBackToList(); renderGmailInbox(); }
+  else toast('처리 실패', 'error');
+}
+
+async function gmailArchiveThread(threadId, fromList=false) {
+  const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({ removeLabelIds: ['INBOX'] }),
+  });
+  if (res && res.ok) { toast('보관함으로 이동했습니다'); if (!fromList) gmailBackToList(); renderGmailInbox(); }
+  else toast('보관 실패', 'error');
+}
+
+async function gmailTrashThread(threadId, fromList=false) {
+  if (!await confirmDialog('이 메일을 삭제(휴지통)하시겠습니까?', '삭제')) return;
+  const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}/trash`, { method: 'POST' });
+  if (res && res.ok) { toast('삭제했습니다'); if (!fromList) gmailBackToList(); renderGmailInbox(); }
+  else toast('삭제 실패', 'error');
+}
+
+async function gmailToggleStar(threadId, isStarred) {
+  const body = isStarred ? { removeLabelIds: ['STARRED'] } : { addLabelIds: ['STARRED'] };
+  const res = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (res && res.ok) { toast(isStarred ? '별표를 해제했습니다' : '별표를 추가했습니다'); renderGmailThread(threadId); }
+  else toast('처리 실패', 'error');
 }
 
 /* ── 헬퍼 ── */
