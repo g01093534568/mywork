@@ -1164,6 +1164,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button class="btn btn-secondary btn-sm" onclick="changeGolfDate(-1)">◀ 이전</button>
             <button class="btn btn-secondary btn-sm" onclick="changeGolfDate(0)">오늘</button>
             <button class="btn btn-secondary btn-sm" onclick="changeGolfDate(1)">다음 ▶</button>
+            <input type="date" id="golf-date-input" onchange="setGolfDateFromInput()" style="width:auto;flex:none;" />
             <span id="golf-date-label" style="font-size:14px;font-weight:700;margin-left:4px;"></span>
             <span id="golf-summary" style="font-size:12px;color:var(--t2);margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;"></span>
           </div>
@@ -1218,6 +1219,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button class="btn btn-secondary btn-sm" onclick="changeRunningDate(-1)">◀ 이전</button>
             <button class="btn btn-secondary btn-sm" onclick="changeRunningDate(0)">오늘</button>
             <button class="btn btn-secondary btn-sm" onclick="changeRunningDate(1)">다음 ▶</button>
+            <input type="date" id="running-date-input" onchange="setRunningDateFromInput()" style="width:auto;flex:none;" />
             <span id="running-date-label" style="font-size:14px;font-weight:700;margin-left:4px;"></span>
             <span id="running-summary" style="font-size:12px;color:var(--t2);margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;"></span>
           </div>
@@ -3033,7 +3035,12 @@ function changeGolfDate(dir){
     d.setDate(d.getDate()+dir);
     _golfDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
+  const inp=document.getElementById('golf-date-input'); if(inp) inp.value=_golfDate;
   renderGolfPanel();
+}
+
+function setGolfDateFromInput(){
+  const v=document.getElementById('golf-date-input')?.value; if(v) { _golfDate=v; renderGolfPanel(); }
 }
 
 function changeRunningDate(dir){
@@ -3043,7 +3050,12 @@ function changeRunningDate(dir){
     d.setDate(d.getDate()+dir);
     _runningDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
+  const inp=document.getElementById('running-date-input'); if(inp) inp.value=_runningDate;
   renderRunningPanel();
+}
+
+function setRunningDateFromInput(){
+  const v=document.getElementById('running-date-input')?.value; if(v) { _runningDate=v; renderRunningPanel(); }
 }
 
 /* ── 골프 ── */
@@ -3055,6 +3067,7 @@ async function renderGolfPanel(){
   _exGolf=await DB.getExercises(currentUser.사원번호,'golf');
 
   const isToday=_golfDate===today();
+  const golfInp=document.getElementById('golf-date-input'); if(golfInp) golfInp.value=_golfDate;
   const dateLabel=document.getElementById('golf-date-label');
   if(dateLabel){
     dateLabel.textContent=fmtDate(_golfDate)+' ('+dayLabel(_golfDate)+')'+(isToday?' · 오늘':'');
@@ -3264,6 +3277,7 @@ async function renderRunningPanel(){
   _exRunningRace=await DB.getExercises(currentUser.사원번호,'running_race');
 
   const isToday=_runningDate===today();
+  const runInp=document.getElementById('running-date-input'); if(runInp) runInp.value=_runningDate;
   const dateLabel=document.getElementById('running-date-label');
   if(dateLabel){
     dateLabel.textContent=fmtDate(_runningDate)+' ('+dayLabel(_runningDate)+')'+(isToday?' · 오늘':'');
