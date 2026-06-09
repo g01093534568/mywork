@@ -978,7 +978,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <div class="daily-grid">
         <div class="daily-todo-list">
-          <h4>📋 오늘의 할 일</h4>
+          <h4 style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <span>📋 오늘의 할 일</span>
+            <button class="btn btn-sm btn-primary" onclick="openTodoModal()" style="font-size:11px;padding:4px 10px">+ 추가</button>
+          </h4>
           <div id="daily-todo-list-content"></div>
         </div>
         <div class="activities-panel">
@@ -2518,6 +2521,7 @@ function startRealtimeSync() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `사원번호=eq.${uid}` }, () => {
       _cd(`todos:${uid}`);
       if (currentPage === 'todo') _rtDebounce(renderTodos);
+      else if (currentPage === 'daily') _rtDebounce(() => renderDailyTodos());
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_goals', filter: `사원번호=eq.${uid}` }, () => {
@@ -4599,8 +4603,8 @@ async function renderTodos(){
   const filterPri=document.getElementById('todo-filter-priority').value;
   const t=today();
   let list=todos.filter(todo=>{
-    // 반복 할일은 요일 무관 전체 표시, 일반 할일은 기존 로직 유지
-    if(!todo.isRecurring && !todayVisible(todo, t)) return false;
+    // 미완료 할일은 마감일과 무관하게 항상 목록에 표시
+    if(!todo.isRecurring && todo.status !== 'todo' && !todayVisible(todo, t)) return false;
     if(search && !todo.title.toLowerCase().includes(search)) return false;
     // 탭 기준 분류 필터: 업무 탭은 업무·기타, 개인 탭은 개인
     if(currentTodoTab==='업무' && todo.category==='개인') return false;
@@ -4796,6 +4800,7 @@ async function saveTodo(){
   try{
     await DB.upsertTodo(currentUser.사원번호,data);
     closeModal('todo-modal');
+    if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
     await renderTodos();
     toast('저장되었습니다');
   }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
@@ -4803,9 +4808,10 @@ async function saveTodo(){
 
 async function deleteTodo(id){
   if(!await confirmDialog('삭제하시겠습니까?')) return;
-  await fadeOutEl(document.querySelector(`#todo-tbody tr[data-id="${id}"], #todo-cards [data-id="${id}"]`));
+  await fadeOutEl(document.querySelector(`#todo-tbody tr[data-id="${id}"], #todo-cards [data-id="${id}"], .daily-todo-item[data-id="${id}"]`));
   try{
     await DB.deleteTodo(id);
+    if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
     await renderTodos();
     toast('삭제되었습니다');
   }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
@@ -4846,18 +4852,17 @@ async function renderDailyTodos(date){
   const total=relevant.length;
   const doneCount=relevant.filter(t=>isDoneOnDate(t,date)).length;
   const pct=total?Math.round(doneCount/total*100):0;
-  if(!total){ cont.innerHTML='<div style="color:var(--t3);font-size:13px;text-align:center;padding:20px">해당 날짜에 할 일이 없습니다</div>'; return; }
-  const statsHtml=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px">
+  const statsHtml=total?`<div style="display:flex;align-items:center;gap:10px;padding:8px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px">
     <span style="font-size:12px;color:var(--t2)">${doneCount}/${total} 완료</span>
     <div style="flex:1;background:var(--bg);border-radius:3px;height:6px;overflow:hidden">
       <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:3px;transition:width 0.4s ease"></div>
     </div>
     <span style="font-size:12px;font-weight:700;color:${pct>=100?'var(--green)':pct>=50?'var(--accent)':'var(--t2)'}">${pct}%</span>
-  </div>`;
+  </div>`:'<div style="color:var(--t3);font-size:13px;text-align:center;padding:20px 0">할 일이 없습니다. 위 "+ 추가" 버튼으로 추가하세요</div>';
   const cats=[{key:'업무',icon:'📁'},{key:'개인',icon:'👤'},{key:'기타',icon:'✨'}];
   const priLabel={high:'높음',mid:'중간',low:'낮음'};
   let bodyHtml='';
-  cats.forEach(({key,icon})=>{
+  if(total) cats.forEach(({key,icon})=>{
     const items=relevant.filter(t=>(t.category||'업무')===key);
     if(!items.length) return;
     items.sort((a,b)=>(isDoneOnDate(a,date)?1:0)-(isDoneOnDate(b,date)?1:0));
@@ -4865,10 +4870,14 @@ async function renderDailyTodos(date){
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:2px 0 6px">${icon} ${key}</div>`;
     items.forEach(t=>{
       const doneToday=isDoneOnDate(t,date);
-      bodyHtml+=`<div class="daily-todo-item">
+      bodyHtml+=`<div class="daily-todo-item" data-id="${t.id}">
         <div class="check-btn ${doneToday?'checked':''}" onclick="toggleTodoDone('${t.id}','${date}')"></div>
-        <span style="${doneToday?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
-        <span class="tag tag-${t.priority}" style="margin-left:auto">${priLabel[t.priority]||'-'}</span>
+        <span style="${doneToday?'text-decoration:line-through;color:var(--t3);':''}flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
+        <span class="tag tag-${t.priority}" style="margin-left:6px;flex-shrink:0">${priLabel[t.priority]||'-'}</span>
+        <div style="display:flex;gap:2px;margin-left:4px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${t.id}')" style="padding:2px 5px;font-size:11px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTodo('${t.id}')" style="padding:2px 5px;font-size:11px">🗑</button>
+        </div>
       </div>`;
     });
     bodyHtml+=`</div>`;
