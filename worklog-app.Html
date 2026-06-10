@@ -249,6 +249,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-goal-card-kpi{font-size:11px;color:var(--t3);padding:2px 0;word-break:keep-all;}
 .fg-task-empty{font-size:11px;color:var(--t3);padding:6px 0;font-style:italic;}
 @media(max-width:700px){.fg-task-row{flex-direction:column;}.fg-task-label{width:100%;padding-top:0;}.fg-goal-card{max-width:100%;}}
+/* 전략과제 인라인 시설목표 카드 */
+.fg-inline-card{background:rgba(61,142,240,0.07);border:1px solid rgba(61,142,240,0.2);border-radius:var(--r);padding:8px 10px;margin-top:6px;}
+.fg-inline-title{font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;word-break:keep-all;line-height:1.4;}
+.fg-inline-kpi{font-size:10px;color:var(--t3);padding:1px 0;word-break:keep-all;}
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -2971,79 +2975,56 @@ async function renderOrgGoals(){
     <div class="goal-arrow">↓</div>
     <div class="goal-level"><div class="goal-card vision"><div class="goal-card-label">Vision</div><div class="goal-card-text">${esc(org.vision)}</div></div></div>
     <div class="goal-arrow">↓</div>
-    <div style="width:100%"><div class="strategy-grid">`;
+    <div style="width:100%">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px">전략목표 · 전략과제 · 시설목표</div>
+        ${currentUser.role==='facility-admin'||currentUser.role==='admin'?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
+      </div>
+      <div class="strategy-grid">`;
+  const _canEdit=currentUser.role==='facility-admin'||currentUser.role==='admin';
+  const _allTaskNames=(org.전략과제||[]).map(t=>t.과제);
   (org.전략목표||[]).forEach((목표,i)=>{
     const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
     html+=`<div class="strategy-col"><div class="strategy-col-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
     tasks.forEach(t=>{
       html+=`<div class="strategy-task">${esc(t.과제)}</div>`;
-    });
-    html+=`</div>`;
-  });
-  html+=`</div></div>`;
-  {
-    const _canEdit = currentUser.role==='facility-admin'||currentUser.role==='admin';
-    const _allTaskNames = (org.전략과제||[]).map(t=>t.과제);
-    html+=`<div class="goal-arrow">↓</div><div style="width:100%">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px">🏢 시설 경영목표</div>
-        ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 목표 추가</button>`:''}
-      </div>`;
-    (org.전략목표||[]).forEach((목표,i)=>{
-      const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
-      html+=`<div class="fg-strategy-section">
-        <div class="fg-strategy-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
-      tasks.forEach(t=>{
-        const linked=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
-        html+=`<div class="fg-task-row">
-          <div class="fg-task-label">${esc(t.과제)}</div>
-          <div class="fg-task-cards">`;
-        if(linked.length){
-          linked.forEach(g=>{
-            const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
-            html+=`<div class="fg-goal-card">
-              <div class="fg-goal-card-title">🏢 ${esc(g.goal)}</div>
-              ${kpis.map(k=>`<div class="fg-goal-card-kpi">📊 ${esc(k)}</div>`).join('')}
-              <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-              <div style="font-size:11px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
-              ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
-                <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
-                <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
-              </div>`:''}
-            </div>`;
-          });
-        } else {
-          html+=`<div class="fg-task-empty">연계된 시설목표 없음</div>`;
-        }
-        html+=`</div></div>`;
-      });
-      html+=`</div>`;
-    });
-    // 전략과제에 연계되지 않은 시설목표
-    const unlinked=facilityGoals.filter(g=>!g.linkedStrategyTask||!_allTaskNames.includes(g.linkedStrategyTask));
-    if(unlinked.length){
-      html+=`<div class="fg-strategy-section" style="opacity:0.75">
-        <div class="fg-strategy-title" style="color:var(--t3)">미연계 시설목표</div>
-        <div class="fg-task-row">
-          <div class="fg-task-label" style="color:var(--t3)">전략과제 미연계</div>
-          <div class="fg-task-cards">`;
-      unlinked.forEach(g=>{
+      const linked=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
+      linked.forEach(g=>{
         const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
-        html+=`<div class="fg-goal-card">
-          <div class="fg-goal-card-title">🏢 ${esc(g.goal)}</div>
-          ${kpis.map(k=>`<div class="fg-goal-card-kpi">📊 ${esc(k)}</div>`).join('')}
-          <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-          <div style="font-size:11px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
-          ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+        html+=`<div class="fg-inline-card">
+          <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
+          ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+          <div class="progress-bar-wrap" style="margin-top:5px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+          <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:2px;font-weight:700">${g.progress||0}%</div>
+          ${_canEdit?`<div style="display:flex;gap:4px;margin-top:5px;justify-content:flex-end">
             <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
             <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
           </div>`:''}
         </div>`;
       });
-      html+=`</div></div></div>`;
-    }
+    });
+    html+=`</div>`;
+  });
+  // 미연계 시설목표는 별도 컬럼으로 표시
+  const _unlinked=facilityGoals.filter(g=>!g.linkedStrategyTask||!_allTaskNames.includes(g.linkedStrategyTask));
+  if(_unlinked.length){
+    html+=`<div class="strategy-col" style="opacity:0.7"><div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>`;
+    _unlinked.forEach(g=>{
+      const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
+      html+=`<div class="fg-inline-card">
+        <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
+        ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+        <div class="progress-bar-wrap" style="margin-top:5px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+        <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:2px;font-weight:700">${g.progress||0}%</div>
+        ${_canEdit?`<div style="display:flex;gap:4px;margin-top:5px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
+        </div>`:''}
+      </div>`;
+    });
     html+=`</div>`;
   }
+  html+=`</div></div>`;
   // 개인 성과 목표 — 전략과제 기준으로 동일 계층에 표시
   html+=`<div class="goal-arrow">↓</div><div style="width:100%">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
