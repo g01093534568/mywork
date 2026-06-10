@@ -2976,19 +2976,32 @@ async function renderOrgGoals(){
     <div class="goal-level"><div class="goal-card vision"><div class="goal-card-label">Vision</div><div class="goal-card-text">${esc(org.vision)}</div></div></div>
     <div class="goal-arrow">↓</div>
     <div style="width:100%">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px">전략목표 · 전략과제 · 시설목표</div>
-        ${currentUser.role==='facility-admin'||currentUser.role==='admin'?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
-      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">전략목표 · 전략과제</div>
       <div class="strategy-grid">`;
   const _canEdit=currentUser.role==='facility-admin'||currentUser.role==='admin';
   const _allTaskNames=(org.전략과제||[]).map(t=>t.과제);
   (org.전략목표||[]).forEach((목표,i)=>{
     const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
     html+=`<div class="strategy-col"><div class="strategy-col-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
+    tasks.forEach(t=>{ html+=`<div class="strategy-task">${esc(t.과제)}</div>`; });
+    html+=`</div>`;
+  });
+  html+=`</div></div>`;
+  // 시설 경영목표 — 전략목표 컬럼 구조 동일, 연계 전략과제 아래 시설목표 카드
+  html+=`<div class="goal-arrow">↓</div>
+  <div style="width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px">🏢 시설 경영목표</div>
+      ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
+    </div>
+    <div class="strategy-grid">`;
+  (org.전략목표||[]).forEach((목표,i)=>{
+    const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
+    html+=`<div class="strategy-col"><div class="strategy-col-title" style="color:var(--blue)">전략목표 ${i+1}: ${esc(목표)}</div>`;
     tasks.forEach(t=>{
-      html+=`<div class="strategy-task">${esc(t.과제)}</div>`;
       const linked=facilityGoals.filter(g=>g.linkedStrategyTask===t.과제);
+      if(!linked.length) return;
+      html+=`<div class="strategy-task" style="font-size:10px;opacity:0.7;margin-top:4px">↳ ${esc(t.과제)}</div>`;
       linked.forEach(g=>{
         const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
         html+=`<div class="fg-inline-card">
@@ -3005,7 +3018,6 @@ async function renderOrgGoals(){
     });
     html+=`</div>`;
   });
-  // 미연계 시설목표는 별도 컬럼으로 표시
   const _unlinked=facilityGoals.filter(g=>!g.linkedStrategyTask||!_allTaskNames.includes(g.linkedStrategyTask));
   if(_unlinked.length){
     html+=`<div class="strategy-col" style="opacity:0.7"><div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>`;
