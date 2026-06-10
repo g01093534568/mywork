@@ -217,8 +217,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .admin-panel.active{display:block;}
 .org-form-section{margin-bottom:24px;}
 .org-form-section h4{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
-.strategy-editor{display:flex;flex-direction:column;gap:12px;}
-.strategy-goal-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:16px;}
+.strategy-editor{display:flex;flex-direction:column;gap:8px;}
+.strategy-goals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:8px;}
+.strategy-goal-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px;}
 .strategy-goal-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .strategy-goal-num{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;flex:1;}
 .strategy-tasks-label{font-size:11px;font-weight:700;color:var(--t3);margin:10px 0 6px;}
@@ -253,6 +254,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-inline-card{background:rgba(61,142,240,0.07);border:1px solid rgba(61,142,240,0.2);border-radius:var(--r);padding:8px 10px;margin-top:6px;}
 .fg-inline-title{font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;word-break:keep-all;line-height:1.4;}
 .fg-inline-kpi{font-size:10px;color:var(--t3);padding:1px 0;word-break:keep-all;}
+/* 시설목표 아래 인라인 개인 성과목표 카드 */
+.pg-inline-card{background:rgba(59,201,138,0.06);border:1px solid rgba(59,201,138,0.22);border-radius:var(--r);padding:7px 10px;margin-top:5px;margin-left:10px;}
+.pg-inline-title{font-size:11px;font-weight:700;color:var(--green);margin-bottom:3px;word-break:keep-all;line-height:1.4;}
+.pg-inline-kpi{font-size:10px;color:var(--t3);padding:1px 0;word-break:keep-all;}
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -331,7 +336,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   .sidebar{width:64px;}
   .sidebar-logo span,.nav-item span:last-child,.user-detail,.nav-label{display:none;}
   .main-content{margin-left:64px;padding:20px 16px;}
-  .strategy-grid,.personal-goals-grid,.form-row{grid-template-columns:1fr;}
+  .strategy-grid,.strategy-goals-grid,.personal-goals-grid,.form-row,.facility-goals-grid{grid-template-columns:1fr;}
   .daily-grid{grid-template-columns:1fr;}
   .stock-grid{grid-template-columns:repeat(2,1fr)!important;}
   #asset-dashboard [style*="repeat(4,1fr)"]{grid-template-columns:repeat(2,1fr)!important;}
@@ -1476,15 +1481,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <!-- Facility Goals Tab -->
       <div id="admin-facility" class="admin-panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:var(--blue)">🏢 시설목표 관리</div>
-            <div style="font-size:12px;color:var(--t2);margin-top:2px" id="facility-goal-subtitle"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue);flex-shrink:0">🏢 시설목표 관리</div>
+            <div style="font-size:11px;color:var(--t3)" id="facility-goal-subtitle"></div>
+            <span style="font-size:11px;color:var(--t3);background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:4px;padding:2px 8px;white-space:nowrap">💡 전략목표·전략과제와 연계하여 설정</span>
           </div>
-          <button class="btn btn-primary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>
-        </div>
-        <div style="font-size:12px;color:var(--t3);margin-bottom:16px;padding:10px 14px;background:var(--card);border-radius:var(--r2);border:1px solid var(--border);">
-          💡 시설목표는 조직의 전략목표·전략과제와 연계하여 설정합니다. 개인 성과 목표는 시설목표를 기반으로 수립됩니다.
+          <button class="btn btn-primary" onclick="openFacilityGoalModal()" style="flex-shrink:0">+ 시설목표 추가</button>
         </div>
         <div id="admin-facility-list"></div>
       </div>
@@ -2989,12 +2992,16 @@ async function renderOrgGoals(){
     html+=`</div>`;
   });
   html+=`</div></div>`;
-  // 시설 경영목표 — 전략목표 컬럼 구조 동일, 연계 전략과제 아래 시설목표 카드
+  // 시설 경영목표 + 개인 성과목표 — 전략과제 → 시설목표 → 개인목표 계층 구조
+  const _allFgNames=facilityGoals.map(fg=>fg.goal);
   html+=`<div class="goal-arrow">↓</div>
   <div style="width:100%">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px">🏢 시설 경영목표</div>
-      ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px">🏢 시설 경영목표 · 👤 개인 성과목표</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
+        <button class="btn btn-sm btn-secondary" style="border-color:rgba(59,201,138,0.4);color:var(--green)" onclick="openPersonalGoalModal()">+ 개인목표 추가</button>
+      </div>
     </div>
     <div class="strategy-grid">`;
   (org.전략목표||[]).forEach((목표,i)=>{
@@ -3016,6 +3023,19 @@ async function renderOrgGoals(){
             <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
           </div>`:''}
         </div>`;
+        personalGoals.filter(pg=>pg.linked===g.goal).forEach(pg=>{
+          const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
+          html+=`<div class="pg-inline-card">
+            <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
+            ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+            <div class="progress-bar-wrap" style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+            <div style="font-size:10px;color:var(--green);text-align:right;margin-top:2px;font-weight:700">${pg.progress||0}%</div>
+            <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
+            </div>
+          </div>`;
+        });
       });
     });
     html+=`</div>`;
@@ -3035,39 +3055,44 @@ async function renderOrgGoals(){
           <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
         </div>`:''}
       </div>`;
+      personalGoals.filter(pg=>pg.linked===g.goal).forEach(pg=>{
+        const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
+        html+=`<div class="pg-inline-card">
+          <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
+          ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+          <div class="progress-bar-wrap" style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+          <div style="font-size:10px;color:var(--green);text-align:right;margin-top:2px;font-weight:700">${pg.progress||0}%</div>
+          <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+            <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
+          </div>
+        </div>`;
+      });
     });
     html+=`</div>`;
   }
   html+=`</div></div>`;
-  // 개인 성과 목표 — 전략과제 기준으로 동일 계층에 표시
-  html+=`<div class="goal-arrow">↓</div><div style="width:100%">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px">👤 개인 성과 목표</div>
-      <button class="btn btn-sm btn-secondary" onclick="openPersonalGoalModal()">+ 목표 추가</button>
-    </div>`;
-  if(personalGoals.length){
-    html+=`<div class="strategy-grid">`;
-    personalGoals.forEach(g=>{
-      const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
-      const fg=g.linked?facilityGoals.find(f=>f.goal===g.linked):null;
+  // 미연계 개인목표 (시설목표에 연계되지 않은 것)
+  const _unlinkedPg=personalGoals.filter(pg=>!pg.linked||!_allFgNames.includes(pg.linked));
+  if(_unlinkedPg.length){
+    html+=`<div class="goal-arrow">↓</div><div style="width:100%">
+      <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;opacity:0.75">👤 미연계 개인목표</div>
+      <div class="strategy-grid">`;
+    _unlinkedPg.forEach(pg=>{
+      const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
       html+=`<div class="strategy-col">
-        <div class="strategy-col-title" style="color:var(--green)">👤 ${esc(g.goal)}</div>
-        ${kpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
-        <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
-        <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${g.progress||0}%</div>
-        ${g.linked?`<div class="fg-linked" style="margin-top:8px;color:var(--blue)">↗ ${esc(g.linked)}</div>`:''}
-        ${fg&&fg.linkedStrategyTask?`<div class="fg-linked" style="margin-top:4px">↗ ${esc(fg.linkedStrategyTask)}</div>`:''}
+        <div class="strategy-col-title" style="color:var(--green)">👤 ${esc(pg.goal)}</div>
+        ${pgKpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
+        <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+        <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${pg.progress||0}%</div>
         <div style="display:flex;gap:4px;margin-top:8px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${g.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${g.id}')">🗑️</button>
+          <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
         </div>
       </div>`;
     });
-    html+=`</div>`;
-  } else {
-    html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:18px;text-align:center;color:var(--t3);font-size:13px">개인 성과 목표를 추가해 보세요</div>`;
+    html+=`</div></div>`;
   }
-  html+=`</div></div>`;
   document.getElementById('org-goals-display').innerHTML=html;
 }
 
@@ -6064,8 +6089,9 @@ function collectStrategyDraft(){
 
 function renderStrategyEditor(){
   const editor=document.getElementById('strategy-editor');
-  let html=strategyDraft.length
-    ? strategyDraft.map((item,i)=>`
+  let html;
+  if(strategyDraft.length){
+    const cards=strategyDraft.map((item,i)=>`
       <div class="strategy-goal-item">
         <div class="strategy-goal-header">
           <span class="strategy-goal-num">전략목표 ${i+1}</span>
@@ -6079,8 +6105,11 @@ function renderStrategyEditor(){
             <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="deleteStrategyTask(${i},${j})">✕</button>
           </div>`).join('')}
         <button class="btn btn-secondary btn-sm" onclick="addStrategyTask(${i})" style="width:100%;margin-top:6px">+ 전략과제 추가</button>
-      </div>`).join('')
-    : `<div style="color:var(--t3);font-size:13px;padding:8px 0">전략목표가 없습니다. 아래 버튼으로 추가하세요.</div>`;
+      </div>`).join('');
+    html=`<div class="strategy-goals-grid">${cards}</div>`;
+  } else {
+    html=`<div style="color:var(--t3);font-size:13px;padding:8px 0">전략목표가 없습니다. 아래 버튼으로 추가하세요.</div>`;
+  }
   html+=`<div><button class="btn btn-secondary" onclick="addStrategyGoal()">+ 전략목표 추가</button></div>`;
   editor.innerHTML=html;
 }
@@ -6138,7 +6167,7 @@ async function renderAdminFacilityGoals(){
     cont.innerHTML='<div class="empty-state"><div class="icon">🏢</div><p>시설목표가 없습니다. 위 버튼으로 추가해 보세요.</p></div>';
     return;
   }
-  cont.innerHTML=goals.map((g,i)=>`
+  const cards=goals.map((g,i)=>`
     <div class="fg-item" data-id="${g.id}">
       <div class="fg-header">
         <span class="fg-num">시설목표 ${i+1}</span>
@@ -6154,6 +6183,7 @@ async function renderAdminFacilityGoals(){
         <span style="font-size:13px;color:var(--accent);font-weight:700;flex-shrink:0;min-width:36px;text-align:right">${g.progress||0}%</span>
       </div>
     </div>`).join('');
+  cont.innerHTML=`<div class="facility-goals-grid">${cards}</div>`;
 }
 
 function renderFgKpis(){
