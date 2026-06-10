@@ -1345,6 +1345,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <span style="font-size:14px;font-weight:700;">📚 독서기록</span>
             <div style="display:flex;gap:3px;background:var(--card);border-radius:var(--r2);padding:3px;">
               <button class="book-filter-btn active" onclick="filterBooks('all')">전체</button>
+              <button class="book-filter-btn" onclick="filterBooks('읽을예정')">읽을예정</button>
               <button class="book-filter-btn" onclick="filterBooks('읽는중')">읽는중</button>
               <button class="book-filter-btn" onclick="filterBooks('완독')">완독</button>
               <button class="book-filter-btn" onclick="filterBooks('중단')">중단</button>
@@ -2435,7 +2436,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>저자 *</label>
       <input type="text" id="book-author" placeholder="저자명" />
     </div>
-    <div class="form-row">
+    <div class="form-row" id="book-date-row">
       <div class="form-group">
         <label>시작일</label>
         <input type="date" id="book-start-date" />
@@ -2448,10 +2449,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-row">
       <div class="form-group">
         <label>상태</label>
-        <select id="book-status">
+        <select id="book-status" onchange="toggleBookDateFields()">
           <option value="읽는중">읽는중</option>
           <option value="완독">완독</option>
           <option value="중단">중단</option>
+          <option value="읽을예정">읽을예정</option>
         </select>
       </div>
       <div class="form-group">
@@ -3756,8 +3758,8 @@ function _renderBookGrid(){
   const filtered=_bookFilter==='all'?_books:_books.filter(b=>b.status===_bookFilter);
   if(!filtered.length){ grid.innerHTML=''; if(empty) empty.style.display=''; return; }
   if(empty) empty.style.display='none';
-  const SC={읽는중:'var(--accent)',완독:'var(--green)',중단:'var(--t3)'};
-  const SBG={읽는중:'rgba(232,160,32,0.15)',완독:'rgba(59,201,138,0.15)',중단:'rgba(122,155,192,0.1)'};
+  const SC={읽는중:'var(--accent)',완독:'var(--green)',중단:'var(--t3)',읽을예정:'var(--blue)'};
+  const SBG={읽는중:'rgba(232,160,32,0.15)',완독:'rgba(59,201,138,0.15)',중단:'rgba(122,155,192,0.1)',읽을예정:'rgba(61,142,240,0.15)'};
   grid.innerHTML=filtered.map(b=>`
     <div class="book-card" onclick="openBookModal('${b.id}')">
       <div class="book-cover-wrap">
@@ -3780,6 +3782,12 @@ function setBookRating(v){
   document.querySelectorAll('.rating-star').forEach(s=>{
     s.style.color=parseInt(s.dataset.v)<=v?'var(--accent)':'var(--t3)';
   });
+}
+
+function toggleBookDateFields(){
+  const status=document.getElementById('book-status').value;
+  const row=document.getElementById('book-date-row');
+  if(row) row.style.display=status==='읽을예정'?'none':'';
 }
 
 function openBookModal(id){
@@ -3809,6 +3817,7 @@ function openBookModal(id){
     delBtn.style.display='none';
     clearBookCover();
   }
+  toggleBookDateFields();
   document.querySelectorAll('.rating-star').forEach(s=>{
     s.style.color=parseInt(s.dataset.v)<=_bookRating?'var(--accent)':'var(--t3)';
   });
