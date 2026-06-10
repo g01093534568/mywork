@@ -2558,7 +2558,7 @@ const DB = {
   async getUsers(){
     const k='users';
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('users').select('*'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+    const {data,error}=await SB.from('users').select('id,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
   },
   async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role},{onConflict:'id'}); if(error)throw error; _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
@@ -7760,7 +7760,7 @@ async function _emInfoQuery() {
 // 시설(users) 쿼리
 async function _emFacilitiesQuery() {
   const role = _emRole(), facility = _emFacility();
-  let q = SB.from('users').select('*');
+  let q = SB.from('users').select('id,시설명,사원번호,role,created_at,parent_facility');
   if (role === 'user') {
     q = q.eq('시설명', facility);
   } else if (role === 'facility-admin') {
