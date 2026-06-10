@@ -1759,8 +1759,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <input type="text" id="editId" required>
       </div>
       <div class="em-form-group">
-        <label for="editPassword">비밀번호</label>
-        <input type="text" id="editPassword" required>
+        <label for="editPassword">비밀번호 <span id="editPasswordNote" style="font-size:11px;color:var(--t3)"></span></label>
+        <input type="text" id="editPassword" placeholder="비밀번호 입력">
       </div>
       <div class="em-form-group">
         <label for="editRole">역할</label>
@@ -2737,18 +2737,15 @@ async function doLogin(){
   const btn = document.querySelector('.login-btn');
   if(btn){ btn.disabled=true; btn.textContent='로그인 중...'; }
   try{
-    const users = await DB.getUsers();
     const hashed = await hashPassword(pw);
-    let user = users.find(u=>u.시설명===facility && u.사원번호===empno && u.패스워드===hashed);
-    if(!user){
-      // 평문 비밀번호 레거시 매칭 → 성공 시 자동으로 해시로 마이그레이션
-      const legacy = users.find(u=>u.시설명===facility && u.사원번호===empno && !isHashed(u.패스워드) && u.패스워드===pw);
-      if(legacy){
-        legacy.패스워드=hashed;
-        await DB.upsertUser(legacy);
-        user=legacy;
-      }
-    }
+    const { data: loginResult, error: loginError } = await SB.rpc('verify_login', {
+      p_facility: facility,
+      p_empno: empno,
+      p_pw_hash: hashed,
+      p_pw_plain: pw
+    });
+    if(loginError) throw loginError;
+    const user = loginResult;
     if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
     // 이전 사용자 캐시 선제 초기화
     DB.clearCache();
@@ -8008,19 +8005,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const facilityName = document.getElementById('editFacilityName').value.trim();
         const id = document.getElementById('editId').value.trim();
-        const password = document.getElementById('editPassword').value.trim();
+        const passwordRaw = document.getElementById('editPassword').value.trim();
         const role = document.getElementById('editRole').value;
         const parentFacility = (role === 'user')
             ? (document.getElementById('editParentFacility')?.value || '')
             : '';
 
+        // 신규 추가 시 비밀번호 필수
+        if (currentEditIndex === null && !passwordRaw) { alert('비밀번호를 입력해주세요.'); return; }
+
         try {
+            // 비밀번호가 입력된 경우 항상 해시 처리
+            const hashedPw = passwordRaw ? (isHashed(passwordRaw) ? passwordRaw : await hashPassword(passwordRaw)) : null;
+
             let sbError;
             if (currentEditIndex !== null) {
-                const { error } = await SB.from('users').update({ '시설명': facilityName, '사원번호': id, '패스워드': password, role, parent_facility: parentFacility }).eq('id', currentEditIndex);
+                const updateData = { '시설명': facilityName, '사원번호': id, role, parent_facility: parentFacility };
+                if (hashedPw) updateData['패스워드'] = hashedPw;
+                const { error } = await SB.from('users').update(updateData).eq('id', currentEditIndex);
                 sbError = error;
             } else {
-                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': password, role, parent_facility: parentFacility });
+                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': hashedPw, role, parent_facility: parentFacility });
                 sbError = error;
             }
             if (sbError) { alert('저장 실패: ' + sbError.message); return; }
@@ -8384,6 +8389,9 @@ function openFacilityModal(isEdit = false, index = null) {
     const modalTitle = document.getElementById('modalTitle');
     modalTitle.textContent = isEdit ? '시설 수정' : '시설 추가';
 
+    const pwNote = document.getElementById('editPasswordNote');
+    if (pwNote) pwNote.textContent = isEdit ? '(비워두면 변경 안 함)' : '';
+
     if (!isEdit) {
         document.getElementById('editFacilityName').value = '';
         document.getElementById('editId').value = '';
@@ -8517,7 +8525,7 @@ window.editSelectedFacility = function() {
     if (facility) {
         document.getElementById('editFacilityName').value = facility.facilityName;
         document.getElementById('editId').value = facility.username;
-        document.getElementById('editPassword').value = facility.password;
+        document.getElementById('editPassword').value = '';
         document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
         // 상위시설은 모달이 열린 후(드롭다운 채워진 후) 설정
@@ -8532,7 +8540,7 @@ window.editFacility = function(index) {
     if (facility) {
         document.getElementById('editFacilityName').value = facility.facilityName;
         document.getElementById('editId').value = facility.username;
-        document.getElementById('editPassword').value = facility.password;
+        document.getElementById('editPassword').value = '';
         document.getElementById('editRole').value = facility.role || 'user';
         openFacilityModal(true, facility.id);
         setTimeout(() => populateParentFacilityDropdown(facility.parentFacility || ''), 50);
@@ -10449,13 +10457,13 @@ async function uploadFacilitiesExcel(event) {
             return;
         }
 
-        const insertRows = facilities.map(f => ({
+        const insertRows = await Promise.all(facilities.map(async f => ({
             시설명: f.facilityName || '',
-            사원번호: f.username || '',
-            패스워드: f.password || '',
+            사원번호: f.id || '',
+            패스워드: isHashed(f.password) ? f.password : await hashPassword(f.password || ''),
             role: f.role || 'user',
             parent_facility: f.parentFacility || ''
-        }));
+        })));
         const { error: insErr } = await SB.from('users').insert(insertRows);
         if (insErr) throw insErr;
         alert(`시설 추가 완료!\n${facilities.length}개 추가되었습니다.`);
