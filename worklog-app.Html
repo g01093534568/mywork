@@ -2450,8 +2450,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
     </div>
     <div class="form-group">
-      <label>표지 이미지 URL <span style="font-size:10px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">(선택사항)</span></label>
-      <input type="text" id="book-cover-url" placeholder="https://..." />
+      <label>표지 이미지 <span style="font-size:10px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">(선택사항)</span></label>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:72px;height:100px;background:var(--bg3);border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <img id="book-cover-preview" style="width:100%;height:100%;object-fit:cover;display:none;" alt="표지 미리보기" />
+          <span id="book-cover-placeholder" style="font-size:24px;">📚</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <label for="book-cover-file" class="btn btn-secondary btn-sm" style="cursor:pointer;width:fit-content;">📁 이미지 선택</label>
+          <input type="file" id="book-cover-file" accept="image/*" style="display:none;" onchange="onBookCoverFileChange(this)" />
+          <span id="book-cover-filename" style="font-size:11px;color:var(--t3);">선택된 파일 없음</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="book-cover-clear-btn" onclick="clearBookCover()" style="display:none;color:var(--red);font-size:11px;width:fit-content;">✕ 이미지 제거</button>
+        </div>
+      </div>
+      <input type="hidden" id="book-cover-data" />
     </div>
     <div class="form-group">
       <label>메모 / 감상</label>
@@ -3664,7 +3676,7 @@ function bookToDb(b,uid){ const obj={사원번호:uid,title:b.title,author:b.aut
 let _books=[], _bookFilter='all', _bookRating=0;
 
 async function renderBooksTab(){
-  _books=await API.getBooks(currentUser.사원번호);
+  _books=await DB.getBooks(currentUser.사원번호);
   _renderBookStats();
   _renderBookGrid();
 }
@@ -3730,18 +3742,20 @@ function openBookModal(id){
     document.getElementById('book-start-date').value=b.startDate;
     document.getElementById('book-end-date').value=b.endDate;
     document.getElementById('book-status').value=b.status;
-    document.getElementById('book-cover-url').value=b.coverUrl;
+    document.getElementById('book-cover-data').value=b.coverUrl||'';
+    _setBookCoverPreview(b.coverUrl||'');
     document.getElementById('book-memo').value=b.memo;
     _bookRating=b.rating||0;
     document.getElementById('book-rating').value=_bookRating;
     delBtn.style.display='';
   } else {
-    ['book-title','book-author','book-cover-url','book-memo'].forEach(fid=>document.getElementById(fid).value='');
+    ['book-title','book-author','book-memo'].forEach(fid=>document.getElementById(fid).value='');
     document.getElementById('book-start-date').value=today();
     document.getElementById('book-end-date').value='';
     document.getElementById('book-status').value='읽는중';
     document.getElementById('book-rating').value='0';
     delBtn.style.display='none';
+    clearBookCover();
   }
   document.querySelectorAll('.rating-star').forEach(s=>{
     s.style.color=parseInt(s.dataset.v)<=_bookRating?'var(--accent)':'var(--t3)';
@@ -3749,21 +3763,61 @@ function openBookModal(id){
   document.getElementById('book-modal').classList.add('active');
 }
 
+function _setBookCoverPreview(src){
+  const preview=document.getElementById('book-cover-preview');
+  const placeholder=document.getElementById('book-cover-placeholder');
+  const clearBtn=document.getElementById('book-cover-clear-btn');
+  if(src){ preview.src=src; preview.style.display=''; placeholder.style.display='none'; if(clearBtn) clearBtn.style.display=''; }
+  else { preview.src=''; preview.style.display='none'; placeholder.style.display=''; if(clearBtn) clearBtn.style.display='none'; }
+}
+
+function onBookCoverFileChange(input){
+  if(!input.files||!input.files[0]) return;
+  const file=input.files[0];
+  document.getElementById('book-cover-filename').textContent=file.name;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const MAX_W=300, MAX_H=420;
+      let w=img.width, h=img.height;
+      const ratio=w/h;
+      if(ratio>MAX_W/MAX_H){ h=Math.round(MAX_W/ratio); w=MAX_W; }
+      else { w=Math.round(MAX_H*ratio); h=MAX_H; }
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+      document.getElementById('book-cover-data').value=dataUrl;
+      _setBookCoverPreview(dataUrl);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearBookCover(){
+  document.getElementById('book-cover-data').value='';
+  const fi=document.getElementById('book-cover-file'); if(fi) fi.value='';
+  document.getElementById('book-cover-filename').textContent='선택된 파일 없음';
+  _setBookCoverPreview('');
+}
+
 async function saveBook(){
   const title=document.getElementById('book-title').value.trim();
   const author=document.getElementById('book-author').value.trim();
   if(!title||!author){ toast('제목과 저자를 입력하세요','error'); return; }
   const id=document.getElementById('book-edit-id').value;
-  const book={title,author,startDate:document.getElementById('book-start-date').value||null,endDate:document.getElementById('book-end-date').value||null,status:document.getElementById('book-status').value,rating:parseInt(document.getElementById('book-rating').value)||0,coverUrl:document.getElementById('book-cover-url').value.trim(),memo:document.getElementById('book-memo').value.trim()};
+  const book={title,author,startDate:document.getElementById('book-start-date').value||null,endDate:document.getElementById('book-end-date').value||null,status:document.getElementById('book-status').value,rating:parseInt(document.getElementById('book-rating').value)||0,coverUrl:document.getElementById('book-cover-data').value||null,memo:document.getElementById('book-memo').value.trim()};
   if(id) book.id=id;
-  try{ await API.upsertBook(currentUser.사원번호,book); closeModal('book-modal'); await renderBooksTab(); toast('저장되었습니다'); }
-  catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
+  try{ await DB.upsertBook(currentUser.사원번호,book); closeModal('book-modal'); await renderBooksTab(); toast('저장되었습니다'); }
+  catch(e){ toast('저장 실패: Supabase books 테이블을 확인하세요','error'); console.error(e); }
 }
 
 async function deleteBook(){
   const id=document.getElementById('book-edit-id').value;
   if(!id||!confirm('이 책을 삭제하시겠습니까?')) return;
-  try{ await API.deleteBook(id); closeModal('book-modal'); await renderBooksTab(); toast('삭제되었습니다'); }
+  try{ await DB.deleteBook(id); closeModal('book-modal'); await renderBooksTab(); toast('삭제되었습니다'); }
   catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
 
