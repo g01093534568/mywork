@@ -139,7 +139,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .goal-card-text{font-size:14px;font-weight:600;line-height:1.5;word-break:keep-all;}
 .goal-arrow{text-align:center;color:var(--t3);font-size:18px;line-height:1;margin:8px 0;}
 .strategy-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
-.strategy-col{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+.strategy-col{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:0 1px 5px rgba(0,0,0,0.12);}
 .strategy-col-title{font-size:12px;font-weight:700;color:var(--green);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:10px;}
 .strategy-task{font-size:12px;color:var(--t2);padding:5px 0;display:flex;align-items:flex-start;gap:6px;word-break:keep-all;}
 .strategy-task::before{content:'•';color:var(--accent);flex-shrink:0;margin-top:1px;}
@@ -250,14 +250,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-goal-card-kpi{font-size:11px;color:var(--t3);padding:2px 0;word-break:keep-all;}
 .fg-task-empty{font-size:11px;color:var(--t3);padding:6px 0;font-style:italic;}
 @media(max-width:700px){.fg-task-row{flex-direction:column;}.fg-task-label{width:100%;padding-top:0;}.fg-goal-card{max-width:100%;}}
-/* 전략과제 인라인 시설목표 카드 */
-.fg-inline-card{background:rgba(61,142,240,0.07);border:1px solid rgba(61,142,240,0.2);border-radius:var(--r);padding:8px 10px;margin-top:6px;}
-.fg-inline-title{font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;word-break:keep-all;line-height:1.4;}
-.fg-inline-kpi{font-size:10px;color:var(--t3);padding:1px 0;word-break:keep-all;}
-/* 시설목표 아래 인라인 개인 성과목표 카드 */
-.pg-inline-card{background:rgba(59,201,138,0.06);border:1px solid rgba(59,201,138,0.22);border-radius:var(--r);padding:7px 10px;margin-top:5px;margin-left:10px;}
-.pg-inline-title{font-size:11px;font-weight:700;color:var(--green);margin-bottom:3px;word-break:keep-all;line-height:1.4;}
-.pg-inline-kpi{font-size:10px;color:var(--t3);padding:1px 0;word-break:keep-all;}
+/* 시설목표 인라인 카드 (전략과제 안) */
+.fg-inline-card{background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
+.fg-inline-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:5px;word-break:keep-all;line-height:1.4;}
+.fg-inline-kpi{font-size:11px;color:var(--t2);padding:2px 0;word-break:keep-all;}
+/* 섹션 뱃지 헤더 */
+.section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
+.section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
+.section-badge-green{color:var(--green);background:rgba(59,201,138,0.12);border:1px solid rgba(59,201,138,0.28);}
+/* 개인목표 → 시설목표 연계 태그 */
+.pg-linked-tag{font-size:10px;color:var(--blue);background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.22);border-radius:4px;padding:2px 8px;margin-bottom:8px;display:inline-block;}
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -290,7 +292,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .empty-state p{font-size:14px;}
 /* Chips for KPI */
 .progress-bar-wrap{margin-top:8px;}
-.progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;}
+.progress-bar{height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:2px;transition:width 0.5s ease;}
 /* ---- PERSONAL TABS ---- */
 .personal-tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border-radius:var(--r2);padding:4px;width:fit-content;}
@@ -2993,16 +2995,13 @@ async function renderOrgGoals(){
     html+=`</div>`;
   });
   html+=`</div></div>`;
-  // 시설 경영목표 + 개인 성과목표 — 전략과제 → 시설목표 → 개인목표 계층 구조
+  // 시설 경영목표 — 전략과제 → 시설목표 계층 구조 (개인목표 분리)
   const _allFgNames=facilityGoals.map(fg=>fg.goal);
   html+=`<div class="goal-arrow">↓</div>
   <div style="width:100%">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px">🏢 시설 경영목표 · 👤 개인 성과목표</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
-        <button class="btn btn-sm btn-secondary" style="border-color:rgba(59,201,138,0.4);color:var(--green)" onclick="openPersonalGoalModal()">+ 개인목표 추가</button>
-      </div>
+      <span class="section-badge section-badge-blue">🏢 시설 경영목표</span>
+      ${_canEdit?`<button class="btn btn-sm btn-secondary" onclick="openFacilityGoalModal()">+ 시설목표 추가</button>`:''}
     </div>
     <div class="strategy-grid">`;
   (org.전략목표||[]).forEach((목표,i)=>{
@@ -3017,72 +3016,52 @@ async function renderOrgGoals(){
         html+=`<div class="fg-inline-card">
           <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
           ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-          <div class="progress-bar-wrap" style="margin-top:5px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-          <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:2px;font-weight:700">${g.progress||0}%</div>
-          ${_canEdit?`<div style="display:flex;gap:4px;margin-top:5px;justify-content:flex-end">
+          <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+          <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+          ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
             <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
             <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
           </div>`:''}
         </div>`;
-        personalGoals.filter(pg=>pg.linked===g.goal).forEach(pg=>{
-          const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
-          html+=`<div class="pg-inline-card">
-            <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
-            ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-            <div class="progress-bar-wrap" style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
-            <div style="font-size:10px;color:var(--green);text-align:right;margin-top:2px;font-weight:700">${pg.progress||0}%</div>
-            <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-              <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
-              <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
-            </div>
-          </div>`;
-        });
       });
     });
     html+=`</div>`;
   });
   const _unlinked=facilityGoals.filter(g=>!g.linkedStrategyTask||!_allTaskNames.includes(g.linkedStrategyTask));
   if(_unlinked.length){
-    html+=`<div class="strategy-col" style="opacity:0.7"><div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>`;
+    html+=`<div class="strategy-col" style="opacity:0.8"><div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>`;
     _unlinked.forEach(g=>{
       const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
       html+=`<div class="fg-inline-card">
         <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
         ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-        <div class="progress-bar-wrap" style="margin-top:5px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-        <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:2px;font-weight:700">${g.progress||0}%</div>
-        ${_canEdit?`<div style="display:flex;gap:4px;margin-top:5px;justify-content:flex-end">
+        <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+        <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+        ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
         </div>`:''}
       </div>`;
-      personalGoals.filter(pg=>pg.linked===g.goal).forEach(pg=>{
-        const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
-        html+=`<div class="pg-inline-card">
-          <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
-          ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-          <div class="progress-bar-wrap" style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
-          <div style="font-size:10px;color:var(--green);text-align:right;margin-top:2px;font-weight:700">${pg.progress||0}%</div>
-          <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-            <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
-            <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
-          </div>
-        </div>`;
-      });
     });
     html+=`</div>`;
   }
   html+=`</div></div>`;
-  // 미연계 개인목표 (시설목표에 연계되지 않은 것)
-  const _unlinkedPg=personalGoals.filter(pg=>!pg.linked||!_allFgNames.includes(pg.linked));
-  if(_unlinkedPg.length){
-    html+=`<div class="goal-arrow">↓</div><div style="width:100%">
-      <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;opacity:0.75">👤 미연계 개인목표</div>
-      <div class="strategy-grid">`;
-    _unlinkedPg.forEach(pg=>{
+  // 개인 성과목표 — 분리된 섹션 (시설목표와 동일한 strategy-col 카드 크기)
+  html+=`<div class="goal-arrow">↓</div>
+  <div style="width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <span class="section-badge section-badge-green">👤 개인 성과목표</span>
+      <button class="btn btn-sm btn-secondary" style="border-color:rgba(59,201,138,0.4);color:var(--green)" onclick="openPersonalGoalModal()">+ 개인목표 추가</button>
+    </div>`;
+  if(!personalGoals.length){
+    html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center;color:var(--t3);font-size:13px">등록된 개인 성과목표가 없습니다</div>`;
+  } else {
+    html+=`<div class="strategy-grid">`;
+    personalGoals.forEach(pg=>{
       const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
       html+=`<div class="strategy-col">
         <div class="strategy-col-title" style="color:var(--green)">👤 ${esc(pg.goal)}</div>
+        ${pg.linked&&_allFgNames.includes(pg.linked)?`<div class="pg-linked-tag">🏢 ${esc(pg.linked)}</div>`:''}
         ${pgKpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
         <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
         <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${pg.progress||0}%</div>
@@ -3092,8 +3071,9 @@ async function renderOrgGoals(){
         </div>
       </div>`;
     });
-    html+=`</div></div>`;
+    html+=`</div>`;
   }
+  html+=`</div>`;
   document.getElementById('org-goals-display').innerHTML=html;
 }
 
