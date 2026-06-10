@@ -218,7 +218,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .org-form-section{margin-bottom:24px;}
 .org-form-section h4{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
 .strategy-editor{display:flex;flex-direction:column;gap:8px;}
-.strategy-goals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:8px;}
+.strategy-goals-grid{display:grid;gap:12px;margin-bottom:8px;}
 .strategy-goal-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:14px;}
 .strategy-goal-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .strategy-goal-num{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;flex:1;}
@@ -336,12 +336,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   .sidebar{width:64px;}
   .sidebar-logo span,.nav-item span:last-child,.user-detail,.nav-label{display:none;}
   .main-content{margin-left:64px;padding:20px 16px;}
-  .strategy-grid,.strategy-goals-grid,.personal-goals-grid,.form-row,.facility-goals-grid{grid-template-columns:1fr;}
+  .strategy-grid,.personal-goals-grid,.form-row,.facility-goals-grid{grid-template-columns:1fr;}
+  .strategy-goals-grid{grid-template-columns:repeat(2,1fr)!important;}
   .daily-grid{grid-template-columns:1fr;}
   .stock-grid{grid-template-columns:repeat(2,1fr)!important;}
   #asset-dashboard [style*="repeat(4,1fr)"]{grid-template-columns:repeat(2,1fr)!important;}
 }
-@media(max-width:600px){.stock-grid{grid-template-columns:1fr!important;}}
+@media(max-width:600px){.stock-grid{grid-template-columns:1fr!important;}.strategy-goals-grid{grid-template-columns:1fr!important;}}
 /* ---- TRADE LOG ---- */
 .trade-table{width:100%;border-collapse:collapse;min-width:660px;}
 .trade-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
@@ -6106,7 +6107,8 @@ function renderStrategyEditor(){
           </div>`).join('')}
         <button class="btn btn-secondary btn-sm" onclick="addStrategyTask(${i})" style="width:100%;margin-top:6px">+ 전략과제 추가</button>
       </div>`).join('');
-    html=`<div class="strategy-goals-grid">${cards}</div>`;
+    const _cols=Math.max(1,strategyDraft.length);
+    html=`<div class="strategy-goals-grid" style="grid-template-columns:repeat(${_cols},1fr)">${cards}</div>`;
   } else {
     html=`<div style="color:var(--t3);font-size:13px;padding:8px 0">전략목표가 없습니다. 아래 버튼으로 추가하세요.</div>`;
   }
