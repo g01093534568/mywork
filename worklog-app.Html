@@ -470,6 +470,42 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 #ai-overlay-label{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:0.5px;}
 #ai-overlay-text{font-size:13px;color:var(--t1);line-height:1.55;word-break:keep-all;}
 #ai-overlay-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--t3);font-size:15px;cursor:pointer;padding:2px 4px;}
+/* ---- BOOKS ---- */
+.book-filter-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--t2);background:transparent;cursor:pointer;transition:var(--tr);}
+.book-filter-btn.active{background:var(--accent);color:#1a1000;}
+.book-filter-btn:hover:not(.active){color:var(--t1);background:var(--bg3);}
+.book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:16px;margin-top:4px;}
+.book-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:var(--tr);cursor:pointer;position:relative;}
+.book-card:hover{border-color:rgba(232,160,32,0.4);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.book-cover-wrap{height:200px;background:var(--bg3);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.book-cover-wrap img{width:100%;height:100%;object-fit:cover;}
+.book-cover-fallback{font-size:52px;font-weight:900;display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:linear-gradient(135deg,var(--bg3),var(--bg2));color:var(--t2);}
+.book-status-badge{position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;}
+.book-info{padding:12px;}
+.book-title{font-size:13px;font-weight:700;color:var(--t1);line-height:1.4;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.book-author{font-size:11px;color:var(--t2);margin-bottom:6px;}
+.book-dates{font-size:10px;color:var(--t3);display:flex;flex-direction:column;gap:1px;margin-top:4px;}
+.book-rating{display:flex;gap:1px;margin-top:5px;}
+.book-rating .bstar{color:var(--t3);font-size:12px;}
+.book-rating .bstar.on{color:var(--accent);}
+@media(max-width:480px){.book-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}}
+/* ---- VOCABULARY ---- */
+.vocab-day-nav{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.vocab-progress-bar{height:5px;background:var(--bg3);border-radius:3px;margin-bottom:18px;overflow:hidden;}
+.vocab-progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width 0.3s ease;}
+.vocab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+.vocab-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;transition:border-color 0.2s;display:flex;align-items:flex-start;gap:10px;}
+.vocab-card.learned{border-color:rgba(59,201,138,0.3);background:rgba(59,201,138,0.04);}
+.vocab-num{font-size:11px;font-weight:700;color:var(--t3);min-width:24px;margin-top:3px;}
+.vocab-content{flex:1;min-width:0;}
+.vocab-word{font-size:15px;font-weight:700;color:var(--t1);margin-bottom:2px;}
+.vocab-type{font-size:10px;color:var(--purple);font-weight:600;margin-bottom:4px;}
+.vocab-meaning{font-size:13px;color:var(--t2);line-height:1.5;}
+.vocab-example{font-size:11px;color:var(--t3);margin-top:5px;line-height:1.5;font-style:italic;}
+.vocab-check{background:none;border:1.5px solid var(--border);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:var(--tr);flex-shrink:0;margin-top:1px;color:transparent;}
+.vocab-check:hover{border-color:var(--green);color:var(--green);}
+.vocab-card.learned .vocab-check{background:var(--green);border-color:var(--green);color:#fff;}
+.vocab-day-stats{font-size:12px;color:var(--t2);}
 </style>
 <style>
 /* =========================================================
@@ -1015,6 +1051,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="personal-tab active" id="personal-tab-annual" onclick="switchPersonalTab('annual')">🎯 연간목표</div>
         <div class="personal-tab" id="personal-tab-stock" onclick="switchPersonalTab('stock')">📈 증권&환율</div>
         <div class="personal-tab" id="personal-tab-exercise" onclick="switchPersonalTab('exercise')">🏃 운동</div>
+        <div class="personal-tab" id="personal-tab-books" onclick="switchPersonalTab('books')">📚 독서기록</div>
+        <div class="personal-tab" id="personal-tab-english" onclick="switchPersonalTab('english')">🔤 영어공부</div>
       </div>
       <!-- Annual Goals Panel -->
       <div id="personal-annual" class="personal-panel active">
@@ -1282,6 +1320,46 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="running-race-list"></div>
         </div>
       </div>
+
+      <!-- Books Panel -->
+      <div id="personal-books" class="personal-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:700;">📚 독서기록</span>
+            <div style="display:flex;gap:3px;background:var(--card);border-radius:var(--r2);padding:3px;">
+              <button class="book-filter-btn active" onclick="filterBooks('all')">전체</button>
+              <button class="book-filter-btn" onclick="filterBooks('읽는중')">읽는중</button>
+              <button class="book-filter-btn" onclick="filterBooks('완독')">완독</button>
+              <button class="book-filter-btn" onclick="filterBooks('중단')">중단</button>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="openBookModal()">+ 책 추가</button>
+        </div>
+        <div id="book-stats" style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;"></div>
+        <div id="book-grid" class="book-grid"></div>
+        <div id="book-empty" class="empty-state" style="display:none;">
+          <div class="icon">📚</div>
+          <p>등록된 책이 없습니다. 책을 추가해 보세요!</p>
+        </div>
+      </div>
+
+      <!-- English Study Panel -->
+      <div id="personal-english" class="personal-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:10px;">
+          <span style="font-size:14px;font-weight:700;">🔤 해커스 기출 영단어</span>
+          <span id="vocab-day-stats" class="vocab-day-stats"></span>
+        </div>
+        <div class="vocab-day-nav">
+          <button class="btn btn-secondary btn-sm" onclick="changeVocabDay(-1)">◀ 이전</button>
+          <button class="btn btn-secondary btn-sm" onclick="changeVocabDay(0)">오늘</button>
+          <button class="btn btn-secondary btn-sm" onclick="changeVocabDay(1)">다음 ▶</button>
+          <span id="vocab-day-label" style="font-size:14px;font-weight:700;"></span>
+          <span id="vocab-day-range" style="font-size:12px;color:var(--t2);"></span>
+        </div>
+        <div class="vocab-progress-bar"><div id="vocab-progress-fill" class="vocab-progress-fill" style="width:0%"></div></div>
+        <div id="vocab-grid" class="vocab-grid"></div>
+      </div>
+
     </div>
 
     <!-- ── ADMIN PAGE ── -->
@@ -2327,6 +2405,66 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- Book Modal -->
+<div class="modal-overlay" id="book-modal">
+  <div class="modal" style="max-width:500px">
+    <h3 id="book-modal-title">📚 책 추가</h3>
+    <input type="hidden" id="book-edit-id" />
+    <div class="form-group">
+      <label>책 제목 *</label>
+      <input type="text" id="book-title" placeholder="책 제목을 입력하세요" />
+    </div>
+    <div class="form-group">
+      <label>저자 *</label>
+      <input type="text" id="book-author" placeholder="저자명" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작일</label>
+        <input type="date" id="book-start-date" />
+      </div>
+      <div class="form-group">
+        <label>완독일</label>
+        <input type="date" id="book-end-date" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>상태</label>
+        <select id="book-status">
+          <option value="읽는중">읽는중</option>
+          <option value="완독">완독</option>
+          <option value="중단">중단</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>별점</label>
+        <div style="display:flex;gap:2px;margin-top:6px;">
+          <span class="rating-star" data-v="1" onclick="setBookRating(1)" style="font-size:22px;cursor:pointer;color:var(--t3)">★</span>
+          <span class="rating-star" data-v="2" onclick="setBookRating(2)" style="font-size:22px;cursor:pointer;color:var(--t3)">★</span>
+          <span class="rating-star" data-v="3" onclick="setBookRating(3)" style="font-size:22px;cursor:pointer;color:var(--t3)">★</span>
+          <span class="rating-star" data-v="4" onclick="setBookRating(4)" style="font-size:22px;cursor:pointer;color:var(--t3)">★</span>
+          <span class="rating-star" data-v="5" onclick="setBookRating(5)" style="font-size:22px;cursor:pointer;color:var(--t3)">★</span>
+        </div>
+        <input type="hidden" id="book-rating" value="0" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>표지 이미지 URL <span style="font-size:10px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">(선택사항)</span></label>
+      <input type="text" id="book-cover-url" placeholder="https://..." />
+    </div>
+    <div class="form-group">
+      <label>메모 / 감상</label>
+      <textarea id="book-memo" rows="3" placeholder="읽은 소감이나 메모를 입력하세요"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('book-modal')">취소</button>
+      <button class="btn btn-danger" id="book-delete-btn" onclick="deleteBook()" style="display:none;">삭제</button>
+      <button class="btn btn-primary" onclick="saveBook()">저장</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════
 // SUPABASE INIT
@@ -2488,6 +2626,9 @@ const DB = {
   },
   async upsertExercise(uid,ex){ const {error}=await SB.from('exercises').upsert(exerciseToDb(ex,uid)); if(error)throw error; _cd(`ex:${uid}:${ex.type}`); },
   async deleteExercise(id,uid,type){ const {error}=await SB.from('exercises').delete().eq('id',id); if(error)throw error; _cd(`ex:${uid}:${type}`); },
+  async getBooks(uid){ const k=`books:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('books').select('*').eq('사원번호',uid).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToBook)); },
+  async upsertBook(uid,b){ const {error}=await SB.from('books').upsert(bookToDb(b,uid)); if(error)throw error; _cd(`books:${uid}`); },
+  async deleteBook(id){ const {error}=await SB.from('books').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`books:${currentUser.사원번호}`); },
 };
 
 // ═══════════════════════════════════════════════
@@ -2976,6 +3117,8 @@ async function switchPersonalTab(tab){
   else { stopStockAutoRefresh(); stopFxAutoRefresh(); }
   if(tab==='annual') initAnnualGoalsTab();
   if(tab==='exercise') renderExerciseTab();
+  if(tab==='books') renderBooksTab();
+  if(tab==='english') renderEnglishStudy();
 }
 
 // ═══════════════════════════════════════════════
@@ -3510,6 +3653,759 @@ function updateTodayRunningPace(){
   } else {
     preview.style.display='none';
   }
+}
+
+// ═══════════════════════════════════════════════
+// BOOKS
+// ═══════════════════════════════════════════════
+function dbToBook(d){ return {id:d.id,title:d.title,author:d.author,startDate:d.start_date||'',endDate:d.end_date||'',coverUrl:d.cover_url||'',status:d.status||'읽는중',rating:d.rating||0,memo:d.memo||''}; }
+function bookToDb(b,uid){ const obj={사원번호:uid,title:b.title,author:b.author,start_date:b.startDate||null,end_date:b.endDate||null,cover_url:b.coverUrl||null,status:b.status||'읽는중',rating:b.rating||null,memo:b.memo||null,updated_at:new Date().toISOString()}; if(b.id) obj.id=b.id; return obj; }
+
+let _books=[], _bookFilter='all', _bookRating=0;
+
+async function renderBooksTab(){
+  _books=await API.getBooks(currentUser.사원번호);
+  _renderBookStats();
+  _renderBookGrid();
+}
+
+function _renderBookStats(){
+  const el=document.getElementById('book-stats'); if(!el) return;
+  const total=_books.length, reading=_books.filter(b=>b.status==='읽는중').length, done=_books.filter(b=>b.status==='완독').length;
+  el.innerHTML=`
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px;"><span style="font-size:20px;font-weight:700;color:var(--blue)">${total}</span><span style="font-size:12px;color:var(--t2)">📚 전체</span></div>
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px;"><span style="font-size:20px;font-weight:700;color:var(--accent)">${reading}</span><span style="font-size:12px;color:var(--t2)">📖 읽는중</span></div>
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px;"><span style="font-size:20px;font-weight:700;color:var(--green)">${done}</span><span style="font-size:12px;color:var(--t2)">✅ 완독</span></div>`;
+}
+
+function filterBooks(f){
+  _bookFilter=f;
+  document.querySelectorAll('.book-filter-btn').forEach(btn=>{
+    const isTarget=(f==='all'&&btn.textContent==='전체')||(btn.textContent===f);
+    btn.classList.toggle('active',isTarget);
+  });
+  _renderBookGrid();
+}
+
+function _renderBookGrid(){
+  const grid=document.getElementById('book-grid'),empty=document.getElementById('book-empty'); if(!grid) return;
+  const filtered=_bookFilter==='all'?_books:_books.filter(b=>b.status===_bookFilter);
+  if(!filtered.length){ grid.innerHTML=''; if(empty) empty.style.display=''; return; }
+  if(empty) empty.style.display='none';
+  const SC={읽는중:'var(--accent)',완독:'var(--green)',중단:'var(--t3)'};
+  const SBG={읽는중:'rgba(232,160,32,0.15)',완독:'rgba(59,201,138,0.15)',중단:'rgba(122,155,192,0.1)'};
+  grid.innerHTML=filtered.map(b=>`
+    <div class="book-card" onclick="openBookModal('${b.id}')">
+      <div class="book-cover-wrap">
+        ${b.coverUrl?`<img src="${b.coverUrl}" alt="표지" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />`:''}
+        <div class="book-cover-fallback" style="${b.coverUrl?'display:none':''}">${b.title.charAt(0)}</div>
+        <div class="book-status-badge" style="background:${SBG[b.status]||'rgba(122,155,192,0.1)'};color:${SC[b.status]||'var(--t2)'};">${b.status}</div>
+      </div>
+      <div class="book-info">
+        <div class="book-title">${b.title}</div>
+        <div class="book-author">${b.author}</div>
+        ${b.rating?`<div class="book-rating">${[1,2,3,4,5].map(i=>`<span class="bstar${i<=b.rating?' on':''}">★</span>`).join('')}</div>`:''}
+        <div class="book-dates">${b.startDate?`<span>시작 ${b.startDate}</span>`:''}${b.endDate?`<span>완독 ${b.endDate}</span>`:''}</div>
+      </div>
+    </div>`).join('');
+}
+
+function setBookRating(v){
+  _bookRating=v;
+  document.getElementById('book-rating').value=v;
+  document.querySelectorAll('.rating-star').forEach(s=>{
+    s.style.color=parseInt(s.dataset.v)<=v?'var(--accent)':'var(--t3)';
+  });
+}
+
+function openBookModal(id){
+  const delBtn=document.getElementById('book-delete-btn');
+  document.getElementById('book-modal-title').textContent=id?'📚 책 수정':'📚 책 추가';
+  document.getElementById('book-edit-id').value=id||'';
+  _bookRating=0;
+  if(id){
+    const b=_books.find(x=>x.id===id); if(!b) return;
+    document.getElementById('book-title').value=b.title;
+    document.getElementById('book-author').value=b.author;
+    document.getElementById('book-start-date').value=b.startDate;
+    document.getElementById('book-end-date').value=b.endDate;
+    document.getElementById('book-status').value=b.status;
+    document.getElementById('book-cover-url').value=b.coverUrl;
+    document.getElementById('book-memo').value=b.memo;
+    _bookRating=b.rating||0;
+    document.getElementById('book-rating').value=_bookRating;
+    delBtn.style.display='';
+  } else {
+    ['book-title','book-author','book-cover-url','book-memo'].forEach(fid=>document.getElementById(fid).value='');
+    document.getElementById('book-start-date').value=today();
+    document.getElementById('book-end-date').value='';
+    document.getElementById('book-status').value='읽는중';
+    document.getElementById('book-rating').value='0';
+    delBtn.style.display='none';
+  }
+  document.querySelectorAll('.rating-star').forEach(s=>{
+    s.style.color=parseInt(s.dataset.v)<=_bookRating?'var(--accent)':'var(--t3)';
+  });
+  document.getElementById('book-modal').classList.add('active');
+}
+
+async function saveBook(){
+  const title=document.getElementById('book-title').value.trim();
+  const author=document.getElementById('book-author').value.trim();
+  if(!title||!author){ toast('제목과 저자를 입력하세요','error'); return; }
+  const id=document.getElementById('book-edit-id').value;
+  const book={title,author,startDate:document.getElementById('book-start-date').value||null,endDate:document.getElementById('book-end-date').value||null,status:document.getElementById('book-status').value,rating:parseInt(document.getElementById('book-rating').value)||0,coverUrl:document.getElementById('book-cover-url').value.trim(),memo:document.getElementById('book-memo').value.trim()};
+  if(id) book.id=id;
+  try{ await API.upsertBook(currentUser.사원번호,book); closeModal('book-modal'); await renderBooksTab(); toast('저장되었습니다'); }
+  catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
+}
+
+async function deleteBook(){
+  const id=document.getElementById('book-edit-id').value;
+  if(!id||!confirm('이 책을 삭제하시겠습니까?')) return;
+  try{ await API.deleteBook(id); closeModal('book-modal'); await renderBooksTab(); toast('삭제되었습니다'); }
+  catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
+}
+
+// ═══════════════════════════════════════════════
+// ENGLISH STUDY — 해커스 기출 영단어 (600단어 / 30일)
+// ═══════════════════════════════════════════════
+let _vocabDayOffset=0;
+
+const HACKERS_WORDS=[
+  {w:'abandon',t:'v',m:'버리다, 포기하다',e:'He abandoned his plan.'},
+  {w:'absorb',t:'v',m:'흡수하다, 받아들이다',e:'Plants absorb sunlight.'},
+  {w:'accommodate',t:'v',m:'수용하다, 편의를 제공하다',e:'The hotel accommodates 200 guests.'},
+  {w:'accomplish',t:'v',m:'성취하다, 완수하다',e:'She accomplished her goal.'},
+  {w:'accumulate',t:'v',m:'축적하다, 쌓이다',e:'Dust accumulates over time.'},
+  {w:'acknowledge',t:'v',m:'인정하다, 확인하다',e:'He acknowledged his mistake.'},
+  {w:'acquire',t:'v',m:'얻다, 취득하다',e:'She acquired new skills.'},
+  {w:'adapt',t:'v',m:'적응하다, 개조하다',e:'Animals adapt to their environment.'},
+  {w:'address',t:'v',m:'다루다, 해결하다',e:'We need to address this issue.'},
+  {w:'adjust',t:'v',m:'조정하다, 적응하다',e:'He adjusted his schedule.'},
+  {w:'adopt',t:'v',m:'채택하다, 입양하다',e:'They adopted a new policy.'},
+  {w:'advocate',t:'v',m:'지지하다, 옹호하다',e:'She advocates for equal rights.'},
+  {w:'allocate',t:'v',m:'배분하다, 할당하다',e:'Resources were allocated fairly.'},
+  {w:'alter',t:'v',m:'변경하다, 바꾸다',e:'The plan was altered.'},
+  {w:'anticipate',t:'v',m:'예상하다, 기대하다',e:'We anticipate growth.'},
+  {w:'assess',t:'v',m:'평가하다, 사정하다',e:'We assessed the risk.'},
+  {w:'assign',t:'v',m:'할당하다, 배정하다',e:'Tasks were assigned to each team.'},
+  {w:'assume',t:'v',m:'추정하다, 떠맡다',e:'Do not assume anything.'},
+  {w:'authorize',t:'v',m:'허가하다, 승인하다',e:'Only he is authorized to sign.'},
+  {w:'calculate',t:'v',m:'계산하다, 예상하다',e:'Calculate the total cost.'},
+  {w:'challenge',t:'v',m:'도전하다, 이의를 제기하다',e:'He challenged the decision.'},
+  {w:'collaborate',t:'v',m:'협력하다, 공동 작업하다',e:'Teams collaborated on the project.'},
+  {w:'communicate',t:'v',m:'의사소통하다, 전달하다',e:'Communicate clearly with others.'},
+  {w:'compensate',t:'v',m:'보상하다, 보충하다',e:'He was compensated for his loss.'},
+  {w:'compile',t:'v',m:'편집하다, 수집하다',e:'She compiled the report.'},
+  {w:'conclude',t:'v',m:'결론을 내리다, 끝내다',e:'We concluded the meeting.'},
+  {w:'confirm',t:'v',m:'확인하다, 확정하다',e:'Please confirm your reservation.'},
+  {w:'constitute',t:'v',m:'구성하다, 이루다',e:'This constitutes a violation.'},
+  {w:'contribute',t:'v',m:'기여하다, 공헌하다',e:'She contributed to the project.'},
+  {w:'coordinate',t:'v',m:'조율하다, 조정하다',e:'We coordinated the event.'},
+  {w:'demonstrate',t:'v',m:'보여주다, 증명하다',e:'He demonstrated the technique.'},
+  {w:'derive',t:'v',m:'유래하다, 얻다',e:'The word derives from Latin.'},
+  {w:'determine',t:'v',m:'결정하다, 알아내다',e:'We need to determine the cause.'},
+  {w:'distribute',t:'v',m:'배포하다, 분배하다',e:'Food was distributed equally.'},
+  {w:'emphasize',t:'v',m:'강조하다',e:'She emphasized the importance.'},
+  {w:'encounter',t:'v',m:'마주치다, 직면하다',e:'We encountered problems.'},
+  {w:'enhance',t:'v',m:'향상시키다, 높이다',e:'Exercise enhances health.'},
+  {w:'establish',t:'v',m:'설립하다, 확립하다',e:'They established a new company.'},
+  {w:'evaluate',t:'v',m:'평가하다, 검토하다',e:'Evaluate all options carefully.'},
+  {w:'examine',t:'v',m:'검사하다, 조사하다',e:'The doctor examined the patient.'},
+  {w:'expand',t:'v',m:'확장하다, 늘리다',e:'The business expanded globally.'},
+  {w:'facilitate',t:'v',m:'촉진하다, 쉽게 하다',e:'Technology facilitates communication.'},
+  {w:'formulate',t:'v',m:'공식화하다, 고안하다',e:'She formulated a strategy.'},
+  {w:'generate',t:'v',m:'발생시키다, 만들어 내다',e:'The idea generated interest.'},
+  {w:'implement',t:'v',m:'실행하다, 이행하다',e:'The plan was implemented.'},
+  {w:'indicate',t:'v',m:'나타내다, 가리키다',e:'Signs indicate the exit.'},
+  {w:'influence',t:'v',m:'영향을 미치다',e:'Media influences behavior.'},
+  {w:'initiate',t:'v',m:'시작하다, 착수하다',e:'She initiated the discussion.'},
+  {w:'integrate',t:'v',m:'통합하다, 합치다',e:'Systems were integrated.'},
+  {w:'interpret',t:'v',m:'해석하다, 통역하다',e:'He interpreted the data.'},
+  {w:'investigate',t:'v',m:'조사하다, 연구하다',e:'Police investigated the crime.'},
+  {w:'maintain',t:'v',m:'유지하다, 주장하다',e:'Maintain a healthy lifestyle.'},
+  {w:'manage',t:'v',m:'관리하다, 해내다',e:'He manages a team of ten.'},
+  {w:'monitor',t:'v',m:'감시하다, 관찰하다',e:'We monitor the progress.'},
+  {w:'motivate',t:'v',m:'동기를 부여하다',e:'She motivated the team.'},
+  {w:'negotiate',t:'v',m:'협상하다, 교섭하다',e:'They negotiated the contract.'},
+  {w:'obtain',t:'v',m:'얻다, 획득하다',e:'She obtained permission.'},
+  {w:'organize',t:'v',m:'조직하다, 정리하다',e:'He organized the files.'},
+  {w:'participate',t:'v',m:'참여하다, 참가하다',e:'Everyone participated.'},
+  {w:'perceive',t:'v',m:'인식하다, 지각하다',e:'He perceived the danger.'},
+  {w:'perform',t:'v',m:'수행하다, 공연하다',e:'She performed well.'},
+  {w:'promote',t:'v',m:'촉진하다, 홍보하다',e:'They promoted the product.'},
+  {w:'propose',t:'v',m:'제안하다',e:'He proposed a new solution.'},
+  {w:'pursue',t:'v',m:'추구하다, 추진하다',e:'She pursued her dream.'},
+  {w:'regulate',t:'v',m:'규제하다, 조절하다',e:'The government regulates trade.'},
+  {w:'reinforce',t:'v',m:'강화하다, 보강하다',e:'Data reinforces the theory.'},
+  {w:'represent',t:'v',m:'대표하다, 나타내다',e:'She represents the company.'},
+  {w:'resolve',t:'v',m:'해결하다, 결심하다',e:'The conflict was resolved.'},
+  {w:'respond',t:'v',m:'반응하다, 대응하다',e:'Please respond promptly.'},
+  {w:'restrict',t:'v',m:'제한하다, 규제하다',e:'Access is restricted.'},
+  {w:'retain',t:'v',m:'유지하다, 보유하다',e:'We retained the best staff.'},
+  {w:'revise',t:'v',m:'수정하다, 개정하다',e:'Please revise the document.'},
+  {w:'secure',t:'v',m:'확보하다, 안전하게 하다',e:'They secured funding.'},
+  {w:'stimulate',t:'v',m:'자극하다, 촉진하다',e:'Exercise stimulates the brain.'},
+  {w:'sustain',t:'v',m:'지속하다, 유지하다',e:'Sustain economic growth.'},
+  {w:'transform',t:'v',m:'변형하다, 바꾸다',e:'Technology transformed society.'},
+  {w:'utilize',t:'v',m:'활용하다, 이용하다',e:'Utilize available resources.'},
+  {w:'verify',t:'v',m:'확인하다, 검증하다',e:'Please verify the information.'},
+  {w:'withdraw',t:'v',m:'철수하다, 인출하다',e:'He withdrew from the competition.'},
+  {w:'abolish',t:'v',m:'폐지하다, 없애다',e:'Abolish unfair laws.'},
+  {w:'abundant',t:'adj',m:'풍부한, 많은',e:'The region has abundant resources.'},
+  {w:'accurate',t:'adj',m:'정확한, 정밀한',e:'Provide accurate information.'},
+  {w:'adequate',t:'adj',m:'충분한, 적절한',e:'The salary is adequate.'},
+  {w:'adjacent',t:'adj',m:'인접한, 가까운',e:'The building is adjacent to the park.'},
+  {w:'alternative',t:'adj',m:'대안적인, 다른',e:'Find alternative solutions.'},
+  {w:'ambiguous',t:'adj',m:'모호한, 불명확한',e:'The instructions were ambiguous.'},
+  {w:'apparent',t:'adj',m:'명백한, 겉보기의',e:'The cause was apparent.'},
+  {w:'appropriate',t:'adj',m:'적절한, 적합한',e:'Choose appropriate attire.'},
+  {w:'approximate',t:'adj',m:'대략적인, 근사한',e:'The approximate cost is $100.'},
+  {w:'arbitrary',t:'adj',m:'임의적인, 독단적인',e:'The decision seemed arbitrary.'},
+  {w:'capable',t:'adj',m:'유능한, ~할 수 있는',e:'She is capable of doing it.'},
+  {w:'cautious',t:'adj',m:'신중한, 조심스러운',e:'Be cautious when driving.'},
+  {w:'coherent',t:'adj',m:'일관성 있는, 조리 있는',e:'A coherent argument.'},
+  {w:'competent',t:'adj',m:'유능한, 능숙한',e:'He is a competent engineer.'},
+  {w:'comprehensive',t:'adj',m:'포괄적인, 종합적인',e:'A comprehensive report.'},
+  {w:'consistent',t:'adj',m:'일관된, 꾸준한',e:'Consistent effort brings results.'},
+  {w:'crucial',t:'adj',m:'중요한, 결정적인',e:'This is a crucial decision.'},
+  {w:'deliberate',t:'adj',m:'의도적인, 신중한',e:'A deliberate choice.'},
+  {w:'diverse',t:'adj',m:'다양한, 다른',e:'A diverse team performs better.'},
+  {w:'dominant',t:'adj',m:'지배적인, 우세한',e:'English is the dominant language.'},
+  {w:'dynamic',t:'adj',m:'역동적인, 활동적인',e:'A dynamic leader.'},
+  {w:'effective',t:'adj',m:'효과적인, 유효한',e:'An effective solution.'},
+  {w:'efficient',t:'adj',m:'효율적인, 능률적인',e:'Work in an efficient manner.'},
+  {w:'elaborate',t:'adj',m:'정교한, 복잡한',e:'An elaborate plan.'},
+  {w:'equivalent',t:'adj',m:'동등한, 해당하는',e:'They are equivalent in value.'},
+  {w:'essential',t:'adj',m:'필수적인, 본질적인',e:'Water is essential for life.'},
+  {w:'evident',t:'adj',m:'명백한, 분명한',e:'The truth was evident.'},
+  {w:'excessive',t:'adj',m:'과도한, 지나친',e:'Avoid excessive spending.'},
+  {w:'explicit',t:'adj',m:'명시적인, 노골적인',e:'Give explicit instructions.'},
+  {w:'flexible',t:'adj',m:'유연한, 융통성 있는',e:'Be flexible with your schedule.'},
+  {w:'fundamental',t:'adj',m:'근본적인, 기본적인',e:'A fundamental change.'},
+  {w:'genuine',t:'adj',m:'진짜의, 진심의',e:'A genuine smile.'},
+  {w:'global',t:'adj',m:'전 세계적인, 포괄적인',e:'Global warming is a concern.'},
+  {w:'gradual',t:'adj',m:'점진적인, 완만한',e:'A gradual improvement.'},
+  {w:'inevitable',t:'adj',m:'불가피한, 필연적인',e:'Change is inevitable.'},
+  {w:'innovative',t:'adj',m:'혁신적인, 창의적인',e:'An innovative approach.'},
+  {w:'intense',t:'adj',m:'강렬한, 집중적인',e:'Intense competition.'},
+  {w:'logical',t:'adj',m:'논리적인, 합리적인',e:'A logical conclusion.'},
+  {w:'minimal',t:'adj',m:'최소한의, 아주 적은',e:'Minimal effort is required.'},
+  {w:'mutual',t:'adj',m:'상호적인, 공동의',e:'Mutual respect is important.'},
+  {w:'neutral',t:'adj',m:'중립적인, 중간의',e:'Stay neutral in the debate.'},
+  {w:'objective',t:'adj',m:'객관적인',e:'Be objective in your assessment.'},
+  {w:'obvious',t:'adj',m:'명백한, 분명한',e:'The answer is obvious.'},
+  {w:'optional',t:'adj',m:'선택적인, 임의의',e:'This feature is optional.'},
+  {w:'outstanding',t:'adj',m:'뛰어난, 미해결된',e:'An outstanding performance.'},
+  {w:'potential',t:'adj',m:'잠재적인, 가능한',e:'Potential candidates.'},
+  {w:'practical',t:'adj',m:'실용적인, 현실적인',e:'A practical solution.'},
+  {w:'precise',t:'adj',m:'정밀한, 정확한',e:'Precise measurements.'},
+  {w:'predominant',t:'adj',m:'주된, 우세한',e:'The predominant color is blue.'},
+  {w:'profound',t:'adj',m:'심오한, 깊은',e:'A profound impact.'},
+  {w:'rational',t:'adj',m:'이성적인, 합리적인',e:'A rational decision.'},
+  {w:'realistic',t:'adj',m:'현실적인, 실제적인',e:'Set realistic goals.'},
+  {w:'relevant',t:'adj',m:'관련된, 적절한',e:'Relevant information.'},
+  {w:'reliable',t:'adj',m:'신뢰할 수 있는, 믿을 만한',e:'A reliable source.'},
+  {w:'remarkable',t:'adj',m:'주목할 만한, 놀라운',e:'A remarkable achievement.'},
+  {w:'significant',t:'adj',m:'중요한, 상당한',e:'A significant change.'},
+  {w:'sophisticated',t:'adj',m:'세련된, 정교한',e:'Sophisticated technology.'},
+  {w:'stable',t:'adj',m:'안정적인, 견고한',e:'A stable economy.'},
+  {w:'substantial',t:'adj',m:'상당한, 실질적인',e:'Substantial progress.'},
+  {w:'sufficient',t:'adj',m:'충분한',e:'Sufficient evidence.'},
+  {w:'acquisition',t:'n',m:'취득, 인수',e:'The acquisition of new skills.'},
+  {w:'adaptation',t:'n',m:'적응, 각색',e:'Adaptation to change.'},
+  {w:'administration',t:'n',m:'행정, 관리',e:'The administration department.'},
+  {w:'analysis',t:'n',m:'분석, 해석',e:'A detailed analysis.'},
+  {w:'assessment',t:'n',m:'평가, 사정',e:'A performance assessment.'},
+  {w:'assumption',t:'n',m:'가정, 추정',e:'A false assumption.'},
+  {w:'authority',t:'n',m:'권위, 당국',e:'Speak with authority.'},
+  {w:'capacity',t:'n',m:'능력, 용량',e:'The capacity of the room.'},
+  {w:'circumstance',t:'n',m:'상황, 환경',e:'Under difficult circumstances.'},
+  {w:'concept',t:'n',m:'개념, 관념',e:'A new concept.'},
+  {w:'consequence',t:'n',m:'결과, 중요성',e:'Face the consequences.'},
+  {w:'constraint',t:'n',m:'제약, 한계',e:'Budget constraints.'},
+  {w:'contribution',t:'n',m:'기여, 공헌',e:'A valuable contribution.'},
+  {w:'controversy',t:'n',m:'논쟁, 반론',e:'The issue caused controversy.'},
+  {w:'convention',t:'n',m:'관습, 협약',e:'Social conventions.'},
+  {w:'criterion',t:'n',m:'기준, 표준',e:'The main criterion is quality.'},
+  {w:'debate',t:'n',m:'토론, 논쟁',e:'An open debate.'},
+  {w:'decline',t:'n',m:'쇠퇴, 감소',e:'A decline in sales.'},
+  {w:'demonstration',t:'n',m:'시위, 증명',e:'A demonstration of skill.'},
+  {w:'development',t:'n',m:'발전, 개발',e:'Economic development.'},
+  {w:'dimension',t:'n',m:'차원, 측면',e:'A new dimension to the problem.'},
+  {w:'distribution',t:'n',m:'분배, 배포',e:'Distribution of resources.'},
+  {w:'diversity',t:'n',m:'다양성',e:'Cultural diversity.'},
+  {w:'duration',t:'n',m:'기간, 지속',e:'The duration of the project.'},
+  {w:'emergence',t:'n',m:'출현, 발생',e:'The emergence of new technologies.'},
+  {w:'emphasis',t:'n',m:'강조, 중점',e:'Place emphasis on quality.'},
+  {w:'environment',t:'n',m:'환경, 상황',e:'A healthy environment.'},
+  {w:'evaluation',t:'n',m:'평가, 판단',e:'An annual evaluation.'},
+  {w:'evidence',t:'n',m:'증거, 단서',e:'Sufficient evidence.'},
+  {w:'evolution',t:'n',m:'진화, 발전',e:'The evolution of technology.'},
+  {w:'expansion',t:'n',m:'확장, 확대',e:'Business expansion.'},
+  {w:'expectation',t:'n',m:'기대, 예상',e:'Meet expectations.'},
+  {w:'factor',t:'n',m:'요인, 요소',e:'A key factor.'},
+  {w:'foundation',t:'n',m:'기초, 재단',e:'A solid foundation.'},
+  {w:'framework',t:'n',m:'체계, 틀',e:'A legal framework.'},
+  {w:'generation',t:'n',m:'세대, 발생',e:'The next generation.'},
+  {w:'guideline',t:'n',m:'지침, 가이드라인',e:'Follow the guidelines.'},
+  {w:'hypothesis',t:'n',m:'가설, 추론',e:'Test the hypothesis.'},
+  {w:'implication',t:'n',m:'함의, 영향',e:'The implications are serious.'},
+  {w:'implementation',t:'n',m:'실행, 이행',e:'Implementation of the plan.'},
+  {w:'initiative',t:'n',m:'계획, 주도권',e:'Take the initiative.'},
+  {w:'innovation',t:'n',m:'혁신, 쇄신',e:'Drive innovation.'},
+  {w:'institution',t:'n',m:'기관, 제도',e:'An educational institution.'},
+  {w:'integration',t:'n',m:'통합, 융합',e:'System integration.'},
+  {w:'interaction',t:'n',m:'상호작용, 교류',e:'Social interaction.'},
+  {w:'interpretation',t:'n',m:'해석, 통역',e:'A different interpretation.'},
+  {w:'investigation',t:'n',m:'조사, 연구',e:'A police investigation.'},
+  {w:'maintenance',t:'n',m:'유지, 보수',e:'Regular maintenance.'},
+  {w:'mechanism',t:'n',m:'메커니즘, 구조',e:'A defense mechanism.'},
+  {w:'methodology',t:'n',m:'방법론, 절차',e:'Research methodology.'},
+  {w:'motivation',t:'n',m:'동기, 동기부여',e:'Find motivation.'},
+  {w:'negotiation',t:'n',m:'협상, 교섭',e:'Contract negotiation.'},
+  {w:'objective',t:'n',m:'목표, 목적',e:'Achieve your objective.'},
+  {w:'observation',t:'n',m:'관찰, 소견',e:'A keen observation.'},
+  {w:'opportunity',t:'n',m:'기회, 가능성',e:'Seize the opportunity.'},
+  {w:'outcome',t:'n',m:'결과, 성과',e:'A positive outcome.'},
+  {w:'participation',t:'n',m:'참여, 참가',e:'Active participation.'},
+  {w:'perception',t:'n',m:'인식, 지각',e:'Public perception.'},
+  {w:'performance',t:'n',m:'성과, 공연',e:'Outstanding performance.'},
+  {w:'perspective',t:'n',m:'관점, 시각',e:'A fresh perspective.'},
+  {w:'phenomenon',t:'n',m:'현상',e:'A natural phenomenon.'},
+  {w:'priority',t:'n',m:'우선순위',e:'Set your priorities.'},
+  {w:'procedure',t:'n',m:'절차, 방법',e:'Follow the procedure.'},
+  {w:'proportion',t:'n',m:'비율, 비례',e:'A large proportion.'},
+  {w:'provision',t:'n',m:'규정, 제공',e:'Legal provisions.'},
+  {w:'regulation',t:'n',m:'규정, 규제',e:'Safety regulations.'},
+  {w:'reinforcement',t:'n',m:'강화, 보강',e:'Positive reinforcement.'},
+  {w:'relationship',t:'n',m:'관계, 관련성',e:'Build strong relationships.'},
+  {w:'relevance',t:'n',m:'관련성, 적절성',e:'The relevance of this data.'},
+  {w:'requirement',t:'n',m:'요건, 필요조건',e:'Meet the requirements.'},
+  {w:'resolution',t:'n',m:'해결, 결의',e:'Find a resolution.'},
+  {w:'responsibility',t:'n',m:'책임, 의무',e:'Take responsibility.'},
+  {w:'restriction',t:'n',m:'제한, 규제',e:'Travel restrictions.'},
+  {w:'sequence',t:'n',m:'순서, 연속',e:'In sequence.'},
+  {w:'significance',t:'n',m:'중요성, 의미',e:'The significance of education.'},
+  {w:'strategy',t:'n',m:'전략, 계획',e:'A business strategy.'},
+  {w:'structure',t:'n',m:'구조, 체계',e:'Organizational structure.'},
+  {w:'transition',t:'n',m:'전환, 변화',e:'A smooth transition.'},
+  {w:'utilization',t:'n',m:'활용, 이용',e:'Resource utilization.'},
+  {w:'validity',t:'n',m:'유효성, 타당성',e:'Question the validity.'},
+  {w:'variation',t:'n',m:'변화, 다양성',e:'Natural variation.'},
+  {w:'prosperity',t:'n',m:'번영, 번성',e:'Economic prosperity.'},
+  {w:'efficiency',t:'n',m:'효율성',e:'Improve efficiency.'},
+  {w:'sustainability',t:'n',m:'지속 가능성',e:'Environmental sustainability.'},
+  {w:'collaboration',t:'n',m:'협력, 합작',e:'Close collaboration.'},
+  {w:'transformation',t:'n',m:'변형, 전환',e:'Digital transformation.'},
+  {w:'infrastructure',t:'n',m:'기반시설',e:'Build infrastructure.'},
+  {w:'productivity',t:'n',m:'생산성',e:'Increase productivity.'},
+  {w:'transparency',t:'n',m:'투명성',e:'Financial transparency.'},
+  {w:'accountability',t:'n',m:'책임감, 책무',e:'Corporate accountability.'},
+  {w:'accelerate',t:'v',m:'가속하다, 빠르게 하다',e:'Accelerate growth.'},
+  {w:'assimilate',t:'v',m:'동화하다, 흡수하다',e:'Assimilate new information.'},
+  {w:'attribute',t:'v',m:'~의 탓으로 돌리다',e:'Attribute success to hard work.'},
+  {w:'cease',t:'v',m:'중단하다, 그치다',e:'Cease all operations.'},
+  {w:'clarify',t:'v',m:'명확히 하다, 설명하다',e:'Please clarify your point.'},
+  {w:'convey',t:'v',m:'전달하다, 운반하다',e:'Convey the message clearly.'},
+  {w:'depict',t:'v',m:'묘사하다, 그리다',e:'The painting depicts nature.'},
+  {w:'diminish',t:'v',m:'줄이다, 약화시키다',e:'Pain diminished over time.'},
+  {w:'distinguish',t:'v',m:'구별하다, 구분하다',e:'Distinguish fact from fiction.'},
+  {w:'dominate',t:'v',m:'지배하다, 우세하다',e:'She dominates the field.'},
+  {w:'ensure',t:'v',m:'보장하다, 확실히 하다',e:'Ensure quality control.'},
+  {w:'evolve',t:'v',m:'진화하다, 발전하다',e:'Technology continues to evolve.'},
+  {w:'exclude',t:'v',m:'제외하다, 배제하다',e:'No one was excluded.'},
+  {w:'exploit',t:'v',m:'이용하다, 개발하다',e:'Exploit opportunities wisely.'},
+  {w:'expose',t:'v',m:'노출하다, 드러내다',e:'Be exposed to new ideas.'},
+  {w:'extract',t:'v',m:'추출하다, 발췌하다',e:'Extract key information.'},
+  {w:'identify',t:'v',m:'확인하다, 식별하다',e:'Identify the problem.'},
+  {w:'illustrate',t:'v',m:'설명하다, 삽화를 그리다',e:'Illustrate your point.'},
+  {w:'imply',t:'v',m:'암시하다, 내포하다',e:'What does this imply?'},
+  {w:'impose',t:'v',m:'부과하다, 강요하다',e:'Impose restrictions.'},
+  {w:'interact',t:'v',m:'상호작용하다',e:'Interact with others.'},
+  {w:'justify',t:'v',m:'정당화하다, 해명하다',e:'Justify your decision.'},
+  {w:'modify',t:'v',m:'수정하다, 변경하다',e:'Modify the design.'},
+  {w:'neglect',t:'v',m:'무시하다, 방치하다',e:'Do not neglect safety.'},
+  {w:'notify',t:'v',m:'통보하다, 알리다',e:'Notify the team immediately.'},
+  {w:'overcome',t:'v',m:'극복하다, 이기다',e:'Overcome challenges.'},
+  {w:'predict',t:'v',m:'예측하다, 예언하다',e:'Predict future trends.'},
+  {w:'preserve',t:'v',m:'보존하다, 유지하다',e:'Preserve natural habitats.'},
+  {w:'proceed',t:'v',m:'진행하다, 계속하다',e:'Please proceed with caution.'},
+  {w:'prohibit',t:'v',m:'금지하다, 막다',e:'Smoking is prohibited here.'},
+  {w:'realize',t:'v',m:'깨닫다, 실현하다',e:'Realize your potential.'},
+  {w:'recognize',t:'v',m:'인식하다, 인정하다',e:'Recognize the effort.'},
+  {w:'reduce',t:'v',m:'줄이다, 낮추다',e:'Reduce carbon emissions.'},
+  {w:'reflect',t:'v',m:'반영하다, 숙고하다',e:'Reflect on your actions.'},
+  {w:'replace',t:'v',m:'대체하다, 교체하다',e:'Replace old equipment.'},
+  {w:'reveal',t:'v',m:'드러내다, 밝히다',e:'Reveal the truth.'},
+  {w:'seek',t:'v',m:'찾다, 추구하다',e:'Seek advice from experts.'},
+  {w:'separate',t:'v',m:'분리하다, 나누다',e:'Separate the groups.'},
+  {w:'specify',t:'v',m:'명시하다, 명세하다',e:'Specify the requirements.'},
+  {w:'submit',t:'v',m:'제출하다',e:'Submit the report on time.'},
+  {w:'succeed',t:'v',m:'성공하다, 뒤를 잇다',e:'Succeed in business.'},
+  {w:'supplement',t:'v',m:'보충하다, 부가하다',e:'Supplement with exercise.'},
+  {w:'surpass',t:'v',m:'능가하다, 뛰어넘다',e:'Surpass the target.'},
+  {w:'tolerate',t:'v',m:'용납하다, 견디다',e:'Tolerate differences.'},
+  {w:'trace',t:'v',m:'추적하다, 따라가다',e:'Trace the origin.'},
+  {w:'undermine',t:'v',m:'약화시키다, 손상하다',e:'Undermine confidence.'},
+  {w:'unify',t:'v',m:'통합하다, 하나로 하다',e:'Unify the team.'},
+  {w:'ambivalent',t:'adj',m:'양면적인, 상반된',e:'An ambivalent attitude.'},
+  {w:'analogous',t:'adj',m:'유사한, 비슷한',e:'Analogous situations.'},
+  {w:'autonomous',t:'adj',m:'자율적인, 독립적인',e:'An autonomous vehicle.'},
+  {w:'beneficial',t:'adj',m:'유익한, 이로운',e:'Beneficial effects.'},
+  {w:'chronic',t:'adj',m:'만성적인, 장기간의',e:'A chronic condition.'},
+  {w:'collective',t:'adj',m:'집단적인, 공동의',e:'Collective responsibility.'},
+  {w:'compatible',t:'adj',m:'호환 가능한, 양립 가능한',e:'Compatible systems.'},
+  {w:'compulsory',t:'adj',m:'의무적인, 강제적인',e:'Compulsory education.'},
+  {w:'contradictory',t:'adj',m:'모순된, 상충하는',e:'Contradictory statements.'},
+  {w:'controversial',t:'adj',m:'논쟁적인, 논란이 되는',e:'A controversial topic.'},
+  {w:'conventional',t:'adj',m:'전통적인, 관습적인',e:'Conventional methods.'},
+  {w:'critical',t:'adj',m:'비판적인, 결정적인',e:'Critical thinking skills.'},
+  {w:'cumulative',t:'adj',m:'누적적인, 점증하는',e:'Cumulative effects.'},
+  {w:'deficient',t:'adj',m:'부족한, 결핍된',e:'Deficient in vitamins.'},
+  {w:'distinctive',t:'adj',m:'독특한, 특징적인',e:'A distinctive style.'},
+  {w:'empirical',t:'adj',m:'경험적인, 실증적인',e:'Empirical evidence.'},
+  {w:'exhaustive',t:'adj',m:'철저한, 완전한',e:'An exhaustive search.'},
+  {w:'extensive',t:'adj',m:'광범위한, 넓은',e:'Extensive research.'},
+  {w:'favorable',t:'adj',m:'호의적인, 유리한',e:'Favorable conditions.'},
+  {w:'feasible',t:'adj',m:'실현 가능한, 타당한',e:'A feasible plan.'},
+  {w:'finite',t:'adj',m:'유한한, 한정된',e:'Finite resources.'},
+  {w:'hierarchical',t:'adj',m:'계층적인',e:'A hierarchical structure.'},
+  {w:'impartial',t:'adj',m:'공정한, 편파적이지 않은',e:'An impartial judge.'},
+  {w:'implicit',t:'adj',m:'암묵적인, 내포된',e:'An implicit agreement.'},
+  {w:'inherent',t:'adj',m:'본질적인, 내재적인',e:'Inherent risks.'},
+  {w:'intensive',t:'adj',m:'집중적인, 철저한',e:'Intensive training.'},
+  {w:'intrinsic',t:'adj',m:'본질적인, 고유의',e:'Intrinsic value.'},
+  {w:'marginal',t:'adj',m:'주변부의, 미미한',e:'Marginal improvement.'},
+  {w:'negligible',t:'adj',m:'무시할 수 있는, 사소한',e:'A negligible amount.'},
+  {w:'obsolete',t:'adj',m:'구식의, 쓸모없는',e:'Obsolete technology.'},
+  {w:'plausible',t:'adj',m:'그럴듯한, 타당한',e:'A plausible explanation.'},
+  {w:'preliminary',t:'adj',m:'예비적인, 초보적인',e:'Preliminary results.'},
+  {w:'prevalent',t:'adj',m:'일반적인, 만연한',e:'A prevalent issue.'},
+  {w:'proactive',t:'adj',m:'주도적인, 적극적인',e:'Take a proactive approach.'},
+  {w:'prominent',t:'adj',m:'두드러진, 유명한',e:'A prominent figure.'},
+  {w:'proportional',t:'adj',m:'비례하는, 균형 잡힌',e:'Proportional representation.'},
+  {w:'qualitative',t:'adj',m:'질적인, 품질의',e:'Qualitative research.'},
+  {w:'quantitative',t:'adj',m:'양적인, 수량적인',e:'Quantitative data.'},
+  {w:'innate',t:'adj',m:'타고난, 선천적인',e:'An innate talent.'},
+  {w:'tangible',t:'adj',m:'실체가 있는, 유형의',e:'Tangible results.'},
+  {w:'agenda',t:'n',m:'의제, 안건',e:'Set the agenda.'},
+  {w:'amendment',t:'n',m:'수정안, 개정',e:'A constitutional amendment.'},
+  {w:'budget',t:'n',m:'예산, 계획',e:'Manage the budget.'},
+  {w:'candidate',t:'n',m:'후보자, 지원자',e:'A qualified candidate.'},
+  {w:'certificate',t:'n',m:'증명서, 자격증',e:'A teaching certificate.'},
+  {w:'committee',t:'n',m:'위원회',e:'The committee decided.'},
+  {w:'compensation',t:'n',m:'보상, 보수',e:'Receive fair compensation.'},
+  {w:'compliance',t:'n',m:'준수, 이행',e:'In compliance with the law.'},
+  {w:'contract',t:'n',m:'계약(서)',e:'Sign the contract.'},
+  {w:'cooperation',t:'n',m:'협력, 협조',e:'International cooperation.'},
+  {w:'deadline',t:'n',m:'마감일, 기한',e:'Meet the deadline.'},
+  {w:'expenditure',t:'n',m:'지출, 경비',e:'Public expenditure.'},
+  {w:'forecast',t:'n',m:'예측, 예보',e:'A sales forecast.'},
+  {w:'headquarters',t:'n',m:'본사, 본부',e:'The global headquarters.'},
+  {w:'incentive',t:'n',m:'인센티브, 장려책',e:'Financial incentives.'},
+  {w:'inventory',t:'n',m:'재고, 목록',e:'Manage inventory.'},
+  {w:'invoice',t:'n',m:'청구서, 송장',e:'Send the invoice.'},
+  {w:'liability',t:'n',m:'부채, 책임',e:'Legal liability.'},
+  {w:'license',t:'n',m:'면허증, 허가',e:'A professional license.'},
+  {w:'logistics',t:'n',m:'물류, 조직적 처리',e:'Supply chain logistics.'},
+  {w:'merger',t:'n',m:'합병, 통합',e:'A corporate merger.'},
+  {w:'milestone',t:'n',m:'중요한 단계, 이정표',e:'Reach a milestone.'},
+  {w:'patent',t:'n',m:'특허(권)',e:'Apply for a patent.'},
+  {w:'personnel',t:'n',m:'직원, 인사',e:'Hire qualified personnel.'},
+  {w:'procurement',t:'n',m:'조달, 구매',e:'Procurement process.'},
+  {w:'proposal',t:'n',m:'제안(서), 계획',e:'Submit a proposal.'},
+  {w:'prototype',t:'n',m:'원형, 시제품',e:'Build a prototype.'},
+  {w:'recruitment',t:'n',m:'채용, 모집',e:'Recruitment drive.'},
+  {w:'revenue',t:'n',m:'수익, 세입',e:'Annual revenue.'},
+  {w:'specification',t:'n',m:'사양, 명세',e:'Technical specifications.'},
+  {w:'subsidy',t:'n',m:'보조금',e:'Government subsidies.'},
+  {w:'surplus',t:'n',m:'잉여, 흑자',e:'A trade surplus.'},
+  {w:'tariff',t:'n',m:'관세, 요금',e:'Import tariffs.'},
+  {w:'transaction',t:'n',m:'거래, 처리',e:'A financial transaction.'},
+  {w:'vendor',t:'n',m:'판매상, 공급업체',e:'Choose a reliable vendor.'},
+  {w:'warranty',t:'n',m:'보증(서), 품질보증',e:'A one-year warranty.'},
+  {w:'analogy',t:'n',m:'유추, 비유',e:'Draw an analogy.'},
+  {w:'anomaly',t:'n',m:'이상, 변칙',e:'Detect an anomaly.'},
+  {w:'bias',t:'n',m:'편견, 편향',e:'Avoid bias in research.'},
+  {w:'causation',t:'n',m:'인과관계',e:'Correlation is not causation.'},
+  {w:'correlation',t:'n',m:'상관관계',e:'A positive correlation.'},
+  {w:'deduction',t:'n',m:'추론, 공제',e:'Logical deduction.'},
+  {w:'discrepancy',t:'n',m:'불일치, 차이',e:'A data discrepancy.'},
+  {w:'inference',t:'n',m:'추론, 결론',e:'Draw an inference.'},
+  {w:'paradigm',t:'n',m:'패러다임, 모형',e:'A paradigm shift.'},
+  {w:'parameter',t:'n',m:'매개변수, 한계',e:'Set the parameters.'},
+  {w:'premise',t:'n',m:'전제, 가정',e:'The premise is flawed.'},
+  {w:'principle',t:'n',m:'원칙, 원리',e:'Core principles.'},
+  {w:'probability',t:'n',m:'확률, 가능성',e:'A high probability.'},
+  {w:'synthesis',t:'n',m:'합성, 종합',e:'A synthesis of ideas.'},
+  {w:'biodiversity',t:'n',m:'생물 다양성',e:'Protect biodiversity.'},
+  {w:'conservation',t:'n',m:'보존, 보호',e:'Wildlife conservation.'},
+  {w:'contamination',t:'n',m:'오염, 오염물질',e:'Water contamination.'},
+  {w:'ecosystem',t:'n',m:'생태계',e:'A fragile ecosystem.'},
+  {w:'emission',t:'n',m:'배출, 방사',e:'Carbon emissions.'},
+  {w:'erosion',t:'n',m:'침식, 부식',e:'Soil erosion.'},
+  {w:'extinction',t:'n',m:'멸종, 소멸',e:'Species extinction.'},
+  {w:'habitat',t:'n',m:'서식지, 환경',e:'Natural habitat.'},
+  {w:'precipitation',t:'n',m:'강수량, 강우',e:'Annual precipitation.'},
+  {w:'vegetation',t:'n',m:'식물, 초목',e:'Dense vegetation.'},
+  {w:'indigenous',t:'adj',m:'토착의, 원산의',e:'Indigenous species.'},
+  {w:'renewable',t:'adj',m:'재생 가능한',e:'Renewable energy sources.'},
+  {w:'sustainable',t:'adj',m:'지속 가능한',e:'Sustainable development.'},
+  {w:'toxic',t:'adj',m:'독성의, 유독한',e:'Toxic substances.'},
+  {w:'vulnerable',t:'adj',m:'취약한, 상처받기 쉬운',e:'Vulnerable populations.'},
+  {w:'bureaucracy',t:'n',m:'관료제, 관료주의',e:'Cut through bureaucracy.'},
+  {w:'coalition',t:'n',m:'연합, 동맹',e:'Form a coalition.'},
+  {w:'democracy',t:'n',m:'민주주의',e:'Democracy and freedom.'},
+  {w:'diplomacy',t:'n',m:'외교',e:'International diplomacy.'},
+  {w:'discrimination',t:'n',m:'차별, 구별',e:'Fight discrimination.'},
+  {w:'governance',t:'n',m:'거버넌스, 통치',e:'Good governance.'},
+  {w:'ideology',t:'n',m:'이념, 이데올로기',e:'Political ideology.'},
+  {w:'legislation',t:'n',m:'법률, 입법',e:'New legislation.'},
+  {w:'legitimacy',t:'n',m:'합법성, 정당성',e:'Question the legitimacy.'},
+  {w:'manipulation',t:'n',m:'조작, 조종',e:'Media manipulation.'},
+  {w:'oppression',t:'n',m:'억압, 압박',e:'Political oppression.'},
+  {w:'sovereignty',t:'n',m:'주권, 자주권',e:'National sovereignty.'},
+  {w:'stereotype',t:'n',m:'고정관념',e:'Challenge stereotypes.'},
+  {w:'tolerance',t:'n',m:'관용, 허용',e:'Practice tolerance.'},
+  {w:'welfare',t:'n',m:'복지, 안녕',e:'Social welfare.'},
+  {w:'adverse',t:'adj',m:'불리한, 해로운',e:'Adverse effects.'},
+  {w:'diagnosis',t:'n',m:'진단',e:'An early diagnosis.'},
+  {w:'disorder',t:'n',m:'장애, 혼란',e:'A sleep disorder.'},
+  {w:'epidemic',t:'n',m:'전염병, 유행병',e:'An epidemic outbreak.'},
+  {w:'genetic',t:'adj',m:'유전적인',e:'Genetic factors.'},
+  {w:'immune',t:'adj',m:'면역의, 면제된',e:'The immune system.'},
+  {w:'infectious',t:'adj',m:'전염성의',e:'An infectious disease.'},
+  {w:'medication',t:'n',m:'약물, 치료',e:'Prescription medication.'},
+  {w:'metabolism',t:'n',m:'대사, 신진대사',e:'A fast metabolism.'},
+  {w:'neural',t:'adj',m:'신경(계)의',e:'Neural pathways.'},
+  {w:'organism',t:'n',m:'유기체, 생물',e:'A living organism.'},
+  {w:'pathogen',t:'n',m:'병원체',e:'A deadly pathogen.'},
+  {w:'prevention',t:'n',m:'예방, 방지',e:'Disease prevention.'},
+  {w:'psychological',t:'adj',m:'심리적인',e:'Psychological effects.'},
+  {w:'rehabilitation',t:'n',m:'재활, 복구',e:'Physical rehabilitation.'},
+  {w:'syndrome',t:'n',m:'증후군',e:'Burnout syndrome.'},
+  {w:'therapeutic',t:'adj',m:'치료의, 요법의',e:'Therapeutic methods.'},
+  {w:'vaccination',t:'n',m:'예방접종',e:'Annual vaccination.'},
+  {w:'algorithm',t:'n',m:'알고리즘',e:'A sorting algorithm.'},
+  {w:'automation',t:'n',m:'자동화',e:'Factory automation.'},
+  {w:'bandwidth',t:'n',m:'대역폭',e:'High bandwidth.'},
+  {w:'configuration',t:'n',m:'구성, 설정',e:'System configuration.'},
+  {w:'cybersecurity',t:'n',m:'사이버 보안',e:'Cybersecurity threats.'},
+  {w:'encryption',t:'n',m:'암호화',e:'Data encryption.'},
+  {w:'interface',t:'n',m:'인터페이스, 접점',e:'User interface design.'},
+  {w:'iteration',t:'n',m:'반복, 되풀이',e:'Multiple iterations.'},
+  {w:'optimization',t:'n',m:'최적화',e:'Performance optimization.'},
+  {w:'platform',t:'n',m:'플랫폼, 기반',e:'A digital platform.'},
+  {w:'protocol',t:'n',m:'프로토콜, 규약',e:'Communication protocol.'},
+  {w:'scalability',t:'n',m:'확장성',e:'System scalability.'},
+  {w:'synchronize',t:'v',m:'동기화하다',e:'Synchronize the data.'},
+  {w:'virtual',t:'adj',m:'가상의, 실질적인',e:'Virtual reality experience.'},
+  {w:'visualization',t:'n',m:'시각화',e:'Data visualization.'},
+  {w:'vulnerability',t:'n',m:'취약성, 약점',e:'System vulnerabilities.'},
+  {w:'commodity',t:'n',m:'상품, 원자재',e:'Agricultural commodities.'},
+  {w:'depreciation',t:'n',m:'감가상각, 가치하락',e:'Asset depreciation.'},
+  {w:'dividend',t:'n',m:'배당금, 이익',e:'Pay dividends.'},
+  {w:'fiscal',t:'adj',m:'재정의, 회계의',e:'Fiscal policy.'},
+  {w:'inflation',t:'n',m:'인플레이션, 물가상승',e:'Combat inflation.'},
+  {w:'investment',t:'n',m:'투자',e:'Long-term investment.'},
+  {w:'monetary',t:'adj',m:'통화의, 금전적인',e:'Monetary policy.'},
+  {w:'recession',t:'n',m:'경기침체',e:'An economic recession.'},
+  {w:'speculation',t:'n',m:'투기, 추측',e:'Market speculation.'},
+  {w:'taxation',t:'n',m:'과세, 세금',e:'Progressive taxation.'},
+  {w:'volatility',t:'n',m:'변동성, 불안정성',e:'Market volatility.'},
+  {w:'wealth',t:'n',m:'부, 재산',e:'Create wealth.'},
+  {w:'benchmark',t:'n',m:'기준, 표준',e:'Set a benchmark.'},
+  {w:'catalyst',t:'n',m:'촉매, 계기',e:'A catalyst for change.'},
+  {w:'coherence',t:'n',m:'일관성, 응집력',e:'Logical coherence.'},
+  {w:'contingency',t:'n',m:'비상사태, 우발사태',e:'A contingency plan.'},
+  {w:'endorsement',t:'n',m:'지지, 보증',e:'Celebrity endorsement.'},
+  {w:'equilibrium',t:'n',m:'균형, 평형',e:'Market equilibrium.'},
+  {w:'expertise',t:'n',m:'전문성, 전문 지식',e:'Domain expertise.'},
+  {w:'fallacy',t:'n',m:'오류, 그릇된 생각',e:'A logical fallacy.'},
+  {w:'hierarchy',t:'n',m:'계층구조, 위계',e:'A corporate hierarchy.'},
+  {w:'integrity',t:'n',m:'무결성, 청렴',e:'Professional integrity.'},
+  {w:'intervention',t:'n',m:'개입, 중재',e:'Government intervention.'},
+  {w:'paradox',t:'n',m:'역설, 모순',e:'A logical paradox.'},
+  {w:'prerequisite',t:'n',m:'전제 조건, 필수 요건',e:'A prerequisite for success.'},
+  {w:'redundancy',t:'n',m:'중복, 잉여',e:'Reduce redundancy.'},
+  {w:'reliance',t:'n',m:'의존, 신뢰',e:'Reliance on technology.'},
+  {w:'resilience',t:'n',m:'회복력, 탄력성',e:'Build resilience.'},
+  {w:'scrutiny',t:'n',m:'정밀 조사, 세밀한 검토',e:'Under public scrutiny.'},
+  {w:'spectrum',t:'n',m:'스펙트럼, 범위',e:'A broad spectrum.'},
+  {w:'stigma',t:'n',m:'오명, 낙인',e:'Remove the stigma.'},
+  {w:'threshold',t:'n',m:'한계점, 문턱',e:'A critical threshold.'},
+  {w:'assert',t:'v',m:'주장하다, 단언하다',e:'Assert your rights.'},
+  {w:'coincide',t:'v',m:'일치하다, 동시에 일어나다',e:'Their views coincide.'},
+  {w:'comply',t:'v',m:'준수하다, 따르다',e:'Comply with regulations.'},
+  {w:'contradict',t:'v',m:'반박하다, 모순되다',e:'These facts contradict.'},
+  {w:'correlate',t:'v',m:'상관관계가 있다',e:'Exercise correlates with health.'},
+  {w:'deduce',t:'v',m:'추론하다, 도출하다',e:'Deduce the answer.'},
+  {w:'deplete',t:'v',m:'고갈시키다, 감소시키다',e:'Deplete natural resources.'},
+  {w:'exceed',t:'v',m:'초과하다, 능가하다',e:'Exceed expectations.'},
+  {w:'fluctuate',t:'v',m:'변동하다, 오르내리다',e:'Prices fluctuate daily.'},
+  {w:'generalize',t:'v',m:'일반화하다',e:'Do not overgeneralize.'},
+  {w:'infer',t:'v',m:'추론하다, 결론짓다',e:'Infer the meaning.'},
+  {w:'negate',t:'v',m:'부정하다, 무효화하다',e:'Negate the effect.'},
+  {w:'omit',t:'v',m:'생략하다, 빠뜨리다',e:'Omit unnecessary details.'},
+  {w:'persist',t:'v',m:'지속하다, 고집하다',e:'The problem persists.'},
+  {w:'prioritize',t:'v',m:'우선시하다',e:'Prioritize your tasks.'},
+  {w:'quantify',t:'v',m:'수량화하다',e:'Quantify the results.'},
+  {w:'rationalize',t:'v',m:'합리화하다',e:'Rationalize your actions.'},
+  {w:'aggregate',t:'v',m:'합계하다, 집합시키다',e:'Aggregate the data.'},
+  {w:'categorize',t:'v',m:'분류하다',e:'Categorize by type.'},
+  {w:'differentiate',t:'v',m:'구별하다, 차별화하다',e:'Differentiate the products.'},
+  {w:'maximize',t:'v',m:'극대화하다',e:'Maximize efficiency.'},
+  {w:'minimize',t:'v',m:'최소화하다',e:'Minimize risks.'},
+  {w:'neutralize',t:'v',m:'중화하다, 무력화하다',e:'Neutralize the threat.'},
+  {w:'normalize',t:'v',m:'표준화하다, 정상화하다',e:'Normalize relations.'},
+  {w:'optimize',t:'v',m:'최적화하다',e:'Optimize the system.'},
+  {w:'polarize',t:'v',m:'양극화하다',e:'The issue polarizes opinion.'},
+  {w:'standardize',t:'v',m:'표준화하다',e:'Standardize the process.'},
+  {w:'advocacy',t:'n',m:'지지, 옹호',e:'Environmental advocacy.'},
+  {w:'ambiguity',t:'n',m:'모호함, 애매함',e:'Avoid ambiguity.'},
+  {w:'convergence',t:'n',m:'수렴, 융합',e:'Technology convergence.'},
+  {w:'deterioration',t:'n',m:'악화, 열화',e:'Environmental deterioration.'},
+  {w:'disparity',t:'n',m:'격차, 불균형',e:'Income disparity.'},
+  {w:'divergence',t:'n',m:'발산, 차이',e:'A divergence of opinions.'},
+  {w:'formulation',t:'n',m:'공식화, 방법론',e:'Policy formulation.'},
+  {w:'legitimization',t:'n',m:'합법화, 정당화',e:'Legitimization of power.'},
+  {w:'manifestation',t:'n',m:'표명, 나타남',e:'A manifestation of stress.'},
+  {w:'polarization',t:'n',m:'양극화',e:'Political polarization.'},
+  {w:'reconciliation',t:'n',m:'화해, 조정',e:'Seek reconciliation.'},
+  {w:'sophistication',t:'n',m:'세련됨, 정교함',e:'Technical sophistication.'},
+  {w:'standardization',t:'n',m:'표준화',e:'Industry standardization.'},
+  {w:'correspond',t:'v',m:'일치하다, 편지를 주고받다',e:'The data correspond.'},
+  {w:'deviate',t:'v',m:'벗어나다, 이탈하다',e:'Deviate from the plan.'},
+  {w:'exert',t:'v',m:'가하다, 발휘하다',e:'Exert influence.'},
+  {w:'hinder',t:'v',m:'방해하다, 저해하다',e:'Hinder progress.'},
+  {w:'incorporate',t:'v',m:'포함하다, 법인화하다',e:'Incorporate feedback.'},
+  {w:'induce',t:'v',m:'유도하다, 유발하다',e:'Induce change.'},
+  {w:'inhibit',t:'v',m:'억제하다, 방해하다',e:'Inhibit growth.'},
+  {w:'innovate',t:'v',m:'혁신하다',e:'Innovate continuously.'},
+  {w:'mediate',t:'v',m:'중재하다, 조정하다',e:'Mediate the dispute.'},
+  {w:'mitigate',t:'v',m:'완화하다, 줄이다',e:'Mitigate risks.'},
+  {w:'replicate',t:'v',m:'복제하다, 반복하다',e:'Replicate the experiment.'},
+  {w:'terminate',t:'v',m:'종료하다, 해고하다',e:'Terminate the contract.'},
+  {w:'validate',t:'v',m:'검증하다, 유효화하다',e:'Validate the results.'},
+  {w:'discernment',t:'n',m:'안목, 통찰력',e:'Show discernment.'},
+  {w:'autonomy',t:'n',m:'자율성, 독립',e:'Creative autonomy.'},
+  {w:'credibility',t:'n',m:'신뢰성, 신빙성',e:'Build credibility.'},
+  {w:'dilemma',t:'n',m:'딜레마, 진퇴양난',e:'Face a dilemma.'},
+  {w:'domain',t:'n',m:'영역, 분야',e:'The domain of science.'},
+  {w:'empathy',t:'n',m:'공감, 감정이입',e:'Show empathy.'},
+  {w:'fluency',t:'n',m:'유창성, 능숙함',e:'Language fluency.'},
+  {w:'friction',t:'n',m:'마찰, 갈등',e:'Reduce friction.'},
+  {w:'immersion',t:'n',m:'몰입, 침잠',e:'Cultural immersion.'},
+  {w:'inclination',t:'n',m:'성향, 경향',e:'A natural inclination.'},
+  {w:'leverage',t:'n',m:'레버리지, 영향력',e:'Use leverage wisely.'},
+  {w:'momentum',t:'n',m:'모멘텀, 탄력',e:'Gain momentum.'},
+  {w:'nuance',t:'n',m:'뉘앙스, 미묘한 차이',e:'Understand the nuance.'},
+  {w:'perseverance',t:'n',m:'인내, 끈기',e:'Perseverance is key.'},
+  {w:'pragmatism',t:'n',m:'실용주의',e:'Political pragmatism.'},
+  {w:'prestige',t:'n',m:'위신, 명성',e:'Professional prestige.'},
+  {w:'proficiency',t:'n',m:'숙달, 능숙함',e:'Language proficiency.'},
+  {w:'reciprocity',t:'n',m:'상호성, 호혜',e:'A sense of reciprocity.'},
+  {w:'skepticism',t:'n',m:'회의론, 의심',e:'Healthy skepticism.'},
+  {w:'solidarity',t:'n',m:'연대, 단결',e:'Show solidarity.'},
+  {w:'spontaneity',t:'n',m:'자발성, 즉흥성',e:'Embrace spontaneity.'},
+  {w:'tenacity',t:'n',m:'끈질김, 완강함',e:'Show tenacity.'},
+  {w:'versatility',t:'n',m:'다재다능함',e:'Professional versatility.'},
+  {w:'vigilance',t:'n',m:'경계, 주의',e:'Maintain vigilance.'},
+  {w:'virtue',t:'n',m:'미덕, 장점',e:'A virtue of patience.'},
+  {w:'contemplate',t:'v',m:'숙고하다, 고려하다',e:'Contemplate the options.'},
+  {w:'enumerate',t:'v',m:'열거하다, 나열하다',e:'Enumerate the benefits.'},
+  {w:'exemplify',t:'v',m:'예시하다, 전형이다',e:'Exemplify good behavior.'},
+  {w:'perpetuate',t:'v',m:'영속시키다, 지속하다',e:'Perpetuate the cycle.'},
+  {w:'alleviate',t:'v',m:'완화하다, 경감하다',e:'Alleviate suffering.'},
+  {w:'articulate',t:'v',m:'명확히 표현하다',e:'Articulate your ideas.'},
+  {w:'complicate',t:'v',m:'복잡하게 하다',e:'Complicate matters.'},
+  {w:'concentrate',t:'v',m:'집중하다, 농축하다',e:'Concentrate your effort.'},
+  {w:'exacerbate',t:'v',m:'악화시키다, 더 나쁘게 하다',e:'Exacerbate the problem.'},
+  {w:'illuminate',t:'v',m:'밝히다, 설명하다',e:'Illuminate the issue.'},
+  {w:'intensify',t:'v',m:'강화하다, 심화하다',e:'Intensify efforts.'},
+  {w:'jeopardize',t:'v',m:'위태롭게 하다',e:'Jeopardize the deal.'},
+  {w:'precipitate',t:'v',m:'촉진하다, 재촉하다',e:'Precipitate a crisis.'},
+  {w:'recalibrate',t:'v',m:'재조정하다, 다시 맞추다',e:'Recalibrate the strategy.'},
+  {w:'rejuvenate',t:'v',m:'재활성화하다, 젊게 하다',e:'Rejuvenate the brand.'},
+  {w:'transcend',t:'v',m:'초월하다, 뛰어넘다',e:'Transcend limitations.'},
+  {w:'abstain',t:'v',m:'자제하다, 삼가다',e:'Abstain from voting.'},
+  {w:'amplify',t:'v',m:'증폭하다, 확대하다',e:'Amplify the signal.'},
+  {w:'circumvent',t:'v',m:'우회하다, 회피하다',e:'Circumvent the rules.'},
+  {w:'consolidate',t:'v',m:'통합하다, 강화하다',e:'Consolidate resources.'},
+  {w:'deteriorate',t:'v',m:'악화되다, 나빠지다',e:'Health may deteriorate.'},
+  {w:'dismantle',t:'v',m:'해체하다, 분해하다',e:'Dismantle the system.'},
+  {w:'disrupt',t:'v',m:'방해하다, 혼란시키다',e:'Disrupt the market.'},
+  {w:'empower',t:'v',m:'권한을 부여하다',e:'Empower the community.'},
+  {w:'endorse',t:'v',m:'지지하다, 승인하다',e:'Endorse the candidate.'},
+  {w:'foster',t:'v',m:'육성하다, 조장하다',e:'Foster innovation.'},
+  {w:'nourish',t:'v',m:'영양을 공급하다, 육성하다',e:'Nourish relationships.'},
+  {w:'obscure',t:'v',m:'불분명하게 하다, 가리다',e:'Obscure the facts.'},
+  {w:'refine',t:'v',m:'정제하다, 개선하다',e:'Refine your skills.'},
+  {w:'reinstate',t:'v',m:'복직시키다, 복원하다',e:'Reinstate the policy.'},
+  {w:'scrutinize',t:'v',m:'면밀히 조사하다',e:'Scrutinize the data.'},
+  {w:'streamline',t:'v',m:'간소화하다, 능률화하다',e:'Streamline the process.'},
+  {w:'underestimate',t:'v',m:'과소평가하다',e:'Do not underestimate risks.'},
+  {w:'versatile',t:'adj',m:'다재다능한, 다용도의',e:'A versatile tool.'},
+  {w:'resilient',t:'adj',m:'탄력 있는, 회복력 있는',e:'A resilient economy.'},
+  {w:'transparent',t:'adj',m:'투명한, 명백한',e:'Transparent governance.'},
+  {w:'innovative',t:'adj',m:'혁신적인',e:'Innovative solutions.'},
+];
+
+function _getVocabDayIndex(){
+  const base=new Date('2026-01-01');
+  const now=new Date(); now.setHours(0,0,0,0);
+  return Math.floor((now-base)/86400000)+_vocabDayOffset;
+}
+function _vocabLearnedKey(dayIdx){ return `wl_vocab_${currentUser.사원번호}_d${dayIdx}`; }
+function _getLearnedSet(dayIdx){ try{ return new Set(JSON.parse(localStorage.getItem(_vocabLearnedKey(dayIdx))||'[]')); }catch{ return new Set(); } }
+function _saveLearnedSet(dayIdx,set){ localStorage.setItem(_vocabLearnedKey(dayIdx),JSON.stringify([...set])); }
+
+function renderEnglishStudy(){ _vocabDayOffset=_vocabDayOffset||0; _renderVocabDay(); }
+
+function _renderVocabDay(){
+  const dayIdx=_getVocabDayIndex();
+  const totalDays=Math.ceil(HACKERS_WORDS.length/20);
+  const displayDay=(dayIdx%totalDays)+1;
+  const startIdx=(dayIdx%totalDays)*20;
+  const words=HACKERS_WORDS.slice(startIdx,startIdx+20);
+  const label=document.getElementById('vocab-day-label');
+  const range=document.getElementById('vocab-day-range');
+  const stats=document.getElementById('vocab-day-stats');
+  if(label) label.textContent=`Day ${displayDay}`;
+  if(range) range.textContent=`(단어 ${startIdx+1}~${startIdx+words.length})`;
+  const learned=_getLearnedSet(dayIdx);
+  const fill=document.getElementById('vocab-progress-fill');
+  if(fill) fill.style.width=`${Math.round((learned.size/words.length)*100)}%`;
+  if(stats) stats.textContent=`${learned.size}/${words.length} 학습 완료`;
+  const grid=document.getElementById('vocab-grid'); if(!grid) return;
+  grid.innerHTML=words.map((wd,i)=>{
+    const isLearned=learned.has(i);
+    return `<div class="vocab-card${isLearned?' learned':''}" id="vc-${i}">
+      <span class="vocab-num">${startIdx+i+1}</span>
+      <div class="vocab-content">
+        <div class="vocab-word">${wd.w}</div>
+        <div class="vocab-type">${wd.t}</div>
+        <div class="vocab-meaning">${wd.m}</div>
+        ${wd.e?`<div class="vocab-example">${wd.e}</div>`:''}
+      </div>
+      <button class="vocab-check" onclick="toggleVocabLearned(${i})" title="${isLearned?'학습 취소':'학습 완료'}">${isLearned?'✓':''}</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleVocabLearned(idx){
+  const dayIdx=_getVocabDayIndex();
+  const learned=_getLearnedSet(dayIdx);
+  if(learned.has(idx)) learned.delete(idx); else learned.add(idx);
+  _saveLearnedSet(dayIdx,learned);
+  _renderVocabDay();
+}
+
+function changeVocabDay(dir){
+  if(dir===0) _vocabDayOffset=0; else _vocabDayOffset+=dir;
+  _renderVocabDay();
 }
 
 // ═══════════════════════════════════════════════
