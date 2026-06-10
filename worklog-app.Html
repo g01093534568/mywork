@@ -3811,7 +3811,7 @@ async function saveBook(){
   const book={title,author,startDate:document.getElementById('book-start-date').value||null,endDate:document.getElementById('book-end-date').value||null,status:document.getElementById('book-status').value,rating:parseInt(document.getElementById('book-rating').value)||0,coverUrl:document.getElementById('book-cover-data').value||null,memo:document.getElementById('book-memo').value.trim()};
   if(id) book.id=id;
   try{ await DB.upsertBook(currentUser.사원번호,book); closeModal('book-modal'); await renderBooksTab(); toast('저장되었습니다'); }
-  catch(e){ toast('저장 실패: Supabase books 테이블을 확인하세요','error'); console.error(e); }
+  catch(e){ toast('저장 실패: '+(e?.message||'books 테이블을 확인하세요'),'error'); console.error(e); }
 }
 
 async function deleteBook(){
