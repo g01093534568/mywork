@@ -258,8 +258,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
 .section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
 .section-badge-green{color:var(--green);background:rgba(59,201,138,0.12);border:1px solid rgba(59,201,138,0.28);}
-/* 개인목표 → 시설목표 연계 태그 */
-.pg-linked-tag{font-size:10px;color:var(--blue);background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.22);border-radius:4px;padding:2px 8px;margin-bottom:8px;display:inline-block;}
+/* 개인 성과목표 인라인 카드 (전략과제 안) */
+.pg-inline-card{background:rgba(59,201,138,0.09);border:1px solid rgba(59,201,138,0.28);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
+.pg-inline-title{font-size:12px;font-weight:700;color:var(--green);margin-bottom:5px;word-break:keep-all;line-height:1.4;}
+.pg-inline-kpi{font-size:11px;color:var(--t2);padding:2px 0;word-break:keep-all;}
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -3057,20 +3059,49 @@ async function renderOrgGoals(){
     html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center;color:var(--t3);font-size:13px">등록된 개인 성과목표가 없습니다</div>`;
   } else {
     html+=`<div class="strategy-grid">`;
-    personalGoals.forEach(pg=>{
-      const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
-      html+=`<div class="strategy-col">
-        <div class="strategy-col-title" style="color:var(--green)">👤 ${esc(pg.goal)}</div>
-        ${pg.linked&&_allTaskNames.includes(pg.linked)?`<div class="pg-linked-tag">📋 ${esc(pg.linked)}</div>`:''}
-        ${pgKpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
-        <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
-        <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${pg.progress||0}%</div>
-        <div style="display:flex;gap:4px;margin-top:8px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
-        </div>
-      </div>`;
+    (org.전략목표||[]).forEach((목표,i)=>{
+      const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
+      const hasLinked=tasks.some(t=>personalGoals.some(pg=>pg.linked===t.과제));
+      if(!hasLinked) return;
+      html+=`<div class="strategy-col"><div class="strategy-col-title" style="color:var(--green)">전략목표 ${i+1}: ${esc(목표)}</div>`;
+      tasks.forEach(t=>{
+        const linked=personalGoals.filter(pg=>pg.linked===t.과제);
+        if(!linked.length) return;
+        html+=`<div class="strategy-task" style="font-size:10px;opacity:0.7;margin-top:4px">↳ ${esc(t.과제)}</div>`;
+        linked.forEach(pg=>{
+          const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
+          html+=`<div class="pg-inline-card">
+            <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
+            ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+            <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+            <div style="font-size:10px;color:var(--green);text-align:right;margin-top:3px;font-weight:700">${pg.progress||0}%</div>
+            <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
+            </div>
+          </div>`;
+        });
+      });
+      html+=`</div>`;
     });
+    const _unlinkedPg=personalGoals.filter(pg=>!pg.linked||!_allTaskNames.includes(pg.linked));
+    if(_unlinkedPg.length){
+      html+=`<div class="strategy-col" style="opacity:0.8"><div class="strategy-col-title" style="color:var(--t3)">미연계 개인목표</div>`;
+      _unlinkedPg.forEach(pg=>{
+        const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
+        html+=`<div class="pg-inline-card">
+          <div class="pg-inline-title">👤 ${esc(pg.goal)}</div>
+          ${pgKpis.map(k=>`<div class="pg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+          <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+          <div style="font-size:10px;color:var(--green);text-align:right;margin-top:3px;font-weight:700">${pg.progress||0}%</div>
+          <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+            <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
+    }
     html+=`</div>`;
   }
   html+=`</div>`;
