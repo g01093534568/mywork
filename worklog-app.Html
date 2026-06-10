@@ -2019,7 +2019,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>연계 시설목표</label>
+        <label>연계 전략과제</label>
         <select id="pg-linked"></select>
       </div>
       <div class="form-group">
@@ -3061,7 +3061,7 @@ async function renderOrgGoals(){
       const pgKpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
       html+=`<div class="strategy-col">
         <div class="strategy-col-title" style="color:var(--green)">👤 ${esc(pg.goal)}</div>
-        ${pg.linked&&_allFgNames.includes(pg.linked)?`<div class="pg-linked-tag">🏢 ${esc(pg.linked)}</div>`:''}
+        ${pg.linked&&_allTaskNames.includes(pg.linked)?`<div class="pg-linked-tag">📋 ${esc(pg.linked)}</div>`:''}
         ${pgKpis.map(k=>`<div class="strategy-task">📊 ${esc(k)}</div>`).join('')}
         <div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${pg.progress||0}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
         <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${pg.progress||0}%</div>
@@ -3115,9 +3115,17 @@ function deletePgKpi(i){
 }
 
 async function openPersonalGoalModal(id){
-  const fgoals=await DB.getFacilityGoals(currentUser.시설명);
+  const org=await DB.getOrg();
   const sel=document.getElementById('pg-linked');
-  sel.innerHTML='<option value="">연계 없음</option>'+fgoals.map(g=>`<option value="${esc(g.goal)}">${esc(g.goal)}</option>`).join('');
+  let opts='<option value="">연계 없음</option>';
+  (org?.전략목표||[]).forEach((목표,i)=>{
+    const tasks=(org?.전략과제||[]).filter(t=>t.목표idx===i);
+    if(!tasks.length) return;
+    opts+=`<optgroup label="전략목표 ${i+1}: ${목표}">`;
+    tasks.forEach(t=>{ opts+=`<option value="${esc(t.과제)}">${esc(t.과제)}</option>`; });
+    opts+=`</optgroup>`;
+  });
+  sel.innerHTML=opts;
   if(id){
     const goals=await DB.getPersonalGoals(currentUser.사원번호);
     const g=goals.find(x=>x.id===id);
