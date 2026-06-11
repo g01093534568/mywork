@@ -5165,6 +5165,9 @@ async function renderStocks(){
     return;
   }
   const cols=Math.min(stocks.length,4);
+  // #3 부분실패 감지 — 다른 종목은 갱신됐는데 60초 넘게 안 갱신된 종목은 "이전 시세"로 표시
+  let _newestUpd=0;
+  for(const v of stockPriceUpdatedMap.values()) if(v>_newestUpd) _newestUpd=v;
   cont.innerHTML=`<div class="stock-grid" style="grid-template-columns:repeat(${cols},1fr)">${stocks.map(s=>{
     const h=s._h;
     const cur=Number(s.currentPrice)||0;
@@ -5179,6 +5182,9 @@ async function renderStocks(){
     const pnl=qty?(cur-avg)*qty:null;
     const pnlPct=avg&&qty?((cur-avg)/avg*100):null;
     const pnlClass=pnl===null?'':(pnl>0?'pnl-pos':pnl<0?'pnl-neg':'pnl-flat');
+    const _upd=s.ticker?(stockPriceUpdatedMap.get(s.ticker)||0):0;
+    const _isStale=_upd&&_newestUpd&&(_newestUpd-_upd>60000);
+    const staleBadge=_isStale?`<div style="font-size:10px;font-weight:600;color:#f0b429;margin-top:-4px;margin-bottom:8px">⚠ 이전 시세 (${new Date(_upd).toTimeString().slice(0,5)} 기준)</div>`:'';
     const nxt=s.ticker?stockNxtMap.get(s.ticker):null;
     const nxtRow=nxt&&nxt.nxtPrice?(()=>{
       const nd=nxt.nxtPrice, nc=nxt.nxtChg||0, np=prev||cur;
@@ -5198,6 +5204,7 @@ async function renderStocks(){
       <div class="stock-card-ticker">${s.ticker?esc(s.ticker):'&nbsp;'}</div>
       <div class="stock-card-price">${cur?'₩'+fmtNum(cur):'─'}</div>
       <div class="stock-card-change stock-${dir}">${cur&&prev?`${arrow} ${sign}${fmtNum(diff)}원 (${sign}${pct.toFixed(2)}%)`:'시세 없음 · 🔄 갱신 필요'}</div>
+      ${staleBadge}
       ${nxtRow}
       <div class="stock-card-meta">
         <div class="stock-card-meta-grid">
@@ -5312,6 +5319,9 @@ async function fetchNaverQuote(code){
   const cur=toN(data.closePrice);
   if(cur<=0) throw new Error(`네이버 시세 없음 (${code})`);
   const chg=toN(data.compareToPreviousClosePrice);
+  // 체결시각·장상태 — 시세 신선도 검증용(프록시가 준 과거 캐시 응답 거르기)
+  const tradedAtMs=data.localTradedAt?(Date.parse(data.localTradedAt)||0):0;
+  const marketStatus=data.marketStatus||'';
   // NXT(넥스트트레이드) 시간외 시세 시도 (08:00~09:00, 15:40~20:00)
   let nxtPrice=null, nxtChg=null;
   try{
@@ -5323,7 +5333,7 @@ async function fetchNaverQuote(code){
   return{
     ticker:code, name:data.stockName||code,
     currentPrice:cur, prevClose:Math.round((cur-chg)*100)/100,
-    currency:'KRW', source:'naver', nxtPrice, nxtChg
+    currency:'KRW', source:'naver', nxtPrice, nxtChg, tradedAtMs, marketStatus
   };
 }
 
@@ -5365,38 +5375,57 @@ async function fetchAndFillStock(){
 }
 
 async function refreshAllStocks(silent=false){
+  // #5 동시실행 락 — 자동·수동 갱신이 겹쳐 DB write가 교차하는 것을 방지
+  if(stockRefreshing){ if(!silent) toast('이미 갱신 중입니다'); return; }
   const snapshot=await DB.getStocks(currentUser.사원번호);
   if(!snapshot.length){ if(!silent) toast('보유 주식이 없습니다','error'); return; }
   if(!snapshot.some(s=>s.ticker)){ if(!silent) toast('종목코드가 있는 주식이 없습니다','error'); return; }
+  stockRefreshing=true;
   const btn=document.getElementById('stock-refresh-btn');
   if(btn){ btn.disabled=true; btn.textContent='갱신 중...'; }
-  let ok=0, fail=0;
-  const priceMap=new Map();
-  for(const s of snapshot){
-    if(!s.ticker){ fail++; continue; }
-    try{
-      const q=await fetchStockQuote(s.ticker);
-      priceMap.set(s.ticker,{currentPrice:q.currentPrice,prevClose:q.prevClose});
-      if(q.nxtPrice) stockNxtMap.set(s.ticker,{nxtPrice:q.nxtPrice,nxtChg:q.nxtChg});
-      else stockNxtMap.delete(s.ticker);
-      ok++;
-    }catch(e){ fail++; }
+  try{
+    const tickers=[...new Set(snapshot.filter(s=>s.ticker).map(s=>s.ticker))];
+    const priceMap=new Map();
+    let ok=0, fail=0, stale=0;
+    // #3 동시성 제한 병렬 조회 — 종목 간 시차를 줄여 "동시점 스냅샷"에 근접
+    const CONC=4; let idx=0;
+    async function worker(){
+      while(idx<tickers.length){
+        const t=tickers[idx++];
+        try{
+          const q=await fetchStockQuote(t);
+          // #1 신선도 검증 — 직전 채택값보다 오래된 체결시각이면 프록시 캐시로 보고 폐기
+          const prevMs=stockTradedAtMap.get(t)||0;
+          if(q.tradedAtMs && prevMs && q.tradedAtMs<prevMs){ stale++; continue; }
+          if(q.tradedAtMs) stockTradedAtMap.set(t,q.tradedAtMs);
+          priceMap.set(t,{currentPrice:q.currentPrice,prevClose:q.prevClose});
+          if(q.nxtPrice) stockNxtMap.set(t,{nxtPrice:q.nxtPrice,nxtChg:q.nxtChg});
+          else stockNxtMap.delete(t);
+          stockPriceUpdatedMap.set(t,Date.now());
+          ok++;
+        }catch(e){ fail++; }
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(CONC,tickers.length)},()=>worker()));
+    // #3 전 종목 조회가 끝난 뒤 한 번에 DB 반영 — 신선/낡은 시세가 섞인 중간상태 노출 방지
+    const current=await DB.getStocks(currentUser.사원번호);
+    for(const s of current){
+      const p=priceMap.get(s.ticker);
+      if(p){ s.currentPrice=p.currentPrice; s.prevClose=p.prevClose; await DB.upsertStock(currentUser.사원번호,s); }
+    }
+    await renderStocks();
+    // 마지막 업데이트 시각
+    const now=new Date();
+    const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    const el=document.getElementById('stock-last-updated');
+    if(el) el.textContent=`${timeStr} 기준 · 30초마다 자동 갱신${fail>0?` · ${fail}개 실패`:''}${stale>0?` · ${stale}개 캐시무시`:''}`;
+    if(!silent) toast(fail>0?`${ok}개 갱신 완료, ${fail}개 실패`:`${ok}개 종목 시세 갱신 완료`);
+    // 카운트다운 리셋
+    stockCountdown=STOCK_REFRESH_SEC;
+  }finally{
+    stockRefreshing=false;
+    if(btn){ btn.disabled=false; }
   }
-  const current=await DB.getStocks(currentUser.사원번호);
-  for(const s of current){
-    const p=priceMap.get(s.ticker);
-    if(p){ s.currentPrice=p.currentPrice; s.prevClose=p.prevClose; await DB.upsertStock(currentUser.사원번호,s); }
-  }
-  await renderStocks();
-  // 마지막 업데이트 시각
-  const now=new Date();
-  const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-  const el=document.getElementById('stock-last-updated');
-  if(el) el.textContent=`${timeStr} 기준 · 30초마다 자동 갱신${fail>0?` · ${fail}개 실패`:''}`;
-  if(!silent) toast(fail>0?`${ok}개 갱신 완료, ${fail}개 실패`:`${ok}개 종목 시세 갱신 완료`);
-  // 카운트다운 리셋
-  stockCountdown=STOCK_REFRESH_SEC;
-  if(btn){ btn.disabled=false; }
 }
 
 // ── 자동 갱신 (30초) ──────────────────────────
@@ -5405,6 +5434,9 @@ let stockRefreshTimer=null;
 let stockTickTimer=null;
 let stockCountdown=STOCK_REFRESH_SEC;
 const stockNxtMap=new Map(); // ticker -> {nxtPrice, nxtChg}  (메모리 전용, DB 미저장)
+const stockTradedAtMap=new Map(); // ticker -> 최근 채택한 체결시각(ms) — 프록시 캐시(과거값) 거부용
+const stockPriceUpdatedMap=new Map(); // ticker -> 마지막 시세 반영 시각(ms) — 부분실패 카드 표시용
+let stockRefreshing=false; // 갱신 동시실행 락 (자동·수동 중복 방지)
 
 function isWithinTradingHours(){
   const t=new Date(); const m=t.getHours()*60+t.getMinutes();
