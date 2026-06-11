@@ -581,6 +581,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 #voice-mic-btn{flex:0 0 auto;width:42px;height:38px;padding:0;background:var(--card2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;}
 #voice-mic-btn:hover{border-color:var(--accent);}
 #voice-mic-btn.listening{background:var(--red);border-color:var(--red);color:#fff;animation:micPulse 1.2s infinite;}
+#jarvis-btn{flex:0 0 auto;width:42px;height:38px;padding:0;background:var(--card2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;}
+#jarvis-btn:hover{border-color:var(--accent);}
+#jarvis-btn.on{background:var(--accent);border-color:var(--accent);color:#1a1000;animation:micPulse 1.6s infinite;}
 @media(max-width:600px){#ai-chat-panel{right:0;bottom:0;left:0;width:100%;max-width:100%;height:80vh;border-radius:var(--r) var(--r) 0 0;padding-bottom:env(safe-area-inset-bottom);}}
 /* ---- BOOKS ---- */
 .book-filter-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--t2);background:transparent;cursor:pointer;transition:var(--tr);}
@@ -2967,6 +2970,9 @@ async function enterApp(){
 
   startRealtimeSync();
   navigate('home');
+  // 🦾 자비스 — 세션 복원이 스크립트 파싱 중 enterApp를 호출하므로,
+  // 하단에 let으로 선언된 _jarvis* 변수의 TDZ를 피해 setTimeout으로 지연 시작
+  setTimeout(()=>{ try{ initJarvis(); }catch(e){ console.error('[Jarvis init]',e); } },0);
 }
 
 async function migrateLocalStorageToSupabase(){
@@ -3004,6 +3010,7 @@ async function migrateLocalStorageToSupabase(){
 }
 
 function doLogout(){
+  stopJarvis(false);
   stopGcalAutoRefresh();
   stopRealtimeSync();
   DB.clearCache();
@@ -7817,6 +7824,7 @@ function startVoiceInput(){
   const panel=document.getElementById('ai-chat-panel');
   if(panel && !panel.classList.contains('open')) toggleAIChat();
   const field=document.getElementById('ai-chat-field');
+  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }   // 자비스 일시정지(이중 인식 방지)
   _voiceRec=new SR(); _voiceRec.lang='ko-KR'; _voiceRec.continuous=false; _voiceRec.interimResults=true;
   _isListening=true; _voiceMode=true; updateMicBtn(true); _finalTranscript='';
   if(field){ field.value=''; field.placeholder='🎙 듣고 있어요…'; }
@@ -7826,11 +7834,97 @@ function startVoiceInput(){
   _voiceRec.start();
 }
 
-function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); window.speechSynthesis?.cancel(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; }
+function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); window.speechSynthesis?.cancel(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } }
 
-function speakAI(text,onEnd){ if(!window.speechSynthesis){ onEnd&&onEnd(); return; } window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=1.05; if(onEnd) u.onend=onEnd; window.speechSynthesis.speak(u); }
+let _ttsVoice=null;
+function _pickKoVoice(){ try{ const vs=window.speechSynthesis.getVoices()||[]; _ttsVoice=vs.find(v=>/ko/i.test(v.lang)&&/(male|남)/i.test(v.name))||vs.find(v=>/ko/i.test(v.lang))||null; }catch(e){} }
+if(window.speechSynthesis){ _pickKoVoice(); window.speechSynthesis.onvoiceschanged=_pickKoVoice; }
+function speakAI(text,onEnd){
+  if(!window.speechSynthesis){ onEnd&&onEnd(); return; }
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=1.05; if(_ttsVoice) u.voice=_ttsVoice;
+  // 자비스 대기 중이면 TTS 동안 마이크를 멈춰 자기 목소리를 명령으로 오인하지 않게 한다
+  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }
+  u.onend=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
+  u.onerror=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
+  window.speechSynthesis.speak(u);
+}
 
 function updateMicBtn(on){ const btn=document.getElementById('voice-mic-btn'); if(!btn) return; btn.classList.toggle('listening',on); btn.innerHTML=on?'⏹':'🎙'; btn.title=on?'음성 입력 중지':'음성으로 말하기'; }
+
+// ═══════════════════════════════════════════════
+// 🦾 자비스 모드 — 호출어 "자비스"로 깨우는 항상-대기 음성 비서
+// ═══════════════════════════════════════════════
+let _jarvisOn=false, _jarvisRec=null, _jarvisSpeaking=false, _jarvisAwaiting=false, _jarvisRestartTimer=null;
+const _JARVIS_RE=/(?:자비스|자버스|자비쓰|jarvis)[\s,!.]*([\s\S]*)$/i;
+
+function toggleJarvis(){ if(_jarvisOn) stopJarvis(true); else startJarvis(true); }
+
+function startJarvis(userAction){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ if(userAction) toast('이 브라우저는 음성 인식을 지원하지 않습니다 (Chrome 권장)','error'); return; }
+  if(_jarvisOn) return;
+  if(_isListening) stopVoiceInput();   // 푸시투토크와 충돌 방지
+  _jarvisOn=true;
+  // 설정(localStorage)은 '사용자 의도'만 기록 — 권한 오류 등 내부 중지로 자동시작이 꺼지지 않게 한다
+  if(userAction && currentUser) localStorage.setItem('wl_jarvis_'+currentUser.사원번호,'1');
+  updateJarvisBtn();
+  _jarvisStartRec();
+  if(userAction) toast('🟢 자비스 대기 중 — "자비스"라고 부르세요');
+}
+function stopJarvis(userAction){
+  _jarvisOn=false; _jarvisAwaiting=false; _jarvisSpeaking=false;
+  clearTimeout(_jarvisRestartTimer);
+  try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} _jarvisRec=null;
+  window.speechSynthesis?.cancel();
+  if(userAction && currentUser) localStorage.setItem('wl_jarvis_'+currentUser.사원번호,'0');
+  updateJarvisBtn();
+  if(userAction) toast('자비스 모드를 껐습니다');
+}
+function _jarvisStartRec(){
+  if(!_jarvisOn||_jarvisSpeaking) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return;
+  try{
+    _jarvisRec=new SR(); _jarvisRec.lang='ko-KR'; _jarvisRec.continuous=true; _jarvisRec.interimResults=false;
+    _jarvisRec.onresult=_jarvisOnResult;
+    _jarvisRec.onerror=(e)=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ toast('마이크 권한을 허용해야 자비스를 쓸 수 있어요','error'); stopJarvis(false); } };
+    _jarvisRec.onend=()=>{ if(_jarvisOn&&!_jarvisSpeaking){ clearTimeout(_jarvisRestartTimer); _jarvisRestartTimer=setTimeout(_jarvisStartRec,400); } };
+    _jarvisRec.start();
+  }catch(e){ /* 이미 시작됨 — 무시 */ }
+}
+function _jarvisOnResult(e){
+  if(_jarvisSpeaking) return;
+  let txt=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) txt+=e.results[i][0].transcript; }
+  txt=txt.trim(); if(!txt) return;
+  if(_jarvisAwaiting){ _jarvisAwaiting=false; _jarvisHandle(txt); return; }
+  const m=txt.match(_JARVIS_RE);
+  if(!m) return;                                   // 호출어 없으면 무시(대기 유지)
+  const cmd=(m[1]||'').trim();
+  if(cmd) _jarvisHandle(cmd);
+  else { _jarvisAwaiting=true; speakAI('네, 말씀하세요'); }   // "자비스"만 부른 경우
+}
+async function _jarvisHandle(text){
+  if(!text) return;
+  const panel=document.getElementById('ai-chat-panel');
+  if(panel && !panel.classList.contains('open')) toggleAIChat();
+  const f=document.getElementById('ai-chat-field'); if(f) f.value=text;
+  await sendAIChat('jarvis');
+}
+function updateJarvisBtn(){
+  const btn=document.getElementById('jarvis-btn');
+  const mic=document.getElementById('voice-mic-btn');
+  if(mic) mic.style.display=_jarvisOn?'none':'';   // 자비스 ON이면 단발 마이크 숨김(중복 방지)
+  if(!btn) return;
+  btn.classList.toggle('on',_jarvisOn);
+  btn.title=_jarvisOn?'자비스 끄기 (대기 중)':'자비스 켜기';
+}
+// 앱 진입 시 저장된 설정대로 자동 대기 (마이크 권한이 있으면 바로, 없으면 첫 클릭 때 허용)
+function initJarvis(){
+  if(!currentUser) return;
+  updateJarvisBtn();
+  const pref=localStorage.getItem('wl_jarvis_'+currentUser.사원번호);
+  if(pref!=='0'){ startJarvis(false); }   // 기본 ON (명시적으로 끈 적 없으면)
+}
 
 // ── 멀티스텝 에이전트 코어 ──
 function _aiSystemPrompt(){
@@ -8048,8 +8142,9 @@ function _chatAppend(role,text,cls){ const m=document.getElementById('ai-chat-ms
 function _chatUser(t){ return _chatAppend('user',t); }
 function _chatBot(t){ return _chatAppend('bot',t); }
 async function sendAIChat(speak){
-  // speak===true 이면 음성으로 시작한 요청 → 답을 TTS로 읽어준다
-  const voice = speak===true || _voiceMode; _voiceMode=false;
+  // speak===true(푸시투토크) 또는 'jarvis'(자비스 모드) → 답을 TTS로 읽어준다
+  const fromJarvis = speak==='jarvis';
+  const voice = speak===true || fromJarvis || _voiceMode; _voiceMode=false;
   const f=document.getElementById('ai-chat-field'); const btn=document.getElementById('ai-chat-send');
   const text=(f.value||'').trim(); if(!text) return;
   f.value=''; btn.disabled=true; f.disabled=true;
@@ -8062,8 +8157,17 @@ async function sendAIChat(speak){
   }});
   const m=document.getElementById('ai-chat-msgs'); if(m) m.scrollTop=m.scrollHeight;
   btn.disabled=false; f.disabled=false;
-  if(voice && reply){ const isQ=/[?？]\s*$/.test(reply.trim()); speakAI(reply, isQ?()=>{ if(!_isListening) startVoiceInput(); }:null); }
-  else f.focus();
+  if(voice && reply){
+    const isQ=/[?？]\s*$/.test(reply.trim());
+    if(fromJarvis){
+      // 자비스: 되묻는 답이면 호출어 없이 다음 말을 명령으로 받음 (계속 청취 중이므로 재시작 불필요)
+      if(isQ) _jarvisAwaiting=true;
+      speakAI(reply);
+    } else {
+      speakAI(reply, isQ?()=>{ if(!_isListening) startVoiceInput(); }:null);
+    }
+  }
+  else if(!fromJarvis) f.focus();
 }
 
 // ── 능동형 브리핑 (로컬 계산, 토큰 0) ──
@@ -8111,6 +8215,7 @@ if('serviceWorker' in navigator){
   </div>
   <div id="ai-chat-msgs"></div>
   <div class="ai-chat-input">
+    <button id="jarvis-btn" onclick="toggleJarvis()" title="자비스 켜기">🦾</button>
     <button id="voice-mic-btn" onclick="toggleVoiceInput()" title="음성으로 말하기">🎙</button>
     <input type="text" id="ai-chat-field" placeholder="무엇이든 물어보세요…" onkeydown="if(event.key==='Enter')sendAIChat()" autocomplete="off" />
     <button id="ai-chat-send" onclick="sendAIChat()">전송</button>
