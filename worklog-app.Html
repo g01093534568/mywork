@@ -1830,7 +1830,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                   <h3 style="margin-top:25px;">에너지 사용량 분석 (1년 단위)</h3>
                   <div class="chart-container" style="grid-template-columns:1fr;">
                     <div class="chart-box"><h4>전기 사용량 추세 (kWh)</h4><canvas id="elecUsageChart"></canvas></div>
-                    <div class="chart-box"><h4>기타 에너지 사용량 추세 (m³/건)</h4><canvas id="otherUsageChart"></canvas></div>
+                    <div class="chart-box"><h4>상하수도 사용량 추세 (m³)</h4><canvas id="waterUsageChart"></canvas></div>
+                    <div class="chart-box"><h4>도시가스 사용량 추세 (m³)</h4><canvas id="gasUsageChart"></canvas></div>
                   </div>
                 </div>
               </div>
@@ -9678,7 +9679,8 @@ function updateSummary(records) {
 
 // 차트 관련 변수
 let elecChart = null;
-let otherChart = null;
+let waterChart = null;
+let gasChart = null;
 let costChart = null;
 
 function renderCharts(records) {
@@ -9738,17 +9740,25 @@ function renderCharts(records) {
         });
     }
 
-    // 2. 기타 에너지 사용량 차트 (m³, 건)
-    const ctxOther = document.getElementById('otherUsageChart');
-    if (ctxOther) {
-        if (otherChart) otherChart.destroy();
-        otherChart = new Chart(ctxOther, {
+    // 2. 상하수도 사용량 차트 (m³)
+    const ctxWater = document.getElementById('waterUsageChart');
+    if (ctxWater) {
+        if (waterChart) waterChart.destroy();
+        waterChart = new Chart(ctxWater, {
             type: 'line',
-            data: { 
-                labels: months, 
-                datasets: ['도시가스', '상하수도', '통신'].map(t => getDataset(t, 'usageAmount')) 
-            },
-            options: commonOptions('사용량 (m³ / 건)')
+            data: { labels: months, datasets: [getDataset('상하수도', 'usageAmount')] },
+            options: commonOptions('사용량 (m³)')
+        });
+    }
+
+    // 3. 도시가스 사용량 차트 (m³)
+    const ctxGas = document.getElementById('gasUsageChart');
+    if (ctxGas) {
+        if (gasChart) gasChart.destroy();
+        gasChart = new Chart(ctxGas, {
+            type: 'line',
+            data: { labels: months, datasets: [getDataset('도시가스', 'usageAmount')] },
+            options: commonOptions('사용량 (m³)')
         });
     }
 
