@@ -111,9 +111,10 @@ export default async function handler(req, res) {
         });
         if (g.ok) { const text = await g.text(); res.status(200); res.setHeader('content-type', 'application/json'); res.setHeader('x-ai-provider', 'gemini'); res.send(text); return; }
       }
-      // 2) Gemini 키 없음 또는 429(한도초과) → Claude 폴백
-      const quotaHit = !key || (g && g.status === 429);
-      if (quotaHit) {
+      // 2) Gemini 실패(키 없음·429 한도초과·404 퇴역모델·403·5xx 등) → Claude 폴백
+      //    g.ok가 아니면 사유를 가리지 않고 폴백한다(할당량 소진 시 모델 404로도 떨어지므로).
+      const geminiFailed = !key || (g && !g.ok);
+      if (geminiFailed) {
         const claudeRes = await callClaude(payload || {});
         if (claudeRes) { res.status(200); res.setHeader('content-type', 'application/json'); res.setHeader('x-ai-provider', 'claude'); res.send(JSON.stringify(claudeRes)); return; }
       }

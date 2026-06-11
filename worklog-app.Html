@@ -7881,8 +7881,8 @@ async function getGeminiModel(){
     if(!r.ok) throw new Error();
     const d=await r.json();
     const list=(d.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/','')).filter(m=>!m.includes('2.5'));
-    _geminiModel=list.find(m=>m.includes('2.0-flash-lite'))||list.find(m=>m.includes('2.0-flash'))||list.find(m=>m.includes('1.5-flash-8b'))||list.find(m=>m.includes('1.5-flash'))||list.find(m=>m.includes('flash'))||list[0]||'gemini-1.5-flash';
-  }catch(e){ _geminiModel='gemini-1.5-flash'; }
+    _geminiModel=list.find(m=>m.includes('2.0-flash-lite'))||list.find(m=>m.includes('2.0-flash'))||list.find(m=>m.includes('1.5-flash-8b'))||list.find(m=>m.includes('1.5-flash'))||list.find(m=>m.includes('flash'))||list[0]||'gemini-2.0-flash';
+  }catch(e){ _geminiModel='gemini-2.0-flash'; }
   return _geminiModel;
 }
 
