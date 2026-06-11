@@ -88,8 +88,8 @@ async function callClaude(payload) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: { message: 'POST only' } }); return; }
   try {
-    const { action, model, payload, userKey } = req.body || {};
-    const key = (userKey && String(userKey).trim()) || process.env.GEMINI_API_KEY;
+    const { action, model, payload } = req.body || {};
+    const key = process.env.GEMINI_API_KEY;
 
     if (action === 'list') {
       if (!key) { res.status(400).json({ error: { message: 'AI 키가 설정되지 않았습니다.', status: 'NO_KEY' } }); return; }

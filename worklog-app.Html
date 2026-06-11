@@ -1520,17 +1520,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 설정</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">AI 어시스턴트·성찰 리포트는 <b>기본적으로 바로 사용 가능</b>합니다(서버 공용 키). 개인 Gemini 키를 등록하면 <b>본인 호출은 개인 키로 처리</b>되어 무료 할당량을 분산할 수 있습니다(선택 사항). 키는 이 기기에만 저장됩니다.</div>
-          <div class="form-group">
-            <label>개인 Gemini API 키 (선택 · Google AI Studio)</label>
-            <input type="password" id="ai-api-key-input" placeholder="AIzaSy..." autocomplete="off" />
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
-            <button class="btn btn-primary" onclick="saveAiApiKey()">저장</button>
-            <button class="btn btn-danger btn-sm" onclick="clearAiApiKey()">삭제</button>
-            <span id="ai-key-status" style="font-size:12px;color:var(--t2);"></span>
-          </div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 어시스턴트</div>
+          <div style="font-size:13px;color:var(--t2);">AI 어시스턴트·성찰 리포트는 서버에 안전하게 저장된 공용 키로 <b>바로 사용 가능</b>합니다. 별도 설정이 필요 없습니다.</div>
         </div>
       </div>
       <!-- Goals Tab -->
@@ -2906,7 +2897,6 @@ async function enterApp(){
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
   document.getElementById('gcal-account-email').value = savedGcalEmail || '';
   document.getElementById('gcal-settings-connect-btn').disabled = !savedGcalEmail;
-  loadAiKeySettings();
   // 세션 토큰만 복원 — OAuth 시도는 daily 페이지 진입 시 처리 (로그인 팝업 방지)
   (function() {
     const tok = sessionStorage.getItem(_gcalTokenKey());
@@ -6541,7 +6531,6 @@ async function switchAdminTab(tab){
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
-  if(tab==='google') loadAiKeySettings();
   if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); }
 }
 
@@ -7223,40 +7212,6 @@ async function addGcalEvent() {
 // ═══════════════════════════════════════════════
 // AI DAILY REPORT
 // ═══════════════════════════════════════════════
-function _aiKeyName(){ return 'worklog_ai_key_'+(currentUser?.사원번호||''); }
-function getAiApiKey(){
-  const k=localStorage.getItem(_aiKeyName());
-  if(k) return k;
-  // 기존 공용 키 마이그레이션 (최초 1회)
-  const old=localStorage.getItem('worklog_anthropic_key');
-  if(old && currentUser?.사원번호){ localStorage.setItem(_aiKeyName(),old); return old; }
-  return '';
-}
-
-function loadAiKeySettings(){
-  const k=getAiApiKey();
-  const inp=document.getElementById('ai-api-key-input');
-  const st=document.getElementById('ai-key-status');
-  if(inp) inp.value=k?'•'.repeat(24):'';
-  if(st) st.textContent=k?'✓ 개인 키 사용 중':'서버 공용 키 사용 중';
-}
-
-function saveAiApiKey(){
-  const v=document.getElementById('ai-api-key-input').value.trim();
-  if(!v||v.startsWith('•')){ toast('새 API 키를 입력하세요','error'); return; }
-  localStorage.setItem(_aiKeyName(),v);
-  loadAiKeySettings();
-  toast('API 키가 저장되었습니다');
-}
-
-function clearAiApiKey(){
-  localStorage.removeItem(_aiKeyName());
-  const inp=document.getElementById('ai-api-key-input');
-  if(inp) inp.value='';
-  loadAiKeySettings();
-  toast('API 키가 삭제되었습니다');
-}
-
 async function generateAIReport(){
   const date=document.getElementById('daily-date').value||today();
   const btn=document.getElementById('ai-report-btn');
@@ -7839,8 +7794,7 @@ const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_
 // 모든 Gemini 호출은 /api/gemini 프록시 경유 (키 노출 방지).
 // 하이브리드: 사용자 개인 키가 있으면 함께 보내 서버가 우선 사용, 없으면 서버 공용 키.
 async function geminiProxy(action,{model,payload}={},_retry=0){
-  const userKey=getAiApiKey();
-  const res=await fetch('/api/gemini',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,model,payload,userKey:userKey||undefined})});
+  const res=await fetch('/api/gemini',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,model,payload})});
   if(res.status===429 && action==='generate' && _retry<2){
     const errData=await res.clone().json().catch(()=>({}));
     const m=(errData?.error?.message||'').match(/retry in ([\d.]+)s/i);
