@@ -547,11 +547,37 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gmail-act-btn:hover{background:var(--bg3);color:var(--t1);}
 .gmail-connect-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;text-align:center;padding:40px;}
 @media(max-width:700px){.gmail-sidebar{width:52px;}.gmail-label-btn span,.gmail-compose-btn span{display:none;}.gmail-compose-btn{padding:10px;border-radius:50%;}.gmail-thread-snippet{display:none;}}
+/* ---- 홈 브리핑 배너 ---- */
+#home-briefing{display:none;align-items:center;gap:10px;background:linear-gradient(90deg,rgba(232,160,32,0.12),rgba(232,160,32,0.04));border:1px solid rgba(232,160,32,0.25);border-radius:var(--r);padding:12px 16px;margin-bottom:22px;cursor:pointer;transition:var(--tr);}
+#home-briefing:hover{border-color:var(--accent);}
+#home-briefing .hb-icon{font-size:17px;flex-shrink:0;}
+#home-briefing .hb-text{flex:1;font-size:13.5px;color:var(--t1);font-weight:500;}
+#home-briefing .hb-cta{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;}
+@media(max-width:600px){#home-briefing .hb-cta{display:none;}}
 /* ---- AI VOICE ---- */
 @keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(224,85,85,0.4);}70%{box-shadow:0 0 0 12px rgba(224,85,85,0);}100%{box-shadow:0 0 0 0 rgba(224,85,85,0);}}
 #voice-mic-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;}
 #voice-mic-btn:hover{transform:scale(1.08);}
 #voice-mic-btn.listening{background:var(--red);box-shadow:0 0 0 0 rgba(224,85,85,0.4);animation:micPulse 1.2s infinite;}
+/* AI 채팅 패널 */
+#ai-chat-btn{position:fixed;bottom:94px;right:28px;width:48px;height:48px;border-radius:50%;background:var(--card2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:var(--shadow);z-index:9000;transition:all 0.2s;}
+#ai-chat-btn:hover{transform:scale(1.08);border-color:var(--accent);}
+#ai-chat-panel{position:fixed;bottom:28px;right:28px;width:380px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 56px);background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);z-index:9002;display:none;flex-direction:column;box-shadow:var(--shadow);overflow:hidden;animation:slideUp 0.2s ease;}
+#ai-chat-panel.open{display:flex;}
+.ai-chat-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3);}
+.ai-chat-head .title{font-size:14px;font-weight:700;flex:1;}
+.ai-chat-head button{background:transparent;color:var(--t2);font-size:15px;padding:4px 8px;border-radius:6px;}
+.ai-chat-head button:hover{color:var(--t1);background:var(--card);}
+#ai-chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.ai-msg{max-width:82%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
+.ai-msg.user{align-self:flex-end;background:var(--accent);color:#1a1000;border-bottom-right-radius:4px;}
+.ai-msg.bot{align-self:flex-start;background:var(--card2);color:var(--t1);border-bottom-left-radius:4px;}
+.ai-msg.bot.thinking{color:var(--t2);font-style:italic;}
+.ai-chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);}
+.ai-chat-input input{flex:1;font-size:15px;}
+.ai-chat-input button{background:var(--accent);color:#1a1000;font-weight:700;padding:0 16px;border-radius:var(--r2);font-size:14px;}
+.ai-chat-input button:disabled{opacity:0.5;cursor:default;}
+@media(max-width:600px){#ai-chat-panel{right:0;bottom:0;left:0;width:100%;max-width:100%;height:80vh;border-radius:var(--r) var(--r) 0 0;padding-bottom:env(safe-area-inset-bottom);}}
 #ai-overlay{position:fixed;bottom:96px;right:28px;background:var(--card2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px 16px 16px;max-width:300px;min-width:200px;z-index:9001;display:none;flex-direction:column;gap:8px;box-shadow:var(--shadow);animation:slideUp 0.2s ease;}
 #ai-overlay-label{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:0.5px;}
 #ai-overlay-text{font-size:13px;color:var(--t1);line-height:1.55;word-break:keep-all;}
@@ -1027,6 +1053,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <p id="home-subtitle">오늘의 목표를 확인하고 성과를 향해 나아가세요</p>
       </div>
 
+      <div id="home-briefing" onclick="toggleAIChat()" title="AI에게 더 물어보기">
+        <span class="hb-icon">🔔</span><span class="hb-text"></span><span class="hb-cta">AI에게 묻기 →</span>
+      </div>
+
       <div class="section-title">📌 조직 목표 체계</div>
       <div class="org-goals-wrap" id="org-goals-display">
         <div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 아직 설정하지 않았습니다</p></div>
@@ -1490,10 +1520,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 리포트 설정</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">Google AI Studio API 키를 등록하면 업무 페이지에서 AI 성찰 리포트를 사용할 수 있습니다. 무료로 사용 가능하며, 키는 이 기기에만 저장됩니다.</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 설정</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">AI 어시스턴트·성찰 리포트는 <b>기본적으로 바로 사용 가능</b>합니다(서버 공용 키). 개인 Gemini 키를 등록하면 <b>본인 호출은 개인 키로 처리</b>되어 무료 할당량을 분산할 수 있습니다(선택 사항). 키는 이 기기에만 저장됩니다.</div>
           <div class="form-group">
-            <label>Gemini API 키 (Google AI Studio)</label>
+            <label>개인 Gemini API 키 (선택 · Google AI Studio)</label>
             <input type="password" id="ai-api-key-input" placeholder="AIzaSy..." autocomplete="off" />
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
@@ -3033,6 +3063,7 @@ function navigate(page){
 async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
+  showHomeBriefing();
   const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
   const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${currentUser.사원번호}`;
 
@@ -7207,7 +7238,7 @@ function loadAiKeySettings(){
   const inp=document.getElementById('ai-api-key-input');
   const st=document.getElementById('ai-key-status');
   if(inp) inp.value=k?'•'.repeat(24):'';
-  if(st) st.textContent=k?'✓ 키 등록됨':'미등록';
+  if(st) st.textContent=k?'✓ 개인 키 사용 중':'서버 공용 키 사용 중';
 }
 
 function saveAiApiKey(){
@@ -7227,9 +7258,6 @@ function clearAiApiKey(){
 }
 
 async function generateAIReport(){
-  const key=getAiApiKey();
-  if(!key){ toast('설정 → Google 계정 탭에서 Gemini API 키를 먼저 등록하세요','error'); return; }
-
   const date=document.getElementById('daily-date').value||today();
   const btn=document.getElementById('ai-report-btn');
   const wrap=document.getElementById('ai-report-wrap');
@@ -7280,30 +7308,10 @@ ${actText}
 2. 💡 아쉬운 점 또는 개선 포인트
 3. 🎯 내일을 위한 제언`;
 
-    // 무료 한도 낮은 gemini-2.5 계열 제외, 사용 가능한 flash 모델 자동 선택
-    let model='gemini-1.5-flash';
-    try{
-      const mr=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
-      if(mr.ok){
-        const md=await mr.json();
-        const list=(md.models||[])
-          .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
-          .map(m=>m.name.replace('models/',''))
-          .filter(m=>!m.includes('2.5'));
-        model=list.find(m=>m.includes('2.0-flash-lite'))
-          ||list.find(m=>m.includes('2.0-flash'))
-          ||list.find(m=>m.includes('1.5-flash-8b'))
-          ||list.find(m=>m.includes('1.5-flash'))
-          ||list.find(m=>m.includes('flash'))
-          ||list[0]||model;
-      }
-    }catch(e){}
+    // 무료 한도 낮은 gemini-2.5 계열 제외, 사용 가능한 flash 모델 자동 선택 (프록시 경유)
+    const model=await getGeminiModel();
 
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
-    });
+    const res=await geminiProxy('generate',{model,payload:{contents:[{parts:[{text:prompt}]}]}});
     if(!res.ok){
       const errData=await res.json().catch(()=>({}));
       throw new Error(parseGeminiError(res.status, errData));
@@ -7754,7 +7762,13 @@ const GEMINI_TOOLS=[
   {name:'add_daily_log',description:'오늘 업무 활동 일지를 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'활동 제목'},content:{type:'STRING',description:'활동 내용'},time:{type:'STRING',description:'시간대 예: 09:00-10:00'}},required:['title']}},
   {name:'navigate_page',description:'앱 페이지로 이동합니다',parameters:{type:'OBJECT',properties:{page:{type:'STRING',description:'home/todo/daily/personal/exercise/admin 중 하나'}},required:['page']}},
   {name:'search_todos',description:'할 일 목록에서 키워드 검색합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'검색 키워드'}},required:['keyword']}},
-  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}}
+  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
+  {name:'list_todos',description:'할 일 목록을 조회합니다. 상태/마감일 필터 가능. 옮기기·정리 등 복합 작업 전에 먼저 호출하세요',parameters:{type:'OBJECT',properties:{status:{type:'STRING',description:'todo(미완료)/done(완료)/all 중 하나, 기본 all'},onlyToday:{type:'STRING',description:'오늘 보이는 항목만: yes/no, 기본 no'}},required:[]}},
+  {name:'update_todo_due',description:'키워드로 할 일을 찾아 마감일을 변경(연기/이동)합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'할 일 제목 키워드'},dueDate:{type:'STRING',description:'새 마감일 YYYY-MM-DD'}},required:['keyword','dueDate']}},
+  {name:'get_goal_progress',description:'개인/시설 경영목표와 진행률을 조회합니다',parameters:{type:'OBJECT',properties:{scope:{type:'STRING',description:'personal(개인)/facility(시설)/all 중 하나, 기본 all'}},required:[]}},
+  {name:'weekly_report',description:'이번 주(월~일) 할 일 완료 통계를 집계합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
+  {name:'query_energy',description:'에너지(전기/가스/수도 등) 사용량과 요금을 조회·집계합니다',parameters:{type:'OBJECT',properties:{energyType:{type:'STRING',description:'에너지 종류(전기/가스/수도 등), 없으면 전체'},month:{type:'STRING',description:'조회 월 YYYY-MM, 없으면 전체 기간'}},required:[]}},
+  {name:'get_today_logs',description:'특정 날짜의 업무 일지를 조회합니다',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD, 생략 시 오늘'}},required:[]}}
 ];
 
 let _voiceRec=null,_isListening=false,_finalTranscript='',_geminiModel=null,_convHistory=[];
@@ -7777,9 +7791,8 @@ function parseGeminiError(status, errData){
 
 async function getGeminiModel(){
   if(_geminiModel) return _geminiModel;
-  const key=getAiApiKey();
   try{
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+    const r=await geminiProxy('list');
     if(!r.ok) throw new Error();
     const d=await r.json();
     const list=(d.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/','')).filter(m=>!m.includes('2.5'));
@@ -7791,7 +7804,6 @@ async function getGeminiModel(){
 function toggleVoiceInput(){ if(_isListening) stopVoiceInput(); else startVoiceInput(); }
 
 function startVoiceInput(){
-  if(!getAiApiKey()){ toast('설정 → Google 계정 탭에서 Gemini API 키를 먼저 등록하세요','error'); return; }
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ toast('이 브라우저는 음성 인식을 지원하지 않습니다 (Chrome 권장)','error'); return; }
   _voiceRec=new SR(); _voiceRec.lang='ko-KR'; _voiceRec.continuous=false; _voiceRec.interimResults=true;
@@ -7812,34 +7824,151 @@ function showAIOverlay(state,text){ const el=document.getElementById('ai-overlay
 
 function hideAIOverlay(){ const el=document.getElementById('ai-overlay'); if(el) el.style.display='none'; }
 
-async function processVoiceCommand(userText){
-  const key=getAiApiKey(); if(!key) return;
-  showAIOverlay('processing',userText);
-  _convHistory.push({role:'user',parts:[{text:userText}]});
+// ── 멀티스텝 에이전트 코어 ──
+function _aiSystemPrompt(){
   const nextDay=new Date(); nextDay.setDate(nextDay.getDate()+1);
-  const sys=`당신은 WorkLog 업무관리 앱의 AI 어시스턴트입니다.\n오늘 날짜: ${today()} / 내일: ${nextDay.toISOString().slice(0,10)} / 사용자: ${currentUser?.시설명||''}\n- 정보가 충분하면 즉시 함수를 호출하세요\n- 필요한 정보가 부족하면 한 문장으로 짧게 되물어보세요\n- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요`;
+  return `당신은 WorkLog 업무관리 앱의 AI 어시스턴트입니다.
+오늘: ${today()} / 내일: ${nextDay.toISOString().slice(0,10)} / 사용자: ${currentUser?.시설명||''} (${currentUser?.사원번호||''})
+- 요청을 끝까지 처리하기 위해 필요한 함수를 순서대로 호출하세요. 여러 단계가 필요하면 단계마다 함수를 호출하고, 모든 작업이 끝나면 결과를 한국어 1~2문장으로 요약하세요.
+- "옮기기/정리/모아서" 같은 복합 작업은 먼저 list_todos로 대상을 조회한 뒤 처리하세요.
+- 정보가 부족하면 한 문장으로 짧게 되물어보세요.
+- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.`;
+}
+const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회'};
+
+// 모든 Gemini 호출은 /api/gemini 프록시 경유 (키 노출 방지).
+// 하이브리드: 사용자 개인 키가 있으면 함께 보내 서버가 우선 사용, 없으면 서버 공용 키.
+async function geminiProxy(action,{model,payload}={},_retry=0){
+  const userKey=getAiApiKey();
+  const res=await fetch('/api/gemini',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,model,payload,userKey:userKey||undefined})});
+  if(res.status===429 && action==='generate' && _retry<2){
+    const errData=await res.clone().json().catch(()=>({}));
+    const m=(errData?.error?.message||'').match(/retry in ([\d.]+)s/i);
+    const wait=m?Math.min(Math.ceil(parseFloat(m[1])*1000),8000):(_retry+1)*2000;
+    await new Promise(r=>setTimeout(r,wait));
+    return geminiProxy(action,{model,payload},_retry+1);
+  }
+  return res;
+}
+async function geminiGenerate(model,payload){
+  const res=await geminiProxy('generate',{model,payload});
+  if(!res.ok){ const errData=await res.json().catch(()=>({})); throw new Error(parseGeminiError(res.status,errData)); }
+  return res.json();
+}
+
+// 멀티스텝 루프: 함수 호출 → 결과 반영 → 다음 단계 … → 최종 텍스트
+async function runAgent(userText,{onUpdate}={}){
+  // 토큰 절약: 직전 대화 일부만 유지
+  if(_convHistory.length>16) _convHistory=_convHistory.slice(-16);
+  _convHistory.push({role:'user',parts:[{text:userText}]});
+  const model=await getGeminiModel();
+  const sys=_aiSystemPrompt();
   try{
-    const model=await getGeminiModel();
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({system_instruction:{parts:[{text:sys}]},contents:_convHistory,tools:[{functionDeclarations:GEMINI_TOOLS}],tool_config:{function_calling_config:{mode:'AUTO'}}})});
-    if(!res.ok){ const errData=await res.json().catch(()=>({})); throw new Error(parseGeminiError(res.status, errData)); }
-    const data=await res.json();
-    const parts=data.candidates?.[0]?.content?.parts||[];
-    const fc=parts.find(p=>p.functionCall)?.functionCall;
-    if(fc){ _convHistory=[]; const result=await executeAITool(fc.name,fc.args||{}); speakAI(result); showAIOverlay('result',result); }
-    else { const aiText=parts.find(p=>p.text)?.text||'다시 말씀해 주세요'; _convHistory.push({role:'model',parts:[{text:aiText}]}); showAIOverlay('question',aiText); speakAI(aiText,()=>{ if(!_isListening) startVoiceInput(); }); }
-  }catch(e){ console.error('[AI Voice]',e); _convHistory=[]; showAIOverlay('error','오류: '+e.message); }
+    for(let step=0;step<6;step++){
+      const data=await geminiGenerate(model,{system_instruction:{parts:[{text:sys}]},contents:_convHistory,tools:[{functionDeclarations:GEMINI_TOOLS}],tool_config:{function_calling_config:{mode:'AUTO'}}});
+      const parts=data.candidates?.[0]?.content?.parts||[];
+      const calls=parts.filter(p=>p.functionCall).map(p=>p.functionCall);
+      if(calls.length){
+        _convHistory.push({role:'model',parts:calls.map(fc=>({functionCall:fc}))});
+        const responses=[];
+        for(const fc of calls){
+          onUpdate&&onUpdate('step',`${_TOOL_LABELS[fc.name]||fc.name}…`);
+          let result; try{ result=await executeAITool(fc.name,fc.args||{}); }catch(e){ result='오류: '+e.message; }
+          responses.push({functionResponse:{name:fc.name,response:{result}}});
+        }
+        _convHistory.push({role:'user',parts:responses});
+        continue;
+      }
+      const aiText=parts.find(p=>p.text)?.text||'완료했습니다';
+      _convHistory.push({role:'model',parts:[{text:aiText}]});
+      onUpdate&&onUpdate('done',aiText);
+      return aiText;
+    }
+    onUpdate&&onUpdate('done','여러 단계를 처리했습니다');
+    return null;
+  }catch(e){ console.error('[AI Agent]',e); _convHistory=[]; onUpdate&&onUpdate('error',e.message); return null; }
+}
+
+async function processVoiceCommand(userText){
+  showAIOverlay('processing',userText);
+  const text=await runAgent(userText,{onUpdate:(state,msg)=>{
+    if(state==='step') showAIOverlay('processing',msg);
+    else if(state==='done') showAIOverlay('result',msg);
+    else if(state==='error') showAIOverlay('error','오류: '+msg);
+  }});
+  if(text){ const isQ=/[?？]\s*$/.test(text.trim()); if(isQ){ showAIOverlay('question',text); speakAI(text,()=>{ if(!_isListening) startVoiceInput(); }); } else speakAI(text); }
 }
 
 async function executeAITool(toolName,input){
   switch(toolName){
-    case 'add_todo':{ const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null}; await DB.upsertTodo(currentUser.사원번호,todo); navigate('todo'); await renderTodos(); return `"${todo.title}" 할 일이 추가되었습니다`; }
-    case 'complete_todo':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done'); if(!t) return `"${input.keyword}" 일치하는 할 일을 찾지 못했습니다`; await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()}); navigate('todo'); await renderTodos(); return `"${t.title}" 완료 처리되었습니다`; }
-    case 'add_daily_log':{ const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''}; await DB.upsertActivity(currentUser.사원번호,today(),act); navigate('daily'); await renderDailyPage(); return `업무 일지 "${act.title}" 기록되었습니다`; }
-    case 'navigate_page':{ navigate(input.page); const names={home:'홈',todo:'할 일',daily:'업무 세션',personal:'개인',exercise:'운동',admin:'관리'}; return `${names[input.page]||input.page} 페이지로 이동했습니다`; }
-    case 'search_todos':{ navigate('todo'); const el=document.getElementById('todo-search'); if(el){ el.value=input.keyword; await renderTodos(); } return `"${input.keyword}" 검색 결과를 표시합니다`; }
+    case 'add_todo':{ const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null}; await DB.upsertTodo(currentUser.사원번호,todo); if(currentPage==='todo') await renderTodos(); return `"${todo.title}" 할 일 추가됨 (마감 ${todo.dueDate||'없음'})`; }
+    case 'complete_todo':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done'); if(!t) return `"${input.keyword}" 일치하는 미완료 할 일을 찾지 못함`; await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()}); if(currentPage==='todo') await renderTodos(); return `"${t.title}" 완료 처리됨`; }
+    case 'add_daily_log':{ const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''}; await DB.upsertActivity(currentUser.사원번호,today(),act); if(currentPage==='daily') await renderDailyPage(); return `업무 일지 "${act.title}" 기록됨`; }
+    case 'navigate_page':{ navigate(input.page); const names={home:'홈',todo:'할 일',daily:'업무 세션',personal:'개인',exercise:'운동',admin:'관리'}; return `${names[input.page]||input.page} 페이지로 이동`; }
+    case 'search_todos':{ navigate('todo'); const el=document.getElementById('todo-search'); if(el){ el.value=input.keyword; await renderTodos(); } return `"${input.keyword}" 검색 결과 표시`; }
     case 'show_today_summary':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); const list=todos.filter(td=>todayVisible(td,t)); const done=list.filter(td=>isDoneOnDate(td,t)).length; return `오늘 할 일 ${list.length}개 — 완료 ${done}개, 미완료 ${list.length-done}개`; }
+    case 'list_todos':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); let list=todos; if(input.onlyToday==='yes') list=list.filter(td=>todayVisible(td,t)); if(input.status==='todo') list=list.filter(td=>td.status!=='done'); else if(input.status==='done') list=list.filter(td=>td.status==='done'); if(!list.length) return '해당하는 할 일이 없습니다'; return list.slice(0,30).map(td=>`• ${td.title} [${td.status==='done'?'완료':'미완료'}, 마감 ${td.dueDate||'없음'}]`).join('\n'); }
+    case 'update_todo_due':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)); if(!t) return `"${input.keyword}" 일치하는 할 일을 찾지 못함`; await DB.upsertTodo(currentUser.사원번호,{...t,dueDate:input.dueDate}); if(currentPage==='todo') await renderTodos(); return `"${t.title}" 마감일 → ${input.dueDate}`; }
+    case 'get_goal_progress':{ const sc=input.scope||'all'; const out=[]; if(sc==='all'||sc==='personal'){ const pg=await DB.getPersonalGoals(currentUser.사원번호); if(pg.length) out.push('[개인 목표]\n'+pg.map(g=>`• ${g.goal} — ${g.progress||0}%`).join('\n')); } if(sc==='all'||sc==='facility'){ const fg=await DB.getFacilityGoals(currentUser.시설명); if(fg.length) out.push('[시설 목표]\n'+fg.map(g=>`• ${g.goal} — ${g.progress||0}%`).join('\n')); } return out.join('\n\n')||'등록된 목표가 없습니다'; }
+    case 'weekly_report':{ const todos=await DB.getTodos(currentUser.사원번호); const base=new Date(today()); const dow=(base.getDay()+6)%7; const mon=new Date(base); mon.setDate(base.getDate()-dow); let done=0,due=0; const days=[]; for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); const ds=d.toISOString().slice(0,10); const dn=todos.filter(td=>isDoneOnDate(td,ds)).length; done+=dn; due+=todos.filter(td=>td.dueDate===ds).length; days.push(`${ds.slice(5)} 완료 ${dn}`); } return `이번 주 완료 ${done}건, 마감 예정 ${due}건\n`+days.join(' / '); }
+    case 'query_energy':{ const filters={}; if(input.energyType) filters.energyType=input.energyType; if(input.month){ filters.startDate=input.month+'-01'; filters.endDate=input.month+'-28'; } let recs; try{ recs=await _emEnergyQuery(filters); }catch(e){ return '에너지 데이터 조회 권한이 없거나 오류가 발생했습니다'; } if(!recs||!recs.length) return '해당 조건의 에너지 기록이 없습니다'; const byType={}; for(const r of recs){ const k=r.energy_type||'기타'; byType[k]=byType[k]||{usage:0,cost:0,n:0}; byType[k].usage+=parseFloat(r.usage_amount)||0; byType[k].cost+=parseFloat(r.usage_cost)||0; byType[k].n++; } return Object.entries(byType).map(([k,v])=>`${k}: 사용량 ${v.usage.toLocaleString('ko-KR')}, 요금 ${Math.round(v.cost).toLocaleString('ko-KR')}원 (${v.n}건)`).join('\n'); }
+    case 'get_today_logs':{ const date=input.date||today(); const acts=await DB.getDailyActivities(currentUser.사원번호,date); if(!acts.length) return `${date} 기록된 일지가 없습니다`; return `[${date} 일지]\n`+acts.map(a=>`• ${a.time?a.time+' ':''}${a.title}${a.content?' — '+a.content:''}`).join('\n'); }
     default: return '알 수 없는 명령입니다';
   }
+}
+
+// ── 텍스트 채팅 UI ──
+let _chatStarted=false;
+function toggleAIChat(){
+  const p=document.getElementById('ai-chat-panel'); if(!p) return;
+  const open=!p.classList.contains('open');
+  p.classList.toggle('open',open);
+  if(open){
+    if(!_chatStarted){ _chatBot('안녕하세요! 할 일 추가·완료, 일지 기록, 목표·에너지 조회 등을 도와드려요. 예: "내일까지 보고서 작성 추가하고 오늘 안 끝낸 일 알려줘"'); _chatStarted=true; }
+    setTimeout(()=>document.getElementById('ai-chat-field')?.focus(),50);
+  }
+}
+function clearAIChat(){ _convHistory=[]; const m=document.getElementById('ai-chat-msgs'); if(m) m.innerHTML=''; _chatStarted=false; _chatBot('대화를 초기화했습니다.'); }
+function _chatAppend(role,text,cls){ const m=document.getElementById('ai-chat-msgs'); if(!m) return null; const d=document.createElement('div'); d.className='ai-msg '+role+(cls?' '+cls:''); d.textContent=text; m.appendChild(d); m.scrollTop=m.scrollHeight; return d; }
+function _chatUser(t){ return _chatAppend('user',t); }
+function _chatBot(t){ return _chatAppend('bot',t); }
+async function sendAIChat(){
+  const f=document.getElementById('ai-chat-field'); const btn=document.getElementById('ai-chat-send');
+  const text=(f.value||'').trim(); if(!text) return;
+  f.value=''; btn.disabled=true; f.disabled=true;
+  _chatUser(text);
+  const thinking=_chatBot('생각 중…'); thinking.classList.add('thinking');
+  await runAgent(text,{onUpdate:(state,msg)=>{
+    if(state==='step'){ thinking.textContent=msg; }
+    else if(state==='done'){ thinking.classList.remove('thinking'); thinking.textContent=msg; }
+    else if(state==='error'){ thinking.classList.remove('thinking'); thinking.textContent='⚠️ '+msg; }
+  }});
+  const m=document.getElementById('ai-chat-msgs'); if(m) m.scrollTop=m.scrollHeight;
+  btn.disabled=false; f.disabled=false; f.focus();
+}
+
+// ── 능동형 브리핑 (로컬 계산, 토큰 0) ──
+async function buildDailyBriefing(){
+  try{
+    if(!currentUser?.사원번호) return null;
+    const todos=await DB.getTodos(currentUser.사원번호); const t=today();
+    const visible=todos.filter(td=>todayVisible(td,t));
+    const done=visible.filter(td=>isDoneOnDate(td,t)).length;
+    const pending=visible.length-done;
+    const overdue=todos.filter(td=>td.status!=='done'&&td.dueDate&&td.dueDate<t).length;
+    const dueToday=todos.filter(td=>td.status!=='done'&&td.dueDate===t).length;
+    const bits=[`오늘 할 일 ${visible.length}개 (완료 ${done} · 미완료 ${pending})`];
+    if(dueToday) bits.push(`오늘 마감 ${dueToday}건`);
+    if(overdue) bits.push(`⚠️ 기한 지난 미완료 ${overdue}건`);
+    return { text:bits.join(' · '), pending, overdue, dueToday };
+  }catch(e){ console.error('[briefing]',e); return null; }
+}
+async function showHomeBriefing(){
+  const el=document.getElementById('home-briefing'); if(!el) return;
+  const b=await buildDailyBriefing();
+  if(!b || (!b.pending && !b.overdue)){ el.style.display='none'; return; }
+  el.style.display='flex';
+  el.querySelector('.hb-text').textContent=b.text;
 }
 
 </script>
@@ -7855,6 +7984,19 @@ if('serviceWorker' in navigator){
 
 <!-- AI Voice Assistant UI -->
 <button id="voice-mic-btn" onclick="toggleVoiceInput()" title="음성 명령 (AI)">🎙</button>
+<button id="ai-chat-btn" onclick="toggleAIChat()" title="AI 채팅">💬</button>
+<div id="ai-chat-panel">
+  <div class="ai-chat-head">
+    <span class="title">🤖 AI 어시스턴트</span>
+    <button onclick="clearAIChat()" title="대화 초기화">🗑</button>
+    <button onclick="toggleAIChat()" title="닫기">✕</button>
+  </div>
+  <div id="ai-chat-msgs"></div>
+  <div class="ai-chat-input">
+    <input type="text" id="ai-chat-field" placeholder="무엇이든 물어보세요…" onkeydown="if(event.key==='Enter')sendAIChat()" autocomplete="off" />
+    <button id="ai-chat-send" onclick="sendAIChat()">전송</button>
+  </div>
+</div>
 <div id="ai-overlay">
   <button id="ai-overlay-close" onclick="hideAIOverlay()">✕</button>
   <div id="ai-overlay-label">🎙 듣고 있어요</div>
