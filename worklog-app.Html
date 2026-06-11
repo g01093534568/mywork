@@ -5873,12 +5873,9 @@ function isRecurringOnDate(todo, date){
 function todayVisible(todo, date){
   const d=date||today();
   if(todo.isRecurring) return isRecurringOnDate(todo, d);
-  if(todo.status==='todo'){
-    if(todo.dueDate && todo.dueDate > d) return false;
-    return true;
-  }
-  if(todo.completedDate===d) return true;
-  return false;
+  // 업무세션 규칙과 통일: 시작했으면(시작일 없거나 ≤오늘) 마감일이 미래여도 오늘 할 일로 표시
+  if(todo.status==='todo') return !todo.startDate || todo.startDate <= d;
+  return todo.completedDate===d; // 완료는 완료일에만
 }
 
 function isOverdue(todo){
@@ -6151,14 +6148,8 @@ async function renderDailyPage(){
 async function renderDailyTodos(date){
   date=date||document.getElementById('daily-date').value||today();
   const todos=await DB.getTodos(currentUser.사원번호);
-  const relevant=todos.filter(t=>{
-    // 반복: 해당 요일이면 표시
-    if(t.isRecurring) return isRecurringOnDate(t, date);
-    // 미완료: 시작일이 없거나 선택일 이하면 표시 (마감일·todayVisible 무관)
-    if(t.status==='todo') return !t.startDate || t.startDate <= date;
-    // 완료: 해당 날짜에 완료된 것만
-    return t.completedDate === date;
-  });
+  // 단일 기준(todayVisible)으로 통일 — 홈·업무세션·AI리포트가 같은 모수를 쓰도록
+  const relevant=todos.filter(t=>todayVisible(t, date));
   const cont=document.getElementById('daily-todo-list-content');
   const total=relevant.length;
   const doneCount=relevant.filter(t=>isDoneOnDate(t,date)).length;
