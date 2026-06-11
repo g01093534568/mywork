@@ -472,6 +472,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .ex-section-title{font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px;display:flex;align-items:center;gap:8px;}
 .ex-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
 .ex-entry-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;margin-bottom:8px;}
+/* ── 골프 스코어카드 ── */
+.golf-card-nine{margin-bottom:8px;}
+.golf-card-nine .gl-nine-title{font-size:11px;font-weight:700;color:var(--t2);margin:0 0 4px 2px;}
+.golf-card-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r2);}
+.golf-card-table{border-collapse:collapse;width:100%;min-width:360px;}
+.golf-card-table th,.golf-card-table td{border:1px solid var(--border);text-align:center;padding:0;}
+.golf-card-table th{background:var(--card);color:var(--t2);font-weight:700;font-size:11px;padding:3px 0;width:32px;}
+.golf-card-table .gl-lbl{background:var(--card);color:var(--t2);font-weight:700;white-space:nowrap;font-size:11px;padding:0 6px;width:34px;}
+.golf-card-table input{width:32px;height:30px;border:none;background:transparent;text-align:center;font-size:13px;color:var(--t1);outline:none;-moz-appearance:textfield;appearance:textfield;}
+.golf-card-table input::-webkit-outer-spin-button,.golf-card-table input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.golf-card-table input.gp{color:var(--t3);font-size:12px;}
+.golf-card-table input.gs:focus{background:rgba(232,160,32,0.15);}
+.golf-card-table .gl-sum{background:rgba(232,160,32,0.10);font-weight:700;color:var(--accent);font-size:13px;min-width:34px;}
 /* ── CUSTOM GOOGLE CALENDAR ── */
 .gcal-view{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
 .gcal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
@@ -1349,20 +1362,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div class="ex-section-title" style="margin-top:20px;">⛳ 라운딩 기록</div>
           <div class="today-train-card">
             <input type="hidden" id="golf-round-edit-id" />
-            <div class="form-row">
-              <div class="form-group">
-                <label>코스/장소</label>
-                <input type="text" id="golf-round-location" list="golf-course-list" placeholder="예: 남서울CC" oninput="onGolfCoursePick()" />
-                <datalist id="golf-course-list"></datalist>
-              </div>
-              <div class="form-group">
-                <label>규정타수 (Par)</label>
-                <input type="number" id="golf-round-par" min="27" max="80" value="72" placeholder="72" oninput="updateGolfRoundDiff()" />
-              </div>
+            <div class="form-group">
+              <label>코스/장소 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택하면 그 골프장의 홀별 파를 자동 입력</span></label>
+              <input type="text" id="golf-round-location" list="golf-course-list" placeholder="예: 남서울CC" oninput="onGolfCoursePick()" />
+              <datalist id="golf-course-list"></datalist>
             </div>
             <div class="form-group">
-              <label>내 스코어 (타수)</label>
-              <input type="number" id="golf-round-score" min="50" max="200" placeholder="예: 95" oninput="updateGolfRoundDiff()" />
+              <label>홀별 스코어카드 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">Par 자동입력(수정 가능) · 타수 입력</span></label>
+              <div id="golf-hole-grid"></div>
             </div>
             <div id="golf-round-diff" style="text-align:center;font-size:13px;font-weight:600;margin-bottom:8px;display:none;"></div>
             <div class="form-group">
@@ -3476,8 +3483,32 @@ function setRunningDateFromInput(){
 // duration > 0 : 훈련내용 마커 (골프는 duration 미사용)
 function isGolfPractice(r){ return !!(r.duration && r.duration > 0); }
 
-// 규정타수(Par)는 미사용 distance 컬럼에 저장. 코스명→최근 규정타수 매핑
-let _golfCourses={};
+// 표준 Par-72 홀 배치 (앞9/뒤9). 코스 선택 전 기본값
+const STD_GOLF_PAR=[4,4,3,5,4,4,3,4,5, 4,4,3,5,4,4,3,4,5];
+// 홀별 데이터는 memo에 숨김 블록으로 저장. 코스명→홀별 파(학습) 매핑
+let _golfCourses={};       // 코스명 → 합계 규정타수(표시용)
+let _golfCoursePars={};    // 코스명 → 홀별 파 배열[18]
+
+const GOLF_HOLE_MARK='\n[[HOLES]]';
+function encodeGolfMemo(userMemo, pars, scores){
+  const hasData=(pars&&pars.some(p=>p>0))||(scores&&scores.some(s=>s>0));
+  if(!hasData) return userMemo||'';
+  return (userMemo||'')+GOLF_HOLE_MARK+JSON.stringify({p:pars,s:scores});
+}
+function parseGolfHoles(memo){
+  if(!memo) return null;
+  const idx=memo.indexOf('[[HOLES]]');
+  if(idx<0) return null;
+  try{ const o=JSON.parse(memo.slice(idx+'[[HOLES]]'.length)); return {pars:o.p||[], scores:o.s||[]}; }
+  catch(e){ return null; }
+}
+function stripGolfHoles(memo){
+  if(!memo) return '';
+  const idx=memo.indexOf('[[HOLES]]');
+  return idx>=0 ? memo.slice(0,idx).replace(/\n$/,'') : memo;
+}
+
+function parTypeLabel(d){ return d===0?'이븐파':(d>0?'오버파':'언더파'); }
 function golfDiffText(score, par){
   if(!score||score<=0||!par||par<=0) return null;
   const d=score-par;
@@ -3485,21 +3516,72 @@ function golfDiffText(score, par){
   if(d>0)   return {label:`규정타수 ${par} 대비 +${d}타 (오버파)`, short:`+${d}`, color:'var(--accent)', diff:d};
   return       {label:`규정타수 ${par} 대비 ${d}타 (언더파)`, short:`${d}`, color:'var(--blue)', diff:d};
 }
-// 코스명을 입력/선택하면 등록된 규정타수를 자동으로 채움
+
+// 그리드의 현재 입력값 수집
+function golfHoleInputs(){
+  const pars=[], scores=[];
+  for(let i=0;i<18;i++){
+    const p=document.querySelector(`.gp[data-i="${i}"]`);
+    const s=document.querySelector(`.gs[data-i="${i}"]`);
+    pars.push(p&&p.value!==''?parseInt(p.value):null);
+    scores.push(s&&s.value!==''?parseInt(s.value):null);
+  }
+  return {pars,scores};
+}
+const _golfSum=(arr,a,b)=>arr.slice(a,b).reduce((t,v)=>t+(v||0),0);
+
+// 18홀 스코어카드 렌더 (앞9/뒤9)
+function renderGolfHoleGrid(pars, scores){
+  const wrap=document.getElementById('golf-hole-grid'); if(!wrap) return;
+  pars=(pars&&pars.length===18)?pars:STD_GOLF_PAR.slice();
+  scores=(scores&&scores.length===18)?scores:Array(18).fill(null);
+  const nine=(start,title)=>{
+    let head='<tr><th>홀</th>', parRow='<tr><td class="gl-lbl">Par</td>', scoreRow='<tr><td class="gl-lbl">타수</td>';
+    for(let h=0;h<9;h++){
+      const i=start+h;
+      head+=`<th>${i+1}</th>`;
+      parRow+=`<td><input class="gp" data-i="${i}" type="number" inputmode="numeric" min="3" max="6" value="${pars[i]??''}" oninput="onGolfHoleInput()"></td>`;
+      scoreRow+=`<td><input class="gs" data-i="${i}" type="number" inputmode="numeric" min="1" max="15" value="${scores[i]??''}" oninput="onGolfHoleInput()"></td>`;
+    }
+    head+=`<th>${start===0?'OUT':'IN'}</th></tr>`;
+    parRow+=`<td class="gl-sum" data-sum="par${start}"></td></tr>`;
+    scoreRow+=`<td class="gl-sum" data-sum="score${start}"></td></tr>`;
+    return `<div class="golf-card-nine"><div class="gl-nine-title">${title}</div><div class="golf-card-scroll"><table class="golf-card-table">${head}${parRow}${scoreRow}</table></div></div>`;
+  };
+  wrap.innerHTML=nine(0,'앞 9홀')+nine(9,'뒤 9홀');
+  onGolfHoleInput();
+}
+
+// 입력 시 OUT/IN/합계 갱신 + vs 규정타수 표시
+function onGolfHoleInput(){
+  const {pars,scores}=golfHoleInputs();
+  document.querySelectorAll('#golf-hole-grid [data-sum]').forEach(el=>{
+    const k=el.getAttribute('data-sum');
+    if(k==='par0') el.textContent=_golfSum(pars,0,9);
+    else if(k==='par9') el.textContent=_golfSum(pars,9,18);
+    else if(k==='score0') el.textContent=_golfSum(scores,0,9)||'';
+    else if(k==='score9') el.textContent=_golfSum(scores,9,18)||'';
+  });
+  const totPar=_golfSum(pars,0,18), totScore=_golfSum(scores,0,18);
+  const el=document.getElementById('golf-round-diff'); if(!el) return;
+  el.style.display='block';
+  if(totScore>0){
+    const r=golfDiffText(totScore,totPar);
+    el.style.color=r?r.color:'var(--t2)';
+    el.innerHTML=`합계 <strong style="font-size:16px">${totScore}</strong>타 · 규정 ${totPar} · <strong>${r?r.short:''}</strong> (${parTypeLabel(totScore-totPar)})`;
+  } else {
+    el.style.color='var(--t2)';
+    el.textContent=`규정타수 합계 ${totPar} · 홀별 타수를 입력하세요`;
+  }
+}
+
+// 코스명이 등록된 골프장과 정확히 일치하면 홀별 파 자동 적용(입력 중인 타수는 보존)
 function onGolfCoursePick(){
   const loc=(document.getElementById('golf-round-location')?.value||'').trim();
-  const parInp=document.getElementById('golf-round-par');
-  if(loc && _golfCourses[loc]!=null && parInp){ parInp.value=_golfCourses[loc]; }
-  updateGolfRoundDiff();
-}
-// 스코어 vs 규정타수 실시간 표시
-function updateGolfRoundDiff(){
-  const el=document.getElementById('golf-round-diff'); if(!el) return;
-  const score=parseInt(document.getElementById('golf-round-score')?.value);
-  const par=parseInt(document.getElementById('golf-round-par')?.value);
-  const r=golfDiffText(score, par);
-  if(r){ el.style.display='block'; el.style.color=r.color; el.textContent=r.label; }
-  else { el.style.display='none'; el.textContent=''; }
+  if(loc && _golfCoursePars[loc]){
+    const {scores}=golfHoleInputs();
+    renderGolfHoleGrid(_golfCoursePars[loc].slice(), scores);
+  }
 }
 
 async function renderGolfPanel(){
@@ -3516,15 +3598,22 @@ async function renderGolfPanel(){
 
   const roundsAll=_exGolf.filter(r=>!isGolfPractice(r));
 
-  // 코스 레지스트리 구축: 코스명 → 최근 규정타수(distance). 최신 기록이 우선
-  _golfCourses={};
+  // 코스 레지스트리 구축: 코스명 → 홀별 파(학습). 최신 기록이 우선
+  _golfCourses={}; _golfCoursePars={};
   [...roundsAll].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(r=>{
     const loc=(r.location||'').trim();
-    if(loc && r.distance>0) _golfCourses[loc]=r.distance;
+    if(!loc) return;
+    if(r.distance>0) _golfCourses[loc]=r.distance;
+    const hole=parseGolfHoles(r.memo);
+    if(hole && hole.pars && hole.pars.length===18 && hole.pars.some(p=>p>0)) _golfCoursePars[loc]=hole.pars;
   });
   const courseDL=document.getElementById('golf-course-list');
   if(courseDL){
     courseDL.innerHTML=Object.keys(_golfCourses).sort().map(loc=>`<option value="${esc(loc)}">규정타수 ${_golfCourses[loc]}</option>`).join('');
+  }
+  // 폼 그리드 최초 1회 기본 템플릿으로 초기화 (입력 중이면 보존)
+  if(document.getElementById('golf-hole-grid') && !document.querySelector('#golf-hole-grid .gp')){
+    renderGolfHoleGrid(STD_GOLF_PAR.slice(), null);
   }
 
   const scores=roundsAll.filter(r=>r.score&&r.score>0).map(r=>r.score);
@@ -3574,6 +3663,13 @@ async function renderGolfPanel(){
           const cnt=byYear[year].length;
           const cards=byYear[year].map(r=>{
             const diff=golfDiffText(r.score, r.distance);
+            const hole=parseGolfHoles(r.memo);
+            const userMemo=stripGolfHoles(r.memo);
+            let nineLine='';
+            if(hole && hole.scores && hole.scores.some(s=>s>0)){
+              const out=_golfSum(hole.scores,0,9), inn=_golfSum(hole.scores,9,18);
+              nineLine=`<div style="font-size:11px;color:var(--t2);">전반 <strong>${out||'-'}</strong> · 후반 <strong>${inn||'-'}</strong></div>`;
+            }
             return `<div class="ex-entry-card" style="border-left:3px solid var(--accent);margin-bottom:0;display:flex;flex-direction:column;gap:6px;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
                 <div style="flex:1;min-width:0;">
@@ -3589,7 +3685,8 @@ async function renderGolfPanel(){
                 <strong style="font-size:20px;color:var(--accent)">${r.score||'-'}</strong><span style="font-size:12px;color:var(--t2)">타</span>
                 ${diff?`<span style="font-size:12px;font-weight:700;color:${diff.color};margin-left:auto;">${diff.short}</span>`:''}
               </div>
-              ${r.memo?`<div style="font-size:11px;color:var(--t3);white-space:pre-wrap;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(r.memo)}</div>`:''}
+              ${nineLine}
+              ${userMemo?`<div style="font-size:11px;color:var(--t3);white-space:pre-wrap;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(userMemo)}</div>`:''}
             </div>`;
           }).join('');
           return `<div style="margin-bottom:16px;">
@@ -3623,13 +3720,13 @@ function editGolfRound(id){
   const r=_exGolf.find(x=>x.id===id);
   if(!r) return;
   document.getElementById('golf-round-edit-id').value=id;
-  document.getElementById('golf-round-score').value=r.score&&r.score>0?r.score:'';
   document.getElementById('golf-round-location').value=r.location||'';
-  document.getElementById('golf-round-par').value=r.distance&&r.distance>0?r.distance:72;
-  document.getElementById('golf-round-memo').value=r.memo||'';
-  updateGolfRoundDiff();
-  document.getElementById('golf-round-score').focus();
-  document.getElementById('golf-round-score').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('golf-round-memo').value=stripGolfHoles(r.memo);
+  const hole=parseGolfHoles(r.memo);
+  const pars=(hole&&hole.pars&&hole.pars.length===18)?hole.pars:(_golfCoursePars[(r.location||'').trim()]||STD_GOLF_PAR.slice());
+  const scores=(hole&&hole.scores&&hole.scores.length===18)?hole.scores:Array(18).fill(null);
+  renderGolfHoleGrid(pars, scores);
+  document.getElementById('golf-round-location').scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 async function saveGolfPractice(btnEl){
@@ -3664,21 +3761,21 @@ async function saveGolfPractice(btnEl){
 }
 
 async function saveGolfRound(){
-  const score=document.getElementById('golf-round-score').value;
-  const par=document.getElementById('golf-round-par').value;
   const location=document.getElementById('golf-round-location').value.trim();
-  const memo=document.getElementById('golf-round-memo').value.trim();
+  const userMemo=document.getElementById('golf-round-memo').value.trim();
   const editId=document.getElementById('golf-round-edit-id').value;
-  // 규정타수(Par)는 distance 컬럼에 저장
-  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:score?parseInt(score):null,distance:par?parseInt(par):null,duration:null,memo};
+  const {pars,scores}=golfHoleInputs();
+  const totPar=_golfSum(pars,0,18), totScore=_golfSum(scores,0,18);
+  if(!totScore){ toast('홀별 타수를 입력하세요.','error'); return; }
+  // 합계는 score/distance에, 홀별 상세는 memo 숨김블록에 저장
+  const memo=encodeGolfMemo(userMemo, pars, scores);
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:totScore,distance:totPar||null,duration:null,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
-    document.getElementById('golf-round-score').value='';
     document.getElementById('golf-round-location').value='';
-    document.getElementById('golf-round-par').value='72';
     document.getElementById('golf-round-memo').value='';
     document.getElementById('golf-round-edit-id').value='';
-    updateGolfRoundDiff();
+    renderGolfHoleGrid(STD_GOLF_PAR.slice(), null);
     toast('라운딩 기록이 저장됐습니다.');
     await renderGolfPanel();
   }catch(e){toast('저장 실패: '+e.message,'error');}
