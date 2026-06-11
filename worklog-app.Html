@@ -217,6 +217,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .admin-tab.active{background:var(--accent);color:#1a1000;}
 .admin-panel{display:none;}
 .admin-panel.active{display:block;}
+#admin-knowledge .facility-table{width:100%;border-collapse:collapse;font-size:13px;}
+#admin-knowledge .facility-table th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--t2);font-weight:600;font-size:12px;}
+#admin-knowledge .facility-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--t1);vertical-align:middle;}
+#admin-knowledge .facility-table tr:hover td{background:rgba(255,255,255,0.02);}
 .org-form-section{margin-bottom:24px;}
 .org-form-section h4{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
 .strategy-editor{display:flex;flex-direction:column;gap:8px;}
@@ -1022,9 +1026,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="nav-item" onclick="navigate('energy')" id="nav-energy">
         <span class="nav-icon">⚡</span><span>에너지 관리</span>
       </div>
-      <div class="nav-item" onclick="navigate('notebook')" id="nav-notebook">
-        <span class="nav-icon">🧠</span><span>노트북 (AI)</span>
-      </div>
       <div class="nav-label">설정</div>
       <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
         <span class="nav-icon">⚙️</span><span>설정</span>
@@ -1496,6 +1497,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
         <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
         <div class="admin-tab" id="admin-tab-energy" onclick="switchAdminTab('energy')">⚡ 에너지 관리</div>
+        <div class="admin-tab" id="admin-tab-knowledge" onclick="switchAdminTab('knowledge')">📚 AI 지식자료</div>
         <div class="admin-tab" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
       </div>
       <!-- Google 계정 Tab -->
@@ -1636,6 +1638,49 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <p style="margin:0 0 15px 0;color:#334155;">시스템 내의 모든 에너지 사용량 기록이 영구적으로 제거됩니다.</p>
             <button class="delete-btn em-delete-btn delete-item-btn" id="deleteAllDataBtn">모든 에너지 데이터 삭제</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 📚 AI 지식자료 Tab -->
+      <div id="admin-knowledge" class="admin-panel">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:640px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">📚 AI 지식자료 업로드</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">여기 올린 자료는 모든 사용자가 우측 하단 <b>🤖 AI 어시스턴트</b>에게 질문할 때 근거로 사용됩니다. (PDF · txt · md · 웹 URL · 텍스트)</div>
+          <div class="form-group">
+            <label>유형</label>
+            <select id="ks-type" onchange="ksToggleType(this.value)">
+              <option value="file">📎 파일 (PDF / txt / md)</option>
+              <option value="url">🔗 웹페이지 URL</option>
+              <option value="text">✍️ 텍스트 붙여넣기</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>제목 <span style="text-transform:none;color:var(--t3);">(비우면 자동)</span></label>
+            <input type="text" id="ks-title" placeholder="자료 제목" />
+          </div>
+          <div class="form-group" id="ks-file-group">
+            <label>파일 선택</label>
+            <input type="file" id="ks-file" accept=".pdf,.txt,.md,.markdown,text/plain" onchange="ksOnFileChange(this)" />
+            <div id="ks-file-status" style="font-size:12px;color:var(--t3);margin-top:6px;"></div>
+          </div>
+          <div class="form-group" id="ks-url-group" style="display:none;">
+            <label>URL</label>
+            <input type="url" id="ks-url" placeholder="https://..." />
+          </div>
+          <div class="form-group" id="ks-text-group" style="display:none;">
+            <label>텍스트</label>
+            <textarea id="ks-text" rows="6" placeholder="여기에 텍스트를 붙여넣으세요" style="resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary" id="ks-save-btn" onclick="ksSaveSource()">자료 추가</button>
+        </div>
+        <div class="admin-section" style="margin-top:32px;">
+          <h3>등록된 지식자료 <span id="ks-count" style="font-weight:500;color:var(--t3);font-size:12px;"></span></h3>
+          <table class="facility-table">
+            <thead>
+              <tr><th>제목</th><th style="width:80px;">유형</th><th style="width:90px;">분량</th><th style="width:120px;">등록일</th><th style="width:70px;">작업</th></tr>
+            </thead>
+            <tbody id="ks-list-body"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1851,91 +1896,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
     </div>
     <!-- /에너지 관리 -->
-
-    <!-- 🧠 노트북 (NotebookLM 스타일) 페이지 -->
-    <style id="notebook-styles">
-      #page-notebook .nb-topbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
-      #page-notebook .nb-select{flex:1;min-width:160px;padding:9px 12px;border-radius:var(--r2);background:var(--card);border:1px solid var(--border);color:var(--t1);font-size:13px;font-weight:600;}
-      #page-notebook .nb-layout{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;}
-      #page-notebook .nb-col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;}
-      #page-notebook .nb-col h3{font-size:13px;font-weight:700;color:var(--t1);margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;}
-      #page-notebook .nb-src{display:flex;gap:8px;align-items:flex-start;padding:9px 10px;border-radius:var(--r2);background:var(--card);margin-bottom:7px;border:1px solid transparent;transition:var(--tr);}
-      #page-notebook .nb-src:hover{border-color:var(--border);}
-      #page-notebook .nb-src input[type=checkbox]{margin-top:3px;width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;}
-      #page-notebook .nb-src .nb-src-body{flex:1;min-width:0;cursor:pointer;}
-      #page-notebook .nb-src .nb-src-title{font-size:12.5px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-      #page-notebook .nb-src .nb-src-meta{font-size:11px;color:var(--t3);margin-top:2px;}
-      #page-notebook .nb-src .nb-src-del{color:var(--t3);cursor:pointer;font-size:13px;flex-shrink:0;padding:0 2px;}
-      #page-notebook .nb-src .nb-src-del:hover{color:var(--red);}
-      #page-notebook .nb-studio{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
-      #page-notebook .nb-studio .btn{flex:0 0 auto;}
-      #page-notebook .nb-output{min-height:80px;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:16px;font-size:13.5px;line-height:1.7;color:var(--t1);margin-bottom:14px;word-break:break-word;}
-      #page-notebook .nb-output:empty{display:none;}
-      #page-notebook .nb-output h1,#page-notebook .nb-output h2,#page-notebook .nb-output h3{font-size:14px;font-weight:700;margin:12px 0 6px;color:var(--accent);}
-      #page-notebook .nb-output ul{margin:6px 0;padding-left:20px;}
-      #page-notebook .nb-output li{margin:3px 0;}
-      #page-notebook .nb-output strong{color:var(--t1);font-weight:700;}
-      #page-notebook .nb-output code.nb-cite{background:rgba(232,160,32,0.15);color:var(--accent);padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;}
-      #page-notebook .nb-chat-msgs{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;margin-bottom:10px;padding-right:4px;}
-      #page-notebook .nb-msg{padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.6;max-width:88%;white-space:pre-wrap;word-break:break-word;}
-      #page-notebook .nb-msg.user{align-self:flex-end;background:var(--accent);color:#1a1000;}
-      #page-notebook .nb-msg.bot{align-self:flex-start;background:var(--card);color:var(--t1);border:1px solid var(--border);}
-      #page-notebook .nb-msg.bot.thinking{color:var(--t3);font-style:italic;}
-      #page-notebook .nb-chat-input{display:flex;gap:8px;}
-      #page-notebook .nb-chat-input input{flex:1;padding:10px 13px;border-radius:var(--r2);background:var(--card);border:1px solid var(--border);color:var(--t1);font-size:13px;}
-      #page-notebook .nb-empty{text-align:center;color:var(--t3);padding:40px 16px;font-size:13px;}
-      /* 마인드맵 */
-      #page-notebook .nb-mindmap{display:flex;align-items:center;overflow-x:auto;padding:10px 4px;}
-      #page-notebook .nb-mm-node{display:flex;align-items:center;}
-      #page-notebook .nb-mm-label{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 12px;font-size:12.5px;color:var(--t1);white-space:nowrap;font-weight:600;}
-      #page-notebook .nb-mm-root>.nb-mm-label{background:var(--accent);color:#1a1000;border-color:var(--accent);font-weight:700;}
-      #page-notebook .nb-mm-children{display:flex;flex-direction:column;gap:6px;padding-left:26px;position:relative;}
-      #page-notebook .nb-mm-children>.nb-mm-node{position:relative;}
-      #page-notebook .nb-mm-children>.nb-mm-node::before{content:'';position:absolute;left:-26px;top:50%;width:26px;height:1px;background:var(--border);}
-      @media(max-width:820px){
-        #page-notebook .nb-layout{grid-template-columns:1fr;}
-      }
-    </style>
-    <div id="page-notebook" class="page-section">
-      <div class="page-header" style="margin-bottom:14px;">
-        <h2>🧠 노트북 (AI)</h2>
-        <p>자료를 올리고 그 내용만으로 AI와 대화·요약·마인드맵을 만들어요</p>
-      </div>
-      <div class="nb-topbar">
-        <select class="nb-select" id="nb-select" onchange="nbSelectNotebook(this.value)"></select>
-        <button class="btn btn-sm btn-primary" onclick="nbCreateNotebook()">+ 새 노트북</button>
-        <button class="btn btn-sm btn-secondary" id="nb-rename-btn" onclick="nbRenameNotebook()">이름변경</button>
-        <button class="btn btn-sm btn-secondary" id="nb-delete-btn" onclick="nbDeleteNotebook()" style="color:var(--red);">삭제</button>
-      </div>
-      <div id="nb-no-notebook" class="nb-empty" style="display:none;">
-        아직 노트북이 없습니다. <strong>+ 새 노트북</strong>으로 시작하세요.
-      </div>
-      <div class="nb-layout" id="nb-layout" style="display:none;">
-        <!-- 소스 -->
-        <div class="nb-col">
-          <h3>📄 소스 <button class="btn btn-sm btn-secondary" onclick="openModal('nb-source-modal')" style="padding:4px 9px;font-size:11px;">+ 추가</button></h3>
-          <div id="nb-source-list"></div>
-        </div>
-        <!-- 메인 -->
-        <div class="nb-col">
-          <h3>✨ 스튜디오 <span style="font-weight:500;color:var(--t3);font-size:11px;" id="nb-src-count"></span></h3>
-          <div class="nb-studio">
-            <button class="btn btn-sm btn-secondary" onclick="nbGenerate('summary')">📝 요약</button>
-            <button class="btn btn-sm btn-secondary" onclick="nbGenerate('study')">📖 학습가이드</button>
-            <button class="btn btn-sm btn-secondary" onclick="nbGenerate('faq')">❓ FAQ</button>
-            <button class="btn btn-sm btn-secondary" onclick="nbGenerate('timeline')">🕐 타임라인</button>
-            <button class="btn btn-sm btn-secondary" onclick="nbGenerate('mindmap')">🧠 마인드맵</button>
-          </div>
-          <div class="nb-output" id="nb-output"></div>
-          <div class="nb-chat-msgs" id="nb-chat-msgs"></div>
-          <div class="nb-chat-input">
-            <input id="nb-chat-field" placeholder="소스 내용에 대해 질문하세요…" onkeydown="if(event.key==='Enter')nbSendChat()" />
-            <button class="btn btn-primary" id="nb-chat-send" onclick="nbSendChat()">전송</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- /노트북 -->
 
   </div><!-- /main-content -->
 </div><!-- /app-screen -->
@@ -2603,43 +2563,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
-<!-- Notebook Source Modal -->
-<div class="modal-overlay" id="nb-source-modal">
-  <div class="modal" style="max-width:520px">
-    <h3>📄 소스 추가</h3>
-    <div class="form-group">
-      <label>입력 방식</label>
-      <select id="nb-src-type" onchange="nbToggleSrcType(this.value)">
-        <option value="text">✍️ 텍스트 붙여넣기</option>
-        <option value="file">📎 파일 업로드 (PDF / TXT / MD)</option>
-        <option value="url">🔗 웹페이지 URL</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>제목</label>
-      <input type="text" id="nb-src-title" placeholder="소스 제목 (비우면 자동)" />
-    </div>
-    <div class="form-group" id="nb-src-text-group">
-      <label>내용</label>
-      <textarea id="nb-src-text" rows="8" placeholder="여기에 텍스트를 붙여넣으세요" style="resize:vertical;"></textarea>
-    </div>
-    <div class="form-group" id="nb-src-file-group" style="display:none;">
-      <label>파일 선택</label>
-      <input type="file" id="nb-src-file" accept=".pdf,.txt,.md,.markdown,text/plain" onchange="nbOnFileChange(this)" />
-      <div id="nb-src-file-status" style="font-size:12px;color:var(--t3);margin-top:6px;"></div>
-    </div>
-    <div class="form-group" id="nb-src-url-group" style="display:none;">
-      <label>URL</label>
-      <input type="url" id="nb-src-url" placeholder="https://..." />
-      <div style="font-size:11px;color:var(--t3);margin-top:5px;">※ 일부 사이트는 보안정책(CORS)으로 가져오지 못할 수 있어요.</div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
-      <button class="btn btn-secondary" onclick="closeModal('nb-source-modal')">취소</button>
-      <button class="btn btn-primary" id="nb-src-save" onclick="nbSaveSource()">추가</button>
-    </div>
-  </div>
-</div>
-
 <!-- Book Modal -->
 <div class="modal-overlay" id="book-modal">
   <div class="modal" style="max-width:500px">
@@ -2877,13 +2800,10 @@ const DB = {
   async getBooks(uid){ const k=`books:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('books').select('*').eq('사원번호',uid).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToBook)); },
   async upsertBook(uid,b){ const {error}=await SB.from('books').upsert(bookToDb(b,uid)); if(error)throw error; _cd(`books:${uid}`); },
   async deleteBook(id){ const {error}=await SB.from('books').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`books:${currentUser.사원번호}`); },
-  // ── 노트북 (NotebookLM) ──
-  async getNotebooks(uid){ const k=`nb:${uid}`; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('notebooks').select('*').eq('사원번호',uid).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
-  async upsertNotebook(uid,nb){ const obj={사원번호:uid,title:nb.title,updated_at:new Date().toISOString()}; if(nb.id)obj.id=nb.id; const {data,error}=await SB.from('notebooks').upsert(obj).select(); if(error)throw error; _cd(`nb:${uid}`); return data&&data[0]; },
-  async deleteNotebook(id){ const {error}=await SB.from('notebook_sources').delete().eq('notebook_id',id); if(error)throw error; const {error:e2}=await SB.from('notebooks').delete().eq('id',id); if(e2)throw e2; if(currentUser)_cd(`nb:${currentUser.사원번호}`); },
-  async getSources(notebookId){ const k=`nbs:${notebookId}`; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('notebook_sources').select('*').eq('notebook_id',notebookId).order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
-  async addSource(uid,notebookId,src){ const obj={사원번호:uid,notebook_id:notebookId,title:src.title,src_type:src.src_type||'text',content:src.content||'',created_at:new Date().toISOString()}; const {error}=await SB.from('notebook_sources').insert(obj); if(error)throw error; _cd(`nbs:${notebookId}`); },
-  async deleteSource(id,notebookId){ const {error}=await SB.from('notebook_sources').delete().eq('id',id); if(error)throw error; _cd(`nbs:${notebookId}`); },
+  // ── AI 지식자료 (전체 공용) ──
+  async getKnowledge(){ const k='knowledge:all'; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('knowledge_sources').select('*').order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
+  async addKnowledge(uid,src){ const obj={title:src.title,src_type:src.src_type||'file',content:src.content||'',uploaded_by:uid,created_at:new Date().toISOString()}; const {error}=await SB.from('knowledge_sources').insert(obj); if(error)throw error; _cd('knowledge:all'); },
+  async deleteKnowledge(id){ const {error}=await SB.from('knowledge_sources').delete().eq('id',id); if(error)throw error; _cd('knowledge:all'); },
 };
 
 // ═══════════════════════════════════════════════
@@ -3021,6 +2941,7 @@ async function enterApp(){
   document.getElementById('admin-tab-facility').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
   document.getElementById('admin-tab-users').style.display = isAdmin ? '' : 'none';
   document.getElementById('admin-tab-energy').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
+  document.getElementById('admin-tab-knowledge').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
 
   // 저장된 Google 계정·API키 복원 — 이전 사용자 값 잔류 방지를 위해 항상 덮어씀
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
@@ -3164,12 +3085,11 @@ function navigate(page){
   if(page==='personal') renderPersonalPage();
   if(page==='gmail') renderGmailPage();
   if(page==='energy') initEnergyMgmt();
-  if(page==='notebook') renderNotebookPage();
   if(page==='admin'){
     const _savedAdminTab = localStorage.getItem('wl_nav_admin_'+currentUser.사원번호);
     const _isAdmin = currentUser.role==='admin';
     const _isFacAdmin = currentUser.role==='facility-admin';
-    const _allowed = ['google',...(_isAdmin||_isFacAdmin?['facility','energy']:[]),...(_isAdmin?['goals','users']:[])];
+    const _allowed = ['google',...(_isAdmin||_isFacAdmin?['facility','energy','knowledge']:[]),...(_isAdmin?['goals','users']:[])];
     const _adminTab = _savedAdminTab && _allowed.includes(_savedAdminTab) ? _savedAdminTab
                     : _isAdmin ? 'goals' : _isFacAdmin ? 'facility' : 'google';
     switchAdminTab(_adminTab);
@@ -6652,7 +6572,7 @@ function importUsersCSV(e){
 
 async function switchAdminTab(tab){
   localStorage.setItem('wl_nav_admin_'+currentUser.사원번호, tab);
-  ['google','goals','facility','users','energy'].forEach(t=>{
+  ['google','goals','facility','users','energy','knowledge'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
     if(tabEl) tabEl.classList.toggle('active',t===tab);
@@ -6662,6 +6582,7 @@ async function switchAdminTab(tab){
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
   if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); }
+  if(tab==='knowledge') await ksRenderList();
 }
 
 // ═══════════════════════════════════════════════
@@ -7853,7 +7774,8 @@ const GEMINI_TOOLS=[
   {name:'get_goal_progress',description:'개인/시설 경영목표와 진행률을 조회합니다',parameters:{type:'OBJECT',properties:{scope:{type:'STRING',description:'personal(개인)/facility(시설)/all 중 하나, 기본 all'}},required:[]}},
   {name:'weekly_report',description:'이번 주(월~일) 할 일 완료 통계를 집계합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
   {name:'query_energy',description:'에너지(전기/가스/수도 등) 사용량과 요금을 조회·집계합니다',parameters:{type:'OBJECT',properties:{energyType:{type:'STRING',description:'에너지 종류(전기/가스/수도 등), 없으면 전체'},month:{type:'STRING',description:'조회 월 YYYY-MM, 없으면 전체 기간'}},required:[]}},
-  {name:'get_today_logs',description:'특정 날짜의 업무 일지를 조회합니다',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD, 생략 시 오늘'}},required:[]}}
+  {name:'get_today_logs',description:'특정 날짜의 업무 일지를 조회합니다',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD, 생략 시 오늘'}},required:[]}},
+  {name:'search_knowledge',description:'관리자가 업로드한 지식자료(문서·매뉴얼·규정·PDF 등)에서 내용을 찾아 근거로 가져옵니다. 사용자가 업로드된 자료·문서·매뉴얼·규정의 내용을 묻거나 그에 근거한 답을 원하면 반드시 먼저 호출하세요',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'찾고 싶은 핵심 키워드나 질문'}},required:[]}}
 ];
 
 let _voiceRec=null,_isListening=false,_voiceMode=false,_finalTranscript='',_geminiModel=null,_convHistory=[];
@@ -7917,10 +7839,11 @@ function _aiSystemPrompt(){
 오늘: ${today()} / 내일: ${nextDay.toISOString().slice(0,10)} / 사용자: ${currentUser?.시설명||''} (${currentUser?.사원번호||''})
 - 요청을 끝까지 처리하기 위해 필요한 함수를 순서대로 호출하세요. 여러 단계가 필요하면 단계마다 함수를 호출하고, 모든 작업이 끝나면 결과를 한국어 1~2문장으로 요약하세요.
 - "옮기기/정리/모아서" 같은 복합 작업은 먼저 list_todos로 대상을 조회한 뒤 처리하세요.
+- 업로드된 자료·문서·매뉴얼·규정의 내용을 묻는 질문이면 먼저 search_knowledge로 근거를 가져와 [S번호] 인용과 함께 답하세요.
 - 정보가 부족하면 한 문장으로 짧게 되물어보세요.
 - 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.`;
 }
-const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회'};
+const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회',search_knowledge:'지식자료 검색'};
 
 // 모든 Gemini 호출은 /api/gemini 프록시 경유 (키 노출 방지).
 // 하이브리드: 사용자 개인 키가 있으면 함께 보내 서버가 우선 사용, 없으면 서버 공용 키.
@@ -7988,111 +7911,21 @@ async function executeAITool(toolName,input){
     case 'weekly_report':{ const todos=await DB.getTodos(currentUser.사원번호); const base=new Date(today()); const dow=(base.getDay()+6)%7; const mon=new Date(base); mon.setDate(base.getDate()-dow); let done=0,due=0; const days=[]; for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); const ds=d.toISOString().slice(0,10); const dn=todos.filter(td=>isDoneOnDate(td,ds)).length; done+=dn; due+=todos.filter(td=>td.dueDate===ds).length; days.push(`${ds.slice(5)} 완료 ${dn}`); } return `이번 주 완료 ${done}건, 마감 예정 ${due}건\n`+days.join(' / '); }
     case 'query_energy':{ const filters={}; if(input.energyType) filters.energyType=input.energyType; if(input.month){ filters.startDate=input.month+'-01'; filters.endDate=input.month+'-28'; } let recs; try{ recs=await _emEnergyQuery(filters); }catch(e){ return '에너지 데이터 조회 권한이 없거나 오류가 발생했습니다'; } if(!recs||!recs.length) return '해당 조건의 에너지 기록이 없습니다'; const byType={}; for(const r of recs){ const k=r.energy_type||'기타'; byType[k]=byType[k]||{usage:0,cost:0,n:0}; byType[k].usage+=parseFloat(r.usage_amount)||0; byType[k].cost+=parseFloat(r.usage_cost)||0; byType[k].n++; } return Object.entries(byType).map(([k,v])=>`${k}: 사용량 ${v.usage.toLocaleString('ko-KR')}, 요금 ${Math.round(v.cost).toLocaleString('ko-KR')}원 (${v.n}건)`).join('\n'); }
     case 'get_today_logs':{ const date=input.date||today(); const acts=await DB.getDailyActivities(currentUser.사원번호,date); if(!acts.length) return `${date} 기록된 일지가 없습니다`; return `[${date} 일지]\n`+acts.map(a=>`• ${a.time?a.time+' ':''}${a.title}${a.content?' — '+a.content:''}`).join('\n'); }
+    case 'search_knowledge': return await ksSearchForAgent(input.query);
     default: return '알 수 없는 명령입니다';
   }
 }
 
 // ═══════════════════════════════════════════════
-// 🧠 노트북 (NotebookLM 스타일) — 소스 기반 Q&A · 문서 생성 · 마인드맵
+// 📚 AI 지식자료 (관리자 업로드 → 전체 공용, AI 어시스턴트가 근거로 활용)
 // ═══════════════════════════════════════════════
-let _nbCurrent=null;          // 현재 노트북 id
-let _nbSources=[];            // 현재 노트북의 소스 배열
-let _nbSelected=new Set();    // 선택된(근거로 사용할) 소스 id
-let _nbHistory=[];            // 노트북 Q&A 대화기록 (에이전트 _convHistory와 분리)
-const NB_MAX_CHARS=60000;     // AI에 주입할 소스 텍스트 총량 상한
-
-async function renderNotebookPage(){
-  const sel=document.getElementById('nb-select');
-  let list=[];
-  try{ list=await DB.getNotebooks(currentUser.사원번호); }
-  catch(e){ console.error(e); toast('노트북 목록을 불러오지 못했습니다. SQL 테이블을 확인하세요.','error'); }
-  sel.innerHTML=list.map(n=>`<option value="${n.id}">${esc(n.title)}</option>`).join('');
-  const noNb=document.getElementById('nb-no-notebook');
-  const layout=document.getElementById('nb-layout');
-  if(!list.length){ noNb.style.display='block'; layout.style.display='none'; _nbCurrent=null; return; }
-  noNb.style.display='none'; layout.style.display='';
-  const saved=localStorage.getItem('wl_nb_last_'+currentUser.사원번호);
-  const pick=list.find(n=>n.id===saved)?saved:list[0].id;
-  sel.value=pick;
-  await nbSelectNotebook(pick);
+let _ksFileText='', _ksFileType='file';
+function ksToggleType(v){
+  document.getElementById('ks-file-group').style.display=v==='file'?'':'none';
+  document.getElementById('ks-url-group').style.display=v==='url'?'':'none';
+  document.getElementById('ks-text-group').style.display=v==='text'?'':'none';
 }
-
-async function nbSelectNotebook(id){
-  if(!id) return;
-  _nbCurrent=id;
-  localStorage.setItem('wl_nb_last_'+currentUser.사원번호,id);
-  _nbHistory=[];
-  document.getElementById('nb-chat-msgs').innerHTML='';
-  document.getElementById('nb-output').innerHTML='';
-  try{ _nbSources=await DB.getSources(id); }catch(e){ console.error(e); _nbSources=[]; }
-  _nbSelected=new Set(_nbSources.map(s=>s.id));
-  nbRenderSources();
-}
-
-function nbRenderSources(){
-  const wrap=document.getElementById('nb-source-list');
-  if(!_nbSources.length){ wrap.innerHTML='<div class="nb-empty" style="padding:20px 8px;">소스가 없습니다.<br>+ 추가로 자료를 올리세요.</div>'; document.getElementById('nb-src-count').textContent=''; return; }
-  const typeIcon={text:'✍️',file:'📎',pdf:'📕',url:'🔗'};
-  wrap.innerHTML=_nbSources.map((s,i)=>{
-    const checked=_nbSelected.has(s.id)?'checked':'';
-    const len=(s.content||'').length;
-    return `<div class="nb-src">
-      <input type="checkbox" ${checked} onchange="nbToggleSource('${s.id}',this.checked)" />
-      <div class="nb-src-body" onclick="nbPreviewSource('${s.id}')">
-        <div class="nb-src-title">${typeIcon[s.src_type]||'📄'} S${i+1}. ${esc(s.title)}</div>
-        <div class="nb-src-meta">${len.toLocaleString('ko-KR')}자</div>
-      </div>
-      <span class="nb-src-del" onclick="nbDeleteSource('${s.id}')" title="삭제">✕</span>
-    </div>`;
-  }).join('');
-  nbUpdateCount();
-}
-function nbUpdateCount(){ const el=document.getElementById('nb-src-count'); if(el) el.textContent=`· 선택 ${_nbSelected.size}/${_nbSources.length}`; }
-function nbToggleSource(id,on){ if(on)_nbSelected.add(id); else _nbSelected.delete(id); nbUpdateCount(); }
-function nbPreviewSource(id){ const s=_nbSources.find(x=>x.id===id); if(!s) return; const out=document.getElementById('nb-output'); out.innerHTML='<h3>📄 '+esc(s.title)+'</h3>'+nbRenderMarkdown((s.content||'').slice(0,4000)+((s.content||'').length>4000?'\n\n…(미리보기 일부)':'')); out.scrollIntoView({behavior:'smooth',block:'nearest'}); }
-
-async function nbCreateNotebook(){
-  const title=(prompt('새 노트북 이름을 입력하세요','새 노트북')||'').trim();
-  if(!title) return;
-  try{ const nb=await DB.upsertNotebook(currentUser.사원번호,{title}); await renderNotebookPage(); if(nb){ document.getElementById('nb-select').value=nb.id; await nbSelectNotebook(nb.id);} toast('노트북을 만들었습니다'); }
-  catch(e){ console.error(e); toast('생성 실패: '+(e?.message||'테이블 확인'),'error'); }
-}
-async function nbRenameNotebook(){
-  if(!_nbCurrent) return;
-  const cur=(await DB.getNotebooks(currentUser.사원번호)).find(n=>n.id===_nbCurrent);
-  const title=(prompt('노트북 이름 변경',cur?.title||'')||'').trim();
-  if(!title) return;
-  try{ await DB.upsertNotebook(currentUser.사원번호,{id:_nbCurrent,title}); await renderNotebookPage(); toast('이름을 변경했습니다'); }
-  catch(e){ console.error(e); toast('변경 실패','error'); }
-}
-async function nbDeleteNotebook(){
-  if(!_nbCurrent) return;
-  if(!confirm('이 노트북과 모든 소스를 삭제할까요?')) return;
-  try{ await DB.deleteNotebook(_nbCurrent); _nbCurrent=null; await renderNotebookPage(); toast('삭제되었습니다'); }
-  catch(e){ console.error(e); toast('삭제 실패','error'); }
-}
-
-// ── 소스 추가 모달 ──
-function nbToggleSrcType(v){
-  document.getElementById('nb-src-text-group').style.display=v==='text'?'':'none';
-  document.getElementById('nb-src-file-group').style.display=v==='file'?'':'none';
-  document.getElementById('nb-src-url-group').style.display=v==='url'?'':'none';
-}
-let _nbFileText='', _nbFileType='file';
-async function nbOnFileChange(input){
-  const file=input.files&&input.files[0]; if(!file) return;
-  const status=document.getElementById('nb-src-file-status');
-  const titleEl=document.getElementById('nb-src-title');
-  if(!titleEl.value.trim()) titleEl.value=file.name.replace(/\.[^.]+$/,'');
-  status.textContent='읽는 중…'; _nbFileText='';
-  try{
-    if(/\.pdf$/i.test(file.name)){ _nbFileType='pdf'; _nbFileText=await nbExtractPdf(file); }
-    else { _nbFileType='file'; _nbFileText=await file.text(); }
-    status.textContent=`✅ ${_nbFileText.length.toLocaleString('ko-KR')}자 추출됨`;
-    if(!_nbFileText.trim()) status.textContent='⚠️ 텍스트를 추출하지 못했습니다 (스캔 PDF일 수 있어요)';
-  }catch(e){ console.error(e); status.textContent='⚠️ '+(e.message||'읽기 실패'); }
-}
-async function nbExtractPdf(file){
+async function ksExtractPdf(file){
   if(!window.pdfjsLib) throw new Error('PDF 라이브러리 로딩 중 — 잠시 후 다시 시도하세요');
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
@@ -8100,154 +7933,105 @@ async function nbExtractPdf(file){
   for(let i=1;i<=max;i++){ const page=await pdf.getPage(i); const c=await page.getTextContent(); text+=c.items.map(it=>it.str).join(' ')+'\n'; }
   return text.replace(/\n{3,}/g,'\n\n').trim();
 }
-async function nbFetchUrl(url){
+async function ksFetchUrl(url){
   const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
   const html=await r.text();
   const doc=new DOMParser().parseFromString(html,'text/html');
   doc.querySelectorAll('script,style,noscript,nav,footer,header,svg,iframe').forEach(e=>e.remove());
   return (doc.body?.textContent||'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
-async function nbSaveSource(){
-  if(!_nbCurrent){ toast('먼저 노트북을 선택하세요','error'); return; }
-  const type=document.getElementById('nb-src-type').value;
-  let title=document.getElementById('nb-src-title').value.trim();
+async function ksOnFileChange(input){
+  const file=input.files&&input.files[0]; if(!file) return;
+  const status=document.getElementById('ks-file-status');
+  const titleEl=document.getElementById('ks-title');
+  if(!titleEl.value.trim()) titleEl.value=file.name.replace(/\.[^.]+$/,'');
+  status.textContent='읽는 중…'; _ksFileText='';
+  try{
+    if(/\.pdf$/i.test(file.name)){ _ksFileType='pdf'; _ksFileText=await ksExtractPdf(file); }
+    else { _ksFileType='file'; _ksFileText=await file.text(); }
+    status.textContent=`✅ ${_ksFileText.length.toLocaleString('ko-KR')}자 추출됨`;
+    if(!_ksFileText.trim()) status.textContent='⚠️ 텍스트를 추출하지 못했습니다 (스캔 PDF일 수 있어요)';
+  }catch(e){ console.error(e); status.textContent='⚠️ '+(e.message||'읽기 실패'); }
+}
+async function ksSaveSource(){
+  const type=document.getElementById('ks-type').value;
+  let title=document.getElementById('ks-title').value.trim();
   let content='', src_type=type;
-  const btn=document.getElementById('nb-src-save');
+  const btn=document.getElementById('ks-save-btn');
   btn.disabled=true;
   try{
-    if(type==='text'){ content=document.getElementById('nb-src-text').value.trim(); }
-    else if(type==='file'){ content=_nbFileText; src_type=_nbFileType; }
-    else if(type==='url'){ const url=document.getElementById('nb-src-url').value.trim(); if(!url) throw new Error('URL을 입력하세요'); if(!title) title=url; btn.textContent='가져오는 중…'; content=await nbFetchUrl(url); }
+    if(type==='text'){ content=document.getElementById('ks-text').value.trim(); src_type='text'; }
+    else if(type==='file'){ content=_ksFileText; src_type=_ksFileType; }
+    else if(type==='url'){ const url=document.getElementById('ks-url').value.trim(); if(!url) throw new Error('URL을 입력하세요'); if(!title) title=url; btn.textContent='가져오는 중…'; content=await ksFetchUrl(url); }
     if(!content||!content.trim()) throw new Error('내용이 비어 있습니다');
     if(!title) title=content.slice(0,24).replace(/\n/g,' ')+'…';
     if(content.length>120000) content=content.slice(0,120000);
-    await DB.addSource(currentUser.사원번호,_nbCurrent,{title,src_type,content});
-    _nbSources=await DB.getSources(_nbCurrent); _nbSelected.add(_nbSources[_nbSources.length-1]?.id);
-    _nbSelected=new Set(_nbSources.map(s=>s.id));
-    nbRenderSources();
-    closeModal('nb-source-modal');
-    // 입력값 초기화
-    document.getElementById('nb-src-text').value='';
-    document.getElementById('nb-src-url').value='';
-    document.getElementById('nb-src-title').value='';
-    const fi=document.getElementById('nb-src-file'); if(fi) fi.value='';
-    document.getElementById('nb-src-file-status').textContent=''; _nbFileText='';
-    toast('소스를 추가했습니다');
+    await DB.addKnowledge(currentUser.사원번호,{title,src_type,content});
+    document.getElementById('ks-text').value='';
+    document.getElementById('ks-url').value='';
+    document.getElementById('ks-title').value='';
+    const fi=document.getElementById('ks-file'); if(fi) fi.value='';
+    document.getElementById('ks-file-status').textContent=''; _ksFileText='';
+    await ksRenderList();
+    toast('지식자료를 추가했습니다');
   }catch(e){ console.error(e); toast('추가 실패: '+(e.message||''),'error'); }
-  finally{ btn.disabled=false; btn.textContent='추가'; }
+  finally{ btn.disabled=false; btn.textContent='자료 추가'; }
 }
-async function nbDeleteSource(id){
-  if(!confirm('이 소스를 삭제할까요?')) return;
-  try{ await DB.deleteSource(id,_nbCurrent); _nbSelected.delete(id); _nbSources=await DB.getSources(_nbCurrent); nbRenderSources(); }
+async function ksDeleteSource(id){
+  if(!confirm('이 지식자료를 삭제할까요?')) return;
+  try{ await DB.deleteKnowledge(id); await ksRenderList(); toast('삭제되었습니다'); }
   catch(e){ console.error(e); toast('삭제 실패','error'); }
 }
+function ksFmtDate(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'}); }catch(e){ return ''; } }
+async function ksRenderList(){
+  const body=document.getElementById('ks-list-body'); const cnt=document.getElementById('ks-count');
+  if(!body) return;
+  let list=[];
+  try{ list=await DB.getKnowledge(); }
+  catch(e){ console.error(e); toast('지식자료를 불러오지 못했습니다. SQL 테이블을 확인하세요.','error'); }
+  if(cnt) cnt.textContent=list.length?`· 총 ${list.length}건`:'';
+  const typeIcon={text:'✍️',file:'📎',pdf:'📕',url:'🔗'};
+  if(!list.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:24px;">등록된 지식자료가 없습니다. 위에서 자료를 올리세요.</td></tr>'; return; }
+  body.innerHTML=list.map(s=>{
+    const len=(s.content||'').length;
+    return `<tr>
+      <td>${esc(s.title)}</td>
+      <td>${typeIcon[s.src_type]||'📄'} ${esc(s.src_type||'file')}</td>
+      <td>${len.toLocaleString('ko-KR')}자</td>
+      <td>${ksFmtDate(s.created_at)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="ksDeleteSource('${s.id}')">삭제</button></td>
+    </tr>`;
+  }).join('');
+}
 
-// ── 소스 텍스트 수집 (선택된 것만, 상한 적용) ──
-function nbCollectSources(){
-  const chosen=_nbSources.filter(s=>_nbSelected.has(s.id));
-  if(!chosen.length) return null;
-  let total=0; const parts=[];
-  chosen.forEach((s,i)=>{
-    const idx=_nbSources.indexOf(s)+1; // S번호는 전체 목록 기준 고정
+// ── 지식자료 검색 (AI 어시스턴트 도구용) — 키워드로 관련 자료를 근거 텍스트로 반환 ──
+async function ksSearchForAgent(query){
+  let srcs; try{ srcs=await DB.getKnowledge(); }catch(e){ return '지식자료를 불러올 수 없습니다(테이블 미설정).'; }
+  if(!srcs||!srcs.length) return '업로드된 지식자료가 없습니다. 관리자 페이지 > 📚 AI 지식자료에서 자료를 먼저 올려야 합니다.';
+  const q=(query||'').toLowerCase().trim();
+  let chosen=srcs;
+  if(q){
+    const terms=q.split(/\s+/).filter(w=>w.length>1);
+    if(terms.length){
+      const scored=srcs.map(s=>{ const t=((s.title||'')+' '+(s.content||'')).toLowerCase(); let sc=0; terms.forEach(w=>{ if(t.includes(w)) sc++; }); return {s,sc}; });
+      const hit=scored.filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc);
+      if(hit.length) chosen=hit.map(x=>x.s);
+    }
+  }
+  const MAX=40000; let total=0; const parts=[];
+  for(const s of chosen){
+    const idx=srcs.indexOf(s)+1;
     let body=s.content||'';
-    const budget=Math.max(2000,Math.floor(NB_MAX_CHARS/chosen.length));
-    if(body.length>budget) body=body.slice(0,budget)+'\n…(이하 생략)';
+    const budget=Math.max(2000,Math.floor(MAX/chosen.length));
+    if(body.length>budget) body=body.slice(0,budget)+'…(이하 생략)';
+    if(total+body.length>MAX) break;
     parts.push(`[S${idx}] 제목: ${s.title}\n${body}`);
     total+=body.length;
-  });
-  return parts.join('\n\n---\n\n');
+  }
+  return `아래 '지식자료'만을 근거로 한국어로 답하세요. 자료에 없는 내용은 지어내지 말고 "제공된 자료에서 찾을 수 없습니다"라고 하세요. 근거가 된 자료는 [S번호]로 표기하세요.\n\n=== 지식자료 시작 ===\n${parts.join('\n\n---\n\n')}\n=== 지식자료 끝 ===`;
 }
 
-// ── AI 호출 (소스 grounding) ──
-async function nbCallAI(contents,extraInstruction){
-  const srcText=nbCollectSources();
-  if(!srcText){ toast('근거로 사용할 소스를 1개 이상 선택하세요','error'); return null; }
-  const model=await getGeminiModel();
-  const sys=`당신은 제공된 '소스'만을 근거로 답하는 한국어 연구 도우미입니다.
-- 소스에 없는 내용은 지어내지 말고 "제공된 소스에서 찾을 수 없습니다"라고 답하세요.
-- 답변에 근거가 된 소스를 [S번호] 형태로 표기하세요 (예: …입니다 [S1]).
-- 마크다운(## 제목, **굵게**, - 목록)을 사용해 읽기 좋게 작성하세요.
-${extraInstruction||''}
-
-=== 소스 시작 ===
-${srcText}
-=== 소스 끝 ===`;
-  try{
-    const data=await geminiGenerate(model,{system_instruction:{parts:[{text:sys}]},contents});
-    return (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text).filter(Boolean).join('\n').trim()||'(응답이 비었습니다)';
-  }catch(e){ console.error('[Notebook AI]',e); toast('AI 오류: '+e.message,'error'); return null; }
-}
-
-// ── 채팅 (소스 기반 Q&A) ──
-function _nbAppend(role,text,cls){ const m=document.getElementById('nb-chat-msgs'); const d=document.createElement('div'); d.className='nb-msg '+role+(cls?' '+cls:''); if(role==='bot'&&!cls) d.innerHTML=nbRenderMarkdown(text); else d.textContent=text; m.appendChild(d); m.scrollTop=m.scrollHeight; return d; }
-async function nbSendChat(){
-  const f=document.getElementById('nb-chat-field'), btn=document.getElementById('nb-chat-send');
-  const text=(f.value||'').trim(); if(!text) return;
-  if(!_nbCurrent){ toast('노트북을 선택하세요','error'); return; }
-  f.value=''; btn.disabled=true; f.disabled=true;
-  _nbAppend('user',text);
-  const thinking=_nbAppend('bot','생각 중…','thinking');
-  if(_nbHistory.length>12) _nbHistory=_nbHistory.slice(-12);
-  _nbHistory.push({role:'user',parts:[{text}]});
-  const ans=await nbCallAI(_nbHistory.slice());
-  if(ans){ _nbHistory.push({role:'model',parts:[{text:ans}]}); thinking.classList.remove('thinking'); thinking.innerHTML=nbRenderMarkdown(ans); }
-  else { thinking.remove(); _nbHistory.pop(); }
-  const m=document.getElementById('nb-chat-msgs'); m.scrollTop=m.scrollHeight;
-  btn.disabled=false; f.disabled=false; f.focus();
-}
-
-// ── 자동 문서 생성 + 마인드맵 ──
-async function nbGenerate(kind){
-  if(!_nbCurrent){ toast('노트북을 선택하세요','error'); return; }
-  const out=document.getElementById('nb-output');
-  const labels={summary:'요약',study:'학습가이드',faq:'FAQ',timeline:'타임라인',mindmap:'마인드맵'};
-  out.innerHTML='<div class="nb-empty">✨ '+labels[kind]+' 생성 중…</div>';
-  if(kind==='mindmap'){ await nbGenerateMindmap(out); return; }
-  const prompts={
-    summary:'위 소스 전체를 핵심 위주로 한국어로 요약하세요. 먼저 3~4문장 개요를 쓰고, 이어서 주요 포인트를 불릿으로 정리하세요.',
-    study:'위 소스로 학습 가이드를 만드세요. ## 핵심 개념, ## 꼭 알아야 할 용어, ## 복습 질문(5개) 섹션으로 구성하세요.',
-    faq:'위 소스 내용을 바탕으로 자주 나올 법한 질문과 답변(FAQ)을 8개 만드세요. 각 질문은 **굵게**, 답변은 그 아래에 작성하세요.',
-    timeline:'위 소스에 등장하는 사건·날짜·단계를 시간 순서대로 타임라인으로 정리하세요. 시점 정보가 없으면 논리적 진행 순서로 정리하세요.'
-  };
-  const text=await nbCallAI([{role:'user',parts:[{text:prompts[kind]}]}],'요청: '+labels[kind]+' 생성');
-  if(text) out.innerHTML='<h3>'+({summary:'📝 요약',study:'📖 학습가이드',faq:'❓ FAQ',timeline:'🕐 타임라인'}[kind])+'</h3>'+nbRenderMarkdown(text);
-  else out.innerHTML='';
-}
-async function nbGenerateMindmap(out){
-  const instruction='요청: 마인드맵 데이터. 아래 형식의 JSON만 출력하고 다른 텍스트는 절대 쓰지 마세요. 최대 3단계 깊이, 각 노드 라벨은 짧게.';
-  const fmt='{"topic":"중심주제","children":[{"topic":"가지","children":[{"topic":"세부"}]}]}';
-  const text=await nbCallAI([{role:'user',parts:[{text:'위 소스의 핵심 구조를 마인드맵으로 만들어 JSON으로 주세요.\n형식: '+fmt}]}],instruction);
-  if(!text){ out.innerHTML=''; return; }
-  let json=text.replace(/```json|```/g,'').trim();
-  const s=json.indexOf('{'), e=json.lastIndexOf('}');
-  if(s>=0&&e>s) json=json.slice(s,e+1);
-  let tree; try{ tree=JSON.parse(json); }catch(err){ out.innerHTML='<h3>🧠 마인드맵</h3>'+nbRenderMarkdown(text); return; }
-  out.innerHTML='<h3>🧠 마인드맵</h3><div class="nb-mindmap">'+nbMindmapNode(tree,true)+'</div>';
-}
-function nbMindmapNode(node,isRoot){
-  if(!node||!node.topic) return '';
-  const kids=Array.isArray(node.children)?node.children.filter(Boolean):[];
-  const childHtml=kids.length?'<div class="nb-mm-children">'+kids.map(k=>nbMindmapNode(k,false)).join('')+'</div>':'';
-  return `<div class="nb-mm-node ${isRoot?'nb-mm-root':''}"><div class="nb-mm-label">${esc(node.topic)}</div>${childHtml}</div>`;
-}
-
-// ── 미니 마크다운 → HTML ──
-function nbRenderMarkdown(md){
-  let h=esc(md||'');
-  h=h.replace(/^\s*#{3}\s+(.*)$/gm,'<h3>$1</h3>')
-     .replace(/^\s*#{2}\s+(.*)$/gm,'<h2>$1</h2>')
-     .replace(/^\s*#\s+(.*)$/gm,'<h1>$1</h1>');
-  h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-  h=h.replace(/(?:^|\n)((?:\s*[-*•]\s+.*(?:\n|$))+)/g,(m,block)=>{
-    const items=block.trim().split('\n').map(l=>l.replace(/^\s*[-*•]\s+/,'').trim()).filter(Boolean).map(t=>'<li>'+t+'</li>').join('');
-    return '\n<ul>'+items+'</ul>\n';
-  });
-  h=h.replace(/\[S(\d+)\]/g,'<code class="nb-cite">S$1</code>');
-  h=h.replace(/\n/g,'<br>');
-  h=h.replace(/<br>\s*(<(?:ul|h[1-3]))/g,'$1').replace(/(<\/(?:ul|h[1-3])>)\s*<br>/g,'$1');
-  return h;
-}
-
+// ═══════════════════════════════════════════════
 // ── 텍스트 채팅 UI ──
 let _chatStarted=false;
 function toggleAIChat(){
