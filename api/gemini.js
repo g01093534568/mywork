@@ -9,6 +9,9 @@ const CLAUDE_MODEL = 'claude-sonnet-4-6';
 function claudeKey() {
   return process.env.Claude_API || process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || '';
 }
+function geminiKey() {
+  return process.env.GEMINI_API_KEY || process.env.google_api_Key || process.env.GOOGLE_API_KEY || '';
+}
 
 // Gemini 스키마(TYPE 대문자) → JSON Schema(소문자) 재귀 변환
 function schemaG2C(s) {
@@ -89,7 +92,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: { message: 'POST only' } }); return; }
   try {
     const { action, model, payload } = req.body || {};
-    const key = process.env.GEMINI_API_KEY;
+    const key = geminiKey();
 
     if (action === 'list') {
       if (!key) { res.status(400).json({ error: { message: 'AI 키가 설정되지 않았습니다.', status: 'NO_KEY' } }); return; }
