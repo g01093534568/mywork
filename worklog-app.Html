@@ -1351,14 +1351,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <input type="hidden" id="golf-round-edit-id" />
             <div class="form-row">
               <div class="form-group">
-                <label>스코어 (타수)</label>
-                <input type="number" id="golf-round-score" min="50" max="200" placeholder="예: 95" />
+                <label>코스/장소</label>
+                <input type="text" id="golf-round-location" list="golf-course-list" placeholder="예: 남서울CC" oninput="onGolfCoursePick()" />
+                <datalist id="golf-course-list"></datalist>
               </div>
               <div class="form-group">
-                <label>코스/장소</label>
-                <input type="text" id="golf-round-location" placeholder="예: 남서울CC" />
+                <label>규정타수 (Par)</label>
+                <input type="number" id="golf-round-par" min="27" max="80" value="72" placeholder="72" oninput="updateGolfRoundDiff()" />
               </div>
             </div>
+            <div class="form-group">
+              <label>내 스코어 (타수)</label>
+              <input type="number" id="golf-round-score" min="50" max="200" placeholder="예: 95" oninput="updateGolfRoundDiff()" />
+            </div>
+            <div id="golf-round-diff" style="text-align:center;font-size:13px;font-weight:600;margin-bottom:8px;display:none;"></div>
             <div class="form-group">
               <label>메모</label>
               <textarea id="golf-round-memo" rows="2" placeholder="드라이버 비거리, 퍼팅 수, 특이사항 등"></textarea>
@@ -3470,6 +3476,32 @@ function setRunningDateFromInput(){
 // duration > 0 : 훈련내용 마커 (골프는 duration 미사용)
 function isGolfPractice(r){ return !!(r.duration && r.duration > 0); }
 
+// 규정타수(Par)는 미사용 distance 컬럼에 저장. 코스명→최근 규정타수 매핑
+let _golfCourses={};
+function golfDiffText(score, par){
+  if(!score||score<=0||!par||par<=0) return null;
+  const d=score-par;
+  if(d===0) return {label:'이븐파 (E)', short:'E', color:'var(--green)', diff:0};
+  if(d>0)   return {label:`규정타수 ${par} 대비 +${d}타 (오버파)`, short:`+${d}`, color:'var(--accent)', diff:d};
+  return       {label:`규정타수 ${par} 대비 ${d}타 (언더파)`, short:`${d}`, color:'var(--blue)', diff:d};
+}
+// 코스명을 입력/선택하면 등록된 규정타수를 자동으로 채움
+function onGolfCoursePick(){
+  const loc=(document.getElementById('golf-round-location')?.value||'').trim();
+  const parInp=document.getElementById('golf-round-par');
+  if(loc && _golfCourses[loc]!=null && parInp){ parInp.value=_golfCourses[loc]; }
+  updateGolfRoundDiff();
+}
+// 스코어 vs 규정타수 실시간 표시
+function updateGolfRoundDiff(){
+  const el=document.getElementById('golf-round-diff'); if(!el) return;
+  const score=parseInt(document.getElementById('golf-round-score')?.value);
+  const par=parseInt(document.getElementById('golf-round-par')?.value);
+  const r=golfDiffText(score, par);
+  if(r){ el.style.display='block'; el.style.color=r.color; el.textContent=r.label; }
+  else { el.style.display='none'; el.textContent=''; }
+}
+
 async function renderGolfPanel(){
   if(!_golfDate) _golfDate=today();
   _exGolf=await DB.getExercises(currentUser.사원번호,'golf');
@@ -3483,6 +3515,18 @@ async function renderGolfPanel(){
   }
 
   const roundsAll=_exGolf.filter(r=>!isGolfPractice(r));
+
+  // 코스 레지스트리 구축: 코스명 → 최근 규정타수(distance). 최신 기록이 우선
+  _golfCourses={};
+  [...roundsAll].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(r=>{
+    const loc=(r.location||'').trim();
+    if(loc && r.distance>0) _golfCourses[loc]=r.distance;
+  });
+  const courseDL=document.getElementById('golf-course-list');
+  if(courseDL){
+    courseDL.innerHTML=Object.keys(_golfCourses).sort().map(loc=>`<option value="${esc(loc)}">규정타수 ${_golfCourses[loc]}</option>`).join('');
+  }
+
   const scores=roundsAll.filter(r=>r.score&&r.score>0).map(r=>r.score);
   const summary=document.getElementById('golf-summary');
   if(summary){
@@ -3529,11 +3573,12 @@ async function renderGolfPanel(){
         +years.map(year=>{
           const cnt=byYear[year].length;
           const cards=byYear[year].map(r=>{
+            const diff=golfDiffText(r.score, r.distance);
             return `<div class="ex-entry-card" style="border-left:3px solid var(--accent);margin-bottom:0;display:flex;flex-direction:column;gap:6px;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.location?esc(r.location):'라운딩'}</div>
-                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)} (${dayLabel(r.date)})</div>
+                  <div style="font-size:11px;color:var(--t3);">${fmtDate(r.date)} (${dayLabel(r.date)})${r.distance>0?` · 파 ${r.distance}`:''}</div>
                 </div>
                 <div style="display:flex;gap:4px;flex-shrink:0;">
                   <button class="btn btn-ghost btn-sm" onclick="editGolfRound('${r.id}')">✏️</button>
@@ -3542,6 +3587,7 @@ async function renderGolfPanel(){
               </div>
               <div style="display:flex;align-items:baseline;gap:6px;">
                 <strong style="font-size:20px;color:var(--accent)">${r.score||'-'}</strong><span style="font-size:12px;color:var(--t2)">타</span>
+                ${diff?`<span style="font-size:12px;font-weight:700;color:${diff.color};margin-left:auto;">${diff.short}</span>`:''}
               </div>
               ${r.memo?`<div style="font-size:11px;color:var(--t3);white-space:pre-wrap;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(r.memo)}</div>`:''}
             </div>`;
@@ -3579,7 +3625,9 @@ function editGolfRound(id){
   document.getElementById('golf-round-edit-id').value=id;
   document.getElementById('golf-round-score').value=r.score&&r.score>0?r.score:'';
   document.getElementById('golf-round-location').value=r.location||'';
+  document.getElementById('golf-round-par').value=r.distance&&r.distance>0?r.distance:72;
   document.getElementById('golf-round-memo').value=r.memo||'';
+  updateGolfRoundDiff();
   document.getElementById('golf-round-score').focus();
   document.getElementById('golf-round-score').scrollIntoView({behavior:'smooth',block:'center'});
 }
@@ -3617,16 +3665,20 @@ async function saveGolfPractice(btnEl){
 
 async function saveGolfRound(){
   const score=document.getElementById('golf-round-score').value;
+  const par=document.getElementById('golf-round-par').value;
   const location=document.getElementById('golf-round-location').value.trim();
   const memo=document.getElementById('golf-round-memo').value.trim();
   const editId=document.getElementById('golf-round-edit-id').value;
-  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:score?parseInt(score):null,duration:null,memo};
+  // 규정타수(Par)는 distance 컬럼에 저장
+  const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:score?parseInt(score):null,distance:par?parseInt(par):null,duration:null,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('golf-round-score').value='';
     document.getElementById('golf-round-location').value='';
+    document.getElementById('golf-round-par').value='72';
     document.getElementById('golf-round-memo').value='';
     document.getElementById('golf-round-edit-id').value='';
+    updateGolfRoundDiff();
     toast('라운딩 기록이 저장됐습니다.');
     await renderGolfPanel();
   }catch(e){toast('저장 실패: '+e.message,'error');}
