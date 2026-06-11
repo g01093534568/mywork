@@ -476,15 +476,18 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .golf-card-nine{margin-bottom:8px;}
 .golf-card-nine .gl-nine-title{font-size:11px;font-weight:700;color:var(--t2);margin:0 0 4px 2px;}
 .golf-card-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r2);}
-.golf-card-table{border-collapse:collapse;width:100%;min-width:360px;}
+.golf-card-table{border-collapse:collapse;width:100%;min-width:430px;}
 .golf-card-table th,.golf-card-table td{border:1px solid var(--border);text-align:center;padding:0;}
-.golf-card-table th{background:var(--card);color:var(--t2);font-weight:700;font-size:11px;padding:3px 0;width:32px;}
-.golf-card-table .gl-lbl{background:var(--card);color:var(--t2);font-weight:700;white-space:nowrap;font-size:11px;padding:0 6px;width:34px;}
-.golf-card-table input{width:32px;height:30px;border:none;background:transparent;text-align:center;font-size:13px;color:var(--t1);outline:none;-moz-appearance:textfield;appearance:textfield;}
+.golf-card-table th{background:var(--card);color:var(--t1);font-weight:800;font-size:13px;padding:6px 0;width:40px;}
+.golf-card-table .gl-lbl{background:var(--card);color:var(--t1);font-weight:800;white-space:nowrap;font-size:12px;padding:0 8px;width:42px;}
+.golf-card-table tr.gl-par-row td{background:rgba(255,255,255,0.03);}
+.golf-card-table input{width:40px;height:40px;border:none;background:transparent;text-align:center;outline:none;-moz-appearance:textfield;appearance:textfield;}
 .golf-card-table input::-webkit-outer-spin-button,.golf-card-table input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-.golf-card-table input.gp{color:var(--t3);font-size:12px;}
-.golf-card-table input.gs:focus{background:rgba(232,160,32,0.15);}
-.golf-card-table .gl-sum{background:rgba(232,160,32,0.10);font-weight:700;color:var(--accent);font-size:13px;min-width:34px;}
+.golf-card-table input.gp{color:var(--t2);font-size:14px;font-weight:600;}
+.golf-card-table input.gs{color:var(--t1);font-size:18px;font-weight:800;}
+.golf-card-table input.gs::placeholder{color:var(--t3);font-size:14px;font-weight:400;}
+.golf-card-table input.gs:focus{background:rgba(232,160,32,0.18);}
+.golf-card-table .gl-sum{background:rgba(232,160,32,0.12);font-weight:800;color:var(--accent);font-size:16px;min-width:40px;}
 /* ── CUSTOM GOOGLE CALENDAR ── */
 .gcal-view{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
 .gcal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
@@ -3536,12 +3539,12 @@ function renderGolfHoleGrid(pars, scores){
   pars=(pars&&pars.length===18)?pars:STD_GOLF_PAR.slice();
   scores=(scores&&scores.length===18)?scores:Array(18).fill(null);
   const nine=(start,title)=>{
-    let head='<tr><th>홀</th>', parRow='<tr><td class="gl-lbl">Par</td>', scoreRow='<tr><td class="gl-lbl">타수</td>';
+    let head='<tr><th>홀</th>', parRow='<tr class="gl-par-row"><td class="gl-lbl">Par</td>', scoreRow='<tr><td class="gl-lbl">타수</td>';
     for(let h=0;h<9;h++){
       const i=start+h;
       head+=`<th>${i+1}</th>`;
       parRow+=`<td><input class="gp" data-i="${i}" type="number" inputmode="numeric" min="3" max="6" value="${pars[i]??''}" oninput="onGolfHoleInput()"></td>`;
-      scoreRow+=`<td><input class="gs" data-i="${i}" type="number" inputmode="numeric" min="1" max="15" value="${scores[i]??''}" oninput="onGolfHoleInput()"></td>`;
+      scoreRow+=`<td><input class="gs" data-i="${i}" type="number" inputmode="numeric" min="1" max="15" placeholder="–" value="${scores[i]??''}" oninput="onGolfHoleInput()"></td>`;
     }
     head+=`<th>${start===0?'OUT':'IN'}</th></tr>`;
     parRow+=`<td class="gl-sum" data-sum="par${start}"></td></tr>`;
