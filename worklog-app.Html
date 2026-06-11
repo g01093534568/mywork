@@ -5007,7 +5007,7 @@ async function loadKospiChart(){
     ['Naver fchart', async()=>{
       const r=await naverFetch(`https://fchart.stock.naver.com/siseJson.nhn?symbol=KOSPI&requestType=1&startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
       const text=await r.text();
-      const rows=JSON.parse(text.trim());
+      const rows=JSON.parse(text.trim().replace(/'/g,'"')); // ② 헤더행 작은따옴표 → 큰따옴표 (안 그러면 항상 파싱 실패)
       if(!Array.isArray(rows)||!rows.length) throw new Error('empty');
       const ok=rows.filter(r=>parseFloat(r[4])>0);
       return{vals:ok.map(r=>parseFloat(r[4])||0),dates:ok.map(r=>r[0]||'')};
@@ -5023,6 +5023,22 @@ async function loadKospiChart(){
   }
 
   if(chartData.vals.length<2) chartData={vals:[cur,cur],dates:['','']};
+
+  // ① 소스마다 정렬 순서가 달라(네이버=최신순, 야후=과거순) 그래프가 좌우 반전되는 문제 → 날짜 오름차순으로 정규화
+  (function normalizeAsc(){
+    const key=d=>String(d||'').replace(/\D/g,''); // 'YYYYMMDD'
+    const rows=chartData.vals.map((v,i)=>({v,d:chartData.dates[i]||''}));
+    if(rows.every(r=>key(r.d).length>=8)){ // 모든 날짜가 온전할 때만 정렬(2점 폴백 등은 건드리지 않음)
+      rows.sort((a,b)=>key(a.d).localeCompare(key(b.d))); // 과거 → 현재
+      chartData={vals:rows.map(r=>r.v),dates:rows.map(r=>r.d)};
+    }
+  })();
+
+  // ③ 장중 현재가를 차트 끝점에 반영 — 마지막 점이 오늘이 아니면 live 포인트 추가(상단 현재가와 그래프 끝 일치)
+  const todayK=fmtD(now);
+  const lastK=String(chartData.dates[chartData.dates.length-1]||'').replace(/\D/g,'');
+  if(cur>0 && lastK && lastK!==todayK){ chartData.vals.push(cur); chartData.dates.push(todayK); }
+
   renderKospiSvg(chartData.vals,chartData.dates,lineColor);
 }
 
