@@ -6158,7 +6158,7 @@ async function toggleTodoDone(id, date){
   await DB.upsertTodo(currentUser.사원번호,todo);
   await renderTodos();
   if(currentPage==='daily') await renderDailyTodos(date);
-  if(becomingDone && todo.category !== '개인') showTodoLogPrompt(todo, doneDate);
+  if(becomingDone && todo.category !== '개인') openActivityModal(doneDate, null, todo.title);
 }
 
 function showTodoLogPrompt(todo, date){
@@ -6378,7 +6378,7 @@ async function renderDailyActivities(date){
     </div>`).join('');
 }
 
-async function openActivityModal(date, id){
+async function openActivityModal(date, id, prefillTitle){
   date=date||document.getElementById('daily-date').value||today();
   const org=await DB.getOrg();
   const tasks=(org.전략과제||[]).map(t=>t.과제);
@@ -6399,7 +6399,7 @@ async function openActivityModal(date, id){
   } else {
     document.getElementById('activity-modal-title').textContent='활동 추가';
     document.getElementById('am-edit-id').value='';
-    document.getElementById('am-title').value='';
+    document.getElementById('am-title').value=prefillTitle||'';
     document.getElementById('am-time').value='';
     sel.value='';
     document.getElementById('am-content').value='';
