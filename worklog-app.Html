@@ -2131,13 +2131,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
-        <input type="text" id="am-time" placeholder="예: 09:00~10:30 또는 14:00" />
+        <label>시작 시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
+        <input type="text" id="am-start" placeholder="예: 0900" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
       <div class="form-group">
-        <label>전략과제 연계</label>
-        <select id="am-linked"></select>
+        <label>종료 시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
+        <input type="text" id="am-end" placeholder="예: 1030" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
       </div>
+    </div>
+    <div class="form-group">
+      <label>전략과제 연계</label>
+      <select id="am-linked"></select>
     </div>
     <div class="form-group">
       <label>주요 내용</label>
@@ -6392,7 +6396,9 @@ async function openActivityModal(date, id, prefillTitle){
     document.getElementById('activity-modal-title').textContent='활동 수정';
     document.getElementById('am-edit-id').value=id;
     document.getElementById('am-title').value=a.title;
-    document.getElementById('am-time').value=a.time||'';
+    const _t=parseTimeRange(a.time);
+    document.getElementById('am-start').value=_t.start;
+    document.getElementById('am-end').value=_t.end;
     sel.value=a.linked||'';
     document.getElementById('am-content').value=a.content||'';
     document.getElementById('am-reflection').value=a.reflection||'';
@@ -6400,7 +6406,8 @@ async function openActivityModal(date, id, prefillTitle){
     document.getElementById('activity-modal-title').textContent='활동 추가';
     document.getElementById('am-edit-id').value='';
     document.getElementById('am-title').value=prefillTitle||'';
-    document.getElementById('am-time').value='';
+    document.getElementById('am-start').value='';
+    document.getElementById('am-end').value='';
     sel.value='';
     document.getElementById('am-content').value='';
     document.getElementById('am-reflection').value='';
@@ -6415,7 +6422,7 @@ async function saveActivity(){
   const editId=document.getElementById('am-edit-id').value;
   const data={
     id:editId||uid(), title,
-    time:document.getElementById('am-time').value.trim(),
+    time:combineTimeRange(getTimeValue('am-start'), getTimeValue('am-end')),
     linked:document.getElementById('am-linked').value,
     content:document.getElementById('am-content').value.trim(),
     reflection:document.getElementById('am-reflection').value.trim()
@@ -6900,6 +6907,17 @@ function setTimeValue(id, val) {
   const el = document.getElementById(id);
   if (!el) return;
   el.value = val || '';
+}
+// "09:00~10:30" / "14:00" 문자열을 시작·종료 시간으로 분리
+function parseTimeRange(str) {
+  if (!str) return { start: '', end: '' };
+  const times = String(str).match(/\d{1,2}:\d{2}/g) || [];
+  return { start: times[0] || '', end: times[1] || '' };
+}
+// 시작·종료 시간을 활동 time 문자열로 결합
+function combineTimeRange(start, end) {
+  if (start && end) return start + '~' + end;
+  return start || end || '';
 }
 
 function startGcalAutoRefresh() {
