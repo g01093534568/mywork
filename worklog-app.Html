@@ -2094,9 +2094,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <option value="done">완료</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
-      <input type="text" id="tm-time" placeholder="예: 09:00~10:30 또는 14:00" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작 시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
+        <input type="text" id="tm-start-time" placeholder="예: 0900" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
+      </div>
+      <div class="form-group">
+        <label>종료 시간 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">선택 사항</span></label>
+        <input type="text" id="tm-end-time" placeholder="예: 1030" maxlength="5" oninput="formatTimeInput(this)" onblur="normalizeTimeInput(this)" />
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -6210,7 +6216,9 @@ async function openTodoModal(id){
     document.getElementById('tm-status').value=todo.status;
     document.getElementById('tm-start').value=todo.startDate||'';
     document.getElementById('tm-due').value=todo.dueDate||'';
-    document.getElementById('tm-time').value=todo.time||'';
+    const _tt=parseTimeRange(todo.time);
+    document.getElementById('tm-start-time').value=_tt.start;
+    document.getElementById('tm-end-time').value=_tt.end;
     document.getElementById('tm-memo').value=todo.memo||'';
     setRecurringDays(todo.recurringDays||[]);
   } else {
@@ -6222,7 +6230,8 @@ async function openTodoModal(id){
     document.getElementById('tm-status').value='todo';
     document.getElementById('tm-start').value=today();
     document.getElementById('tm-due').value='';
-    document.getElementById('tm-time').value='';
+    document.getElementById('tm-start-time').value='';
+    document.getElementById('tm-end-time').value='';
     document.getElementById('tm-memo').value='';
     setRecurringDays([]);
   }
@@ -6242,7 +6251,7 @@ async function saveTodo(){
     status:isRecurring?'todo':document.getElementById('tm-status').value,
     startDate:isRecurring?null:document.getElementById('tm-start').value||null,
     dueDate:isRecurring?null:document.getElementById('tm-due').value||null,
-    time:document.getElementById('tm-time').value.trim()||null,
+    time:combineTimeRange(getTimeValue('tm-start-time'), getTimeValue('tm-end-time'))||null,
     memo:document.getElementById('tm-memo').value.trim(),
     isRecurring, recurringDays,
     completedDate:null, completedDates:[],
