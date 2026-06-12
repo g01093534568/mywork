@@ -115,7 +115,13 @@ export default async function handler(req, res) {
           });
           out.claudeStatus = cr.status;
           if (cr.ok) out.claudeOk = true;
-          else { const j = await cr.json().catch(() => ({})); out.claudeError = j?.error?.type || j?.error?.message || 'unknown'; }
+          else { const j = await cr.json().catch(() => ({})); out.claudeError = j?.error?.message || j?.error?.type || 'unknown'; }
+          // 사용 가능한 모델 목록 조회
+          const mr = await fetch('https://api.anthropic.com/v1/models?limit=20', {
+            headers: { 'x-api-key': ck, 'anthropic-version': '2023-06-01' },
+          });
+          if (mr.ok) { const mj = await mr.json().catch(() => ({})); out.models = (mj?.data || []).map(m => m.id); }
+          else out.modelsStatus = mr.status;
         } catch (e) { out.claudeException = e.message; }
       }
       res.status(200).json(out); return;
