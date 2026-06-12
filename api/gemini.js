@@ -94,25 +94,6 @@ export default async function handler(req, res) {
     const { action, model, payload } = req.body || {};
     const key = geminiKey();
 
-    if (action === 'diag') {
-      const gk = geminiKey();
-      const out = {
-        geminiKey: { present: !!gk, len: gk.length, head: gk.slice(0, 6), tail: gk.slice(-4) },
-      };
-      if (gk) {
-        try {
-          const gr = await fetch(`${GEMINI_BASE}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(gk)}`, {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }] }),
-          });
-          out.geminiStatus = gr.status;
-          if (!gr.ok) { const j = await gr.json().catch(() => ({})); out.geminiError = j?.error?.message || j?.error?.status || 'unknown'; }
-          else out.geminiOk = true;
-        } catch (e) { out.geminiException = e.message; }
-      }
-      res.status(200).json(out); return;
-    }
-
     if (action === 'list') {
       if (!key) { res.status(400).json({ error: { message: 'AI 키가 설정되지 않았습니다.', status: 'NO_KEY' } }); return; }
       const g = await fetch(`${GEMINI_BASE}/models?key=${encodeURIComponent(key)}`);
