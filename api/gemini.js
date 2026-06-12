@@ -94,39 +94,6 @@ export default async function handler(req, res) {
     const { action, model, payload } = req.body || {};
     const key = geminiKey();
 
-    if (action === 'diag') {
-      const present = (v) => ({ present: !!(process.env[v] && process.env[v].length), len: (process.env[v] || '').length });
-      const out = {
-        vars: {
-          worklog_claude: present('worklog_claude'),
-          worklogclaude: present('worklogclaude'),
-          ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
-          google_api_Key: present('google_api_Key'),
-        },
-        claudeKeyResolved: !!claudeKey(),
-      };
-      const ck = claudeKey();
-      if (ck) {
-        try {
-          const cr = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', 'x-api-key': ck, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 16, messages: [{ role: 'user', content: 'hi' }] }),
-          });
-          out.claudeStatus = cr.status;
-          if (cr.ok) out.claudeOk = true;
-          else { const j = await cr.json().catch(() => ({})); out.claudeError = j?.error?.message || j?.error?.type || 'unknown'; }
-          // 사용 가능한 모델 목록 조회
-          const mr = await fetch('https://api.anthropic.com/v1/models?limit=20', {
-            headers: { 'x-api-key': ck, 'anthropic-version': '2023-06-01' },
-          });
-          if (mr.ok) { const mj = await mr.json().catch(() => ({})); out.models = (mj?.data || []).map(m => m.id); }
-          else out.modelsStatus = mr.status;
-        } catch (e) { out.claudeException = e.message; }
-      }
-      res.status(200).json(out); return;
-    }
-
     if (action === 'list') {
       if (!key) { res.status(400).json({ error: { message: 'AI 키가 설정되지 않았습니다.', status: 'NO_KEY' } }); return; }
       const g = await fetch(`${GEMINI_BASE}/models?key=${encodeURIComponent(key)}`);
