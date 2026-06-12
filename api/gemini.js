@@ -7,7 +7,7 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
 function claudeKey() {
-  return process.env.Claude_API || process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+  return process.env.worklog_claude || process.env.Claude_API || process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || '';
 }
 function geminiKey() {
   return process.env.GEMINI_API_KEY || process.env.google_api_Key || process.env.GOOGLE_API_KEY || '';
