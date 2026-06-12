@@ -5298,6 +5298,14 @@ async function renderStocks(){
     if(h.qty>0) stocks.push({...vs,_h:h});
   }
 
+  // 카드 순서 고정 정렬 — 한글(가나다) 먼저, 영어(abc) 다음
+  stocks.sort((a,b)=>{
+    const na=(a.name||'').trim(), nb=(b.name||'').trim();
+    const ka=/^[가-힣]/.test(na), kb=/^[가-힣]/.test(nb);
+    if(ka!==kb) return ka?-1:1; // 한글 그룹을 앞으로
+    return na.localeCompare(nb,'ko-KR',{sensitivity:'base',numeric:true});
+  });
+
   // ── 자산 총계 대시보드 ──
   const dashEl=document.getElementById('asset-dashboard');
   if(dashEl){
