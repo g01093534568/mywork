@@ -10080,13 +10080,13 @@ function updateSummary(records) {
             : d.usage.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
         const costStr  = d.cost.toLocaleString('ko-KR');
 
-        // 사용량 행 — 통신은 건수로 대체 표시
+        // 사용량 행 — 통신은 사용량 표기 없음(건수만)
         const usageRow = showUsage
-            ? `<div class="sc-row${isEmpty ? ' sc-empty' : ''}">
+            ? `<div class="sc-divider"></div>
+               <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
                  <span class="sc-key">사용량</span>
                  <span><span class="sc-num">${isEmpty ? '-' : usageStr}</span><span class="sc-unit">${isEmpty ? '' : unit}</span></span>
-               </div>
-               <div class="sc-divider"></div>`
+               </div>`
             : '';
 
         const card = document.createElement('div');
@@ -10097,16 +10097,16 @@ function updateSummary(records) {
               <span class="sc-type">${key}</span>
             </div>
             <div class="sc-body">
-              ${usageRow}
-              <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
-                <span class="sc-key">금&nbsp;&nbsp;액</span>
-                <span><span class="sc-num">${isEmpty ? '-' : costStr}</span><span class="sc-unit">${isEmpty ? '' : '원'}</span></span>
-              </div>
-              <div class="sc-divider"></div>
               <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
                 <span class="sc-key">건&nbsp;&nbsp;수</span>
                 <span><span class="sc-num">${d.count}</span><span class="sc-unit">건</span></span>
               </div>
+              <div class="sc-divider"></div>
+              <div class="sc-row${isEmpty ? ' sc-empty' : ''}">
+                <span class="sc-key">금&nbsp;&nbsp;액</span>
+                <span><span class="sc-num">${isEmpty ? '-' : costStr}</span><span class="sc-unit">${isEmpty ? '' : '원'}</span></span>
+              </div>
+              ${usageRow}
             </div>`;
         container.appendChild(card);
     });
