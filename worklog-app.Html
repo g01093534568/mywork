@@ -170,6 +170,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 /* Mobile todo cards */
 #todo-cards{display:none;padding:12px;}
 .todo-m-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;}
+/* Swipe gesture */
+.todo-m-swipe{position:relative;overflow:hidden;border-radius:var(--r2);margin-bottom:10px;touch-action:pan-y;}
+.todo-m-swipe .todo-m-card{margin-bottom:0;position:relative;z-index:1;will-change:transform;}
+.todo-m-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:14px;font-weight:700;color:#fff;border-radius:var(--r2);background:linear-gradient(90deg,#16a34a 50%,#dc2626 50%);}
+.todo-m-swipe-bg .swipe-hint-done,.todo-m-swipe-bg .swipe-hint-del{display:flex;align-items:center;gap:6px;}
 .todo-m-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
 .todo-m-card-title{font-size:14px;font-weight:600;flex:1;cursor:pointer;text-align:left;}
 .todo-m-card-title.done{text-decoration:line-through;color:var(--t3);}
@@ -6125,7 +6130,12 @@ async function renderTodos(){
   if(cardsEl){
     cardsEl.innerHTML=list.map(todo=>{
       const done=isDoneOnDate(todo,t); const over=isOverdue(todo);
-      return `<div class="todo-m-card" data-id="${todo.id}">
+      return `<div class="todo-m-swipe">
+        <div class="todo-m-swipe-bg">
+          <span class="swipe-hint-done">✓ ${done?'완료 취소':'완료'}</span>
+          <span class="swipe-hint-del">삭제 🗑</span>
+        </div>
+        <div class="todo-m-card" data-id="${todo.id}">
         <div class="todo-m-card-header">
           <div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div>
           <div class="todo-m-card-title ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
@@ -6142,8 +6152,9 @@ async function renderTodos(){
           <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteTodo('${todo.id}')">🗑</button>
         </div>
-      </div>`;
+      </div></div>`;
     }).join('');
+    initTodoSwipe();
   }
   tbody.innerHTML=list.map(todo=>{
     const done=isDoneOnDate(todo, t);
@@ -6295,6 +6306,59 @@ async function saveTodo(){
     await renderTodos();
     toast('저장되었습니다');
   }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
+}
+
+// 모바일 할 일 카드 스와이프 제스처 (오른쪽=완료, 왼쪽=삭제)
+function initTodoSwipe(){
+  const cardsEl=document.getElementById('todo-cards');
+  if(!cardsEl || cardsEl._swipeInit) return;
+  cardsEl._swipeInit=true;
+  const THRESH=80;              // 액션 발동 임계 거리(px)
+  let card=null,startX=0,startY=0,dx=0,locked=null,dragging=false;
+  const reset=()=>{ card=null; dx=0; locked=null; dragging=false; };
+  cardsEl.addEventListener('touchstart',e=>{
+    const c=e.target.closest('.todo-m-card');
+    if(!c) return;
+    card=c; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
+    dx=0; locked=null; dragging=false;
+    card.style.transition='none';
+  },{passive:true});
+  cardsEl.addEventListener('touchmove',e=>{
+    if(!card) return;
+    const ddx=e.touches[0].clientX-startX, ddy=e.touches[0].clientY-startY;
+    if(locked===null){
+      if(Math.abs(ddx)<8 && Math.abs(ddy)<8) return;
+      locked = Math.abs(ddx)>Math.abs(ddy) ? 'h' : 'v';
+    }
+    if(locked==='v') return;     // 세로 스크롤은 그대로 둠
+    e.preventDefault();
+    dragging=true; dx=ddx;
+    card.style.transform=`translateX(${dx}px)`;
+    card.style.opacity=String(Math.max(0.45, 1-Math.abs(dx)/320));
+  },{passive:false});
+  const finish=()=>{
+    if(!card){ reset(); return; }
+    const c=card, id=c.dataset.id, moved=dx;
+    c.style.transition='transform .25s ease, opacity .25s ease';
+    if(dragging && Math.abs(moved)>=THRESH){
+      if(moved>0){ c.style.transform='translateX(115%)'; c.style.opacity='0'; setTimeout(()=>toggleTodoDone(id),170); }
+      else { c.style.transform='translateX(-115%)'; c.style.opacity='0'; setTimeout(()=>swipeDeleteTodo(id),170); }
+    } else { c.style.transform=''; c.style.opacity=''; }
+    reset();
+  };
+  cardsEl.addEventListener('touchend',finish);
+  cardsEl.addEventListener('touchcancel',finish);
+}
+
+// 스와이프 삭제 — 확인 후 삭제, 취소 시 카드 복원
+async function swipeDeleteTodo(id){
+  if(!await confirmDialog('삭제하시겠습니까?')){ await renderTodos(); return; }
+  try{
+    await DB.deleteTodo(id);
+    if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
+    await renderTodos();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); await renderTodos(); }
 }
 
 async function deleteTodo(id){
