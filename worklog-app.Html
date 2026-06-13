@@ -1575,12 +1575,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             📤 CSV 업로드
             <input type="file" accept=".csv" style="display:none" onchange="importUsersCSV(event)" />
           </label>
-          <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
+          <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 성명,시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <table class="user-table">
             <thead>
               <tr>
+                <th>성명</th>
                 <th>시설명</th>
                 <th>사원번호</th>
                 <th>권한</th>
@@ -2563,9 +2564,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   <div class="modal">
     <h3 id="user-modal-title">사용자 추가</h3>
     <input type="hidden" id="um-edit-id" />
-    <div class="form-group">
-      <label>시설명 *</label>
-      <input type="text" id="um-facility" placeholder="시설명" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>성명 *</label>
+        <input type="text" id="um-name" placeholder="성명" />
+      </div>
+      <div class="form-group">
+        <label>시설명 *</label>
+        <input type="text" id="um-facility" placeholder="시설명" />
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -2746,9 +2753,9 @@ const DB = {
   async getUsers(){
     const k='users';
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('users').select('id,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+    const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
   },
-  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role},{onConflict:'id'}); if(error)throw error; _cd('users'); },
+  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role},{onConflict:'id'}); if(error)throw error; _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
 
   async getOrg(){
@@ -6697,6 +6704,7 @@ async function renderAdminUsers(){
 
   // Render users
   tbody.innerHTML=users.map(u=>`<tr data-id="${u.id}">
+    <td>${esc(u.성명||'')}</td>
     <td>${esc(u.시설명)}</td>
     <td><span style="font-family:monospace;background:var(--bg);padding:2px 8px;border-radius:4px;font-size:12px">${u.사원번호}</span></td>
     <td><span class="tag ${u.role==='admin'?'tag-high':(u.role==='facility-admin'?'tag-mid':'tag-todo')}">${roleMap[u.role]||'사용자'}</span></td>
@@ -6714,6 +6722,7 @@ async function openUserModal(id){
     if(!u) return;
     document.getElementById('user-modal-title').textContent='사용자 수정';
     document.getElementById('um-edit-id').value=id;
+    document.getElementById('um-name').value=u.성명||'';
     document.getElementById('um-facility').value=u.시설명;
     if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
     document.getElementById('um-empno').value=u.사원번호;
@@ -6722,6 +6731,7 @@ async function openUserModal(id){
   } else {
     document.getElementById('user-modal-title').textContent='사용자 추가';
     document.getElementById('um-edit-id').value='';
+    document.getElementById('um-name').value='';
     document.getElementById('um-facility').value = currentUser.role === 'facility-admin' ? currentUser.시설명 : '';
     if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
     document.getElementById('um-empno').value='';
@@ -6732,14 +6742,15 @@ async function openUserModal(id){
 }
 
 async function saveUser(){
+  const 성명=document.getElementById('um-name').value.trim();
   const 시설명=document.getElementById('um-facility').value.trim();
   const 사원번호=document.getElementById('um-empno').value.trim();
   const 패스워드=document.getElementById('um-pw').value.trim();
-  if(!시설명||!사원번호||!패스워드){ toast('모든 항목을 입력하세요','error'); return; }
+  if(!성명||!시설명||!사원번호||!패스워드){ toast('모든 항목을 입력하세요','error'); return; }
   if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
   const editId=document.getElementById('um-edit-id').value;
   const hashedPw=isHashed(패스워드)?패스워드:await hashPassword(패스워드);
-  const data={id:editId||uid(), 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
+  const data={id:editId||uid(), 성명, 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
   try{
     await DB.upsertUser(data);
     closeModal('user-modal');
@@ -6780,8 +6791,8 @@ function importUsersCSV(e){
     const header=rows[0];
     const raw=rows.slice(1).map(r=>({
       id:uid(),
-      시설명:r[0]||'',사원번호:r[1]||'',패스워드:r[2]||'',role:r[3]||'user'
-    })).filter(u=>u.시설명&&u.사원번호&&u.패스워드);
+      성명:r[0]||'',시설명:r[1]||'',사원번호:r[2]||'',패스워드:r[3]||'',role:r[4]||'user'
+    })).filter(u=>u.성명&&u.시설명&&u.사원번호&&u.패스워드);
     if(!raw.length){ toast('유효한 데이터가 없습니다','error'); return; }
     const data=await Promise.all(raw.map(async u=>({...u, 패스워드:isHashed(u.패스워드)?u.패스워드:await hashPassword(u.패스워드)})));
     for(const u of data) await DB.upsertUser(u);
