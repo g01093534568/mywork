@@ -1382,7 +1382,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <label>연습 장소</label>
               <input type="text" id="golf-prac-location" placeholder="예: 스크린골프, 실내 연습장, 필드" />
             </div>
-            <div style="display:flex;justify-content:flex-end">
+            <div style="display:flex;justify-content:flex-end;gap:6px">
+              <button class="btn btn-danger" id="golf-prac-del" style="display:none" onclick="deleteGolfPractice()">삭제</button>
               <button class="btn btn-primary" onclick="saveGolfPractice(this)">저장</button>
             </div>
           </div>
@@ -1427,6 +1428,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
           <!-- 기록 추가 + 훈련 내용 통합 -->
           <div class="today-train-card" style="border-color:rgba(61,142,240,0.25);">
+            <input type="hidden" id="running-td-edit-id" />
             <div class="today-train-card-title" style="color:var(--blue)">📝 훈련내용</div>
             <div class="form-row">
               <div class="form-group">
@@ -1447,7 +1449,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <label>훈련 내용 / 메모</label>
               <textarea id="running-td-memo" rows="2" placeholder="컨디션, 구간기록, 인터벌 내용 등"></textarea>
             </div>
-            <div style="display:flex;justify-content:flex-end">
+            <div style="display:flex;justify-content:flex-end;gap:6px">
+              <button class="btn btn-danger" id="running-td-del" style="display:none" onclick="deleteRunningTraining()">삭제</button>
               <button class="btn btn-primary" onclick="saveTodayRunning()">저장</button>
             </div>
           </div>
@@ -3836,27 +3839,21 @@ async function renderGolfPanel(){
     }
   }
 
-  const pracList=document.getElementById('golf-prac-list');
+  // 훈련 내용: 해당 날짜 기록을 입력창에 직접 출력(별도 카드 표기 없음)
   const pracEntries=_exGolf.filter(r=>isGolfPractice(r)&&r.date===_golfDate);
-  if(pracList){
-    if(pracEntries.length){
-      pracList.innerHTML=pracEntries.map(r=>`
-        <div class="ex-entry-card">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div style="flex:1;">
-              ${r.location?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px;">${esc(r.location)}</div>`:''}
-              <div style="font-size:13px;color:var(--t1);white-space:pre-wrap;line-height:1.6;">${esc(r.memo||'')}</div>
-            </div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="btn btn-ghost btn-sm" onclick="editGolfPractice('${r.id}')">✏️</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','golf')">🗑</button>
-            </div>
-          </div>
-        </div>`).join('');
-    } else {
-      pracList.innerHTML='<div class="empty-state" style="padding:20px 0;"><div class="icon" style="font-size:24px;">🏌️</div><p>이 날의 훈련 내용이 없습니다</p></div>';
-    }
+  const pracEntry=pracEntries[0];
+  const gpMemo=document.getElementById('golf-prac-memo');
+  const gpLoc=document.getElementById('golf-prac-location');
+  const gpEdit=document.getElementById('golf-prac-edit-id');
+  const gpDel=document.getElementById('golf-prac-del');
+  if(gpMemo&&gpLoc&&gpEdit){
+    gpEdit.value=pracEntry?pracEntry.id:'';
+    gpMemo.value=pracEntry?(pracEntry.memo||''):'';
+    gpLoc.value=pracEntry?(pracEntry.location||''):'';
   }
+  if(gpDel) gpDel.style.display=pracEntry?'inline-flex':'none';
+  const pracList=document.getElementById('golf-prac-list');
+  if(pracList) pracList.innerHTML='';
 
   const roundList=document.getElementById('golf-round-list');
   const roundEntries=_exGolf.filter(r=>!isGolfPractice(r)&&r.date===_golfDate);
@@ -4055,36 +4052,25 @@ async function renderRunningPanel(){
     summary.innerHTML=`<span>총 <strong style="color:var(--t1)">${_exRunning.length}</strong>회</span><span style="color:var(--blue)">누적 <strong>${totalDist.toFixed(1)}</strong>km</span>`;
   }
 
-  const runList=document.getElementById('running-list');
+  // 훈련내용: 해당 날짜 기록을 입력창에 직접 출력(별도 카드 표기 없음)
   const dayRecs=_exRunning.filter(r=>r.date===_runningDate);
-  if(runList){
-    if(dayRecs.length){
-      runList.innerHTML=dayRecs.map(r=>{
-        const dist=r.distance?r.distance.toFixed(1):'-';
-        const dur=fmtDuration(r.duration);
-        const pace=calcPace(r.duration,r.distance);
-        return `<div class="ex-entry-card">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div style="flex:1;">
-              <div style="display:flex;gap:14px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap;">
-                <span><strong style="font-size:18px;color:var(--blue)">${dist}</strong><span style="font-size:12px;color:var(--t2)">km</span></span>
-                <span style="font-size:13px;color:var(--t2)">${dur}</span>
-                <span style="font-size:14px;color:var(--accent);font-weight:600;">${pace}/km</span>
-                ${r.location?`<span style="font-size:12px;color:var(--t3)">${esc(r.location)}</span>`:''}
-              </div>
-              ${r.memo?`<div style="font-size:12px;color:var(--t3);white-space:pre-wrap;line-height:1.5;">${esc(r.memo)}</div>`:''}
-            </div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="btn btn-ghost btn-sm" onclick="openRunningModal('${r.id}')">✏️</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteExerciseRecord('${r.id}','running')">🗑</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
-    } else {
-      runList.innerHTML='<div class="empty-state" style="padding:20px 0;"><div class="icon" style="font-size:24px;">🏃</div><p>이 날의 훈련내용이 없습니다</p></div>';
-    }
+  const runEntry=dayRecs[0];
+  const rtDist=document.getElementById('running-td-distance');
+  const rtLoc=document.getElementById('running-td-location');
+  const rtMemo=document.getElementById('running-td-memo');
+  const rtEdit=document.getElementById('running-td-edit-id');
+  const rtDel=document.getElementById('running-td-del');
+  if(rtDist&&rtLoc&&rtMemo&&rtEdit){
+    rtEdit.value=runEntry?runEntry.id:'';
+    rtDist.value=runEntry?(runEntry.distance||''):'';
+    setTimeId('running-td-time',runEntry?runEntry.duration:0);
+    rtLoc.value=runEntry?(runEntry.location||''):'';
+    rtMemo.value=runEntry?(runEntry.memo||''):'';
+    updateTodayRunningPace();
   }
+  if(rtDel) rtDel.style.display=runEntry?'inline-flex':'none';
+  const runList=document.getElementById('running-list');
+  if(runList) runList.innerHTML='';
 
   // 대회기록 날짜 초기화
   const raceDateEl=document.getElementById('race-td-date');
@@ -4186,6 +4172,18 @@ async function saveRunningRecord(){
   }catch(e){toast('저장 실패: '+e.message,'error');}
 }
 
+function deleteGolfPractice(){
+  const id=(document.getElementById('golf-prac-edit-id')||{}).value||'';
+  if(!id) return;
+  deleteExerciseRecord(id,'golf');
+}
+
+function deleteRunningTraining(){
+  const id=(document.getElementById('running-td-edit-id')||{}).value||'';
+  if(!id) return;
+  deleteExerciseRecord(id,'running');
+}
+
 async function deleteExerciseRecord(id,type){
   if(!await confirmDialog('이 기록을 삭제할까요?','삭제')) return;
   try{
@@ -4257,7 +4255,8 @@ async function saveTodayRunning(){
   const memo=document.getElementById('running-td-memo').value.trim();
   if(!distance||parseFloat(distance)<=0){toast('거리를 입력하세요.','error');return;}
   if(!duration){toast('소요시간을 입력하세요.','error');return;}
-  const data={id:uid(),type:'running',date:_runningDate,location,distance:parseFloat(distance),duration,memo};
+  const editId=(document.getElementById('running-td-edit-id')||{}).value||'';
+  const data={id:editId||uid(),type:'running',date:_runningDate,location,distance:parseFloat(distance),duration,memo};
   try{
     await DB.upsertExercise(currentUser.사원번호,data);
     document.getElementById('running-td-distance').value='';
