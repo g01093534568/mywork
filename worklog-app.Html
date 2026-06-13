@@ -2755,7 +2755,7 @@ const DB = {
     if(_cg(k)) return _cg(k);
     const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
   },
-  async upsertUser(u){ const {error}=await SB.from('users').upsert({id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,패스워드:u.패스워드,role:u.role},{onConflict:'id'}); if(error)throw error; _cd('users'); },
+  async upsertUser(u){ const row={id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role}; if(u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!=='') row.패스워드=u.패스워드; const {error}=await SB.from('users').upsert(row,{onConflict:'id'}); if(error)throw error; _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
 
   async getOrg(){
@@ -6726,7 +6726,8 @@ async function openUserModal(id){
     document.getElementById('um-facility').value=u.시설명;
     if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
     document.getElementById('um-empno').value=u.사원번호;
-    document.getElementById('um-pw').value=u.패스워드;
+    document.getElementById('um-pw').value='';
+    document.getElementById('um-pw').placeholder='변경 시에만 입력 (비우면 기존 유지)';
     document.getElementById('um-role').value=u.role;
   } else {
     document.getElementById('user-modal-title').textContent='사용자 추가';
@@ -6736,6 +6737,7 @@ async function openUserModal(id){
     if(currentUser.role === 'facility-admin') document.getElementById('um-facility').readOnly = true;
     document.getElementById('um-empno').value='';
     document.getElementById('um-pw').value='';
+    document.getElementById('um-pw').placeholder='패스워드 설정';
     document.getElementById('um-role').value='user';
   }
   openModal('user-modal');
@@ -6746,11 +6748,13 @@ async function saveUser(){
   const 시설명=document.getElementById('um-facility').value.trim();
   const 사원번호=document.getElementById('um-empno').value.trim();
   const 패스워드=document.getElementById('um-pw').value.trim();
-  if(!성명||!시설명||!사원번호||!패스워드){ toast('모든 항목을 입력하세요','error'); return; }
-  if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
   const editId=document.getElementById('um-edit-id').value;
-  const hashedPw=isHashed(패스워드)?패스워드:await hashPassword(패스워드);
-  const data={id:editId||uid(), 성명, 시설명, 사원번호, 패스워드:hashedPw, role:document.getElementById('um-role').value};
+  if(!성명||!시설명||!사원번호){ toast('성명·시설명·사원번호를 입력하세요','error'); return; }
+  if(!editId&&!패스워드){ toast('패스워드를 입력하세요','error'); return; }
+  if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
+  const data={id:editId||uid(), 성명, 시설명, 사원번호, role:document.getElementById('um-role').value};
+  // 패스워드는 새로 입력했을 때만 해싱해 갱신 (비우면 기존 유지)
+  if(패스워드){ data.패스워드=isHashed(패스워드)?패스워드:await hashPassword(패스워드); }
   try{
     await DB.upsertUser(data);
     closeModal('user-modal');
