@@ -5175,9 +5175,14 @@ function speakVocab(i, accent, btn){
   const doSpeak=()=>{
     synth.cancel();
     const u=new SpeechSynthesisUtterance(word);
-    u.lang=lang; u.rate=1; u.pitch=1; u.volume=1;
+    u.rate=1; u.pitch=1; u.volume=1;
     const v=_pickEnVoice(region);
-    if(v) u.voice=v;            // 영어 음성 강제 지정 → 한국어로 안 떨어짐
+    if(v){
+      u.voice=v;
+      u.lang=v.lang;           // 선택된 음성의 실제 언어로 맞춤 — lang/voice 불일치 시 한국어 폴백 방지
+    } else {
+      u.lang=lang;             // 영어 음성이 전혀 없을 때만 요청 lang에 맡김
+    }
     // 요청한 억양의 '정확한' 음성이 기기에 없으면 1회만 안내
     const hasExact=(synth.getVoices()||[]).some(x=>(x.lang||'').toLowerCase().replace('_','-')===region);
     if(!hasExact && !_accentHintShown[accent]){
