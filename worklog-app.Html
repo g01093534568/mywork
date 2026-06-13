@@ -5144,32 +5144,42 @@ function changeVocabDay(dir){
 
 // 영어 단어 발음 (미국/영국/호주) — Web Speech API
 const _ACCENT_LANG={ us:'en-US', uk:'en-GB', au:'en-AU' };
+// 정확히 해당 억양 음성만 선택, 그 중 로컬(오프라인) 음성을 우선 — 네트워크 음성은 끊김/깨짐 발생
+// 정확한 억양 음성이 없으면 null → u.lang에 맡겨 OS가 억양 선택
 function _pickEnVoice(lang){
   const vs=window.speechSynthesis.getVoices()||[];
   const L=lang.toLowerCase();
-  // 정확히 해당 억양 매칭 → 영어 일반 → 아무 영어 음성
-  return vs.find(v=>(v.lang||'').toLowerCase()===L)
-       || vs.find(v=>(v.lang||'').toLowerCase().replace('_','-')===L)
-       || vs.find(v=>/^en/i.test(v.lang||''));
+  const exact=vs.filter(v=>(v.lang||'').toLowerCase().replace('_','-')===L);
+  if(!exact.length) return null;
+  return exact.find(v=>v.localService) || exact[0];
 }
 function speakVocab(i, accent, btn){
   const card=document.getElementById('vc-'+i);
   const word=card?.querySelector('.vocab-word')?.textContent?.trim()||'';
   if(!word) return;
-  if(!window.speechSynthesis){ toast('이 브라우저는 음성 재생을 지원하지 않습니다','error'); return; }
+  const synth=window.speechSynthesis;
+  if(!synth){ toast('이 브라우저는 음성 재생을 지원하지 않습니다','error'); return; }
   const lang=_ACCENT_LANG[accent]||'en-US';
-  window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(word);
-  u.lang=lang; u.rate=0.9;
-  // 정확히 해당 억양 음성이 있으면 지정, 없으면 u.lang으로 엔진이 억양 선택
-  const v=_pickEnVoice(lang);
-  if(v && (v.lang||'').toLowerCase().replace('_','-')===lang.toLowerCase()) u.voice=v;
-  if(btn){
-    document.querySelectorAll('.pron-btn.speaking').forEach(b=>b.classList.remove('speaking'));
-    btn.classList.add('speaking');
-    u.onend=u.onerror=()=>btn.classList.remove('speaking');
+  const doSpeak=()=>{
+    synth.cancel();
+    const u=new SpeechSynthesisUtterance(word);
+    u.lang=lang; u.rate=1; u.pitch=1; u.volume=1;
+    const v=_pickEnVoice(lang); if(v) u.voice=v;
+    if(btn){
+      document.querySelectorAll('.pron-btn.speaking').forEach(b=>b.classList.remove('speaking'));
+      btn.classList.add('speaking');
+      u.onend=u.onerror=()=>btn.classList.remove('speaking');
+    }
+    // Chrome: cancel() 직후 곧바로 speak() 하면 음성이 깨지는 버그 → 약간 지연
+    setTimeout(()=>synth.speak(u), 80);
+  };
+  // 음성 목록이 아직 로드되지 않았으면 로드 후 1회만 재생
+  if((synth.getVoices()||[]).length){ doSpeak(); }
+  else {
+    let done=false; const go=()=>{ if(done) return; done=true; doSpeak(); };
+    synth.addEventListener('voiceschanged', go, { once:true });
+    setTimeout(go, 300);
   }
-  window.speechSynthesis.speak(u);
 }
 
 // ═══════════════════════════════════════════════
