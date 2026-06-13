@@ -215,6 +215,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .daily-swipe .daily-todo-item{background:var(--card);position:relative;z-index:1;will-change:transform;padding-left:2px;padding-right:2px;}
 .daily-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,#16a34a 50%,#dc2626 50%);}
 .daily-swipe-bg .swipe-hint-done,.daily-swipe-bg .swipe-hint-del{display:flex;align-items:center;gap:4px;}
+/* 업무일지 스와이프(왼쪽=삭제) */
+.activity-swipe{position:relative;overflow:hidden;border-radius:var(--r2);margin-bottom:10px;touch-action:pan-y;}
+.activity-swipe .activity-item{margin-bottom:0;will-change:transform;z-index:1;}
+.activity-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 22px;font-size:14px;font-weight:700;color:#fff;border-radius:var(--r2);background:#dc2626;}
+.activity-swipe-bg .swipe-hint-del{display:flex;align-items:center;gap:6px;}
+@media(max-width:600px){ .activity-header .btn-danger{display:none;} }
 .activities-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .activities-panel h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);display:flex;justify-content:space-between;align-items:center;}
 .activity-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;position:relative;}
@@ -6467,6 +6473,24 @@ function initDailyTodoSwipe(){
     c=>swipeDeleteTodo(c.dataset.id));
 }
 
+// 업무 세션 — 업무일지 스와이프 (왼쪽=삭제, 오른쪽=복원)
+function initDailyActivitySwipe(){
+  attachSwipe(document.getElementById('daily-activities-content'), '.activity-item',
+    ()=>renderDailyActivities(),
+    c=>swipeDeleteActivity(c.dataset.id));
+}
+
+// 업무일지 스와이프 삭제 — 확인 후 삭제, 취소 시 복원
+async function swipeDeleteActivity(id){
+  const date=document.getElementById('daily-date').value||today();
+  if(!await confirmDialog('삭제하시겠습니까?')){ await renderDailyActivities(date); return; }
+  try{
+    await DB.deleteActivity(id);
+    await renderDailyActivities(date);
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); await renderDailyActivities(date); }
+}
+
 // 스와이프 삭제 — 확인 후 삭제, 취소 시 카드 복원
 async function swipeDeleteTodo(id){
   if(!await confirmDialog('삭제하시겠습니까?')){ await renderTodos(); return; }
@@ -6581,19 +6605,23 @@ async function renderDailyActivities(date){
   const cont=document.getElementById('daily-activities-content');
   if(!activities.length){ cont.innerHTML='<div class="empty-state"><div class="icon">📝</div><p>오늘의 주요 활동을 기록해 보세요</p></div>'; return; }
   cont.innerHTML=activities.map(a=>`
-    <div class="activity-item" data-id="${a.id}">
-      <div class="activity-header">
-        <div class="activity-title">${esc(a.title)}</div>
-        <div style="display:flex;gap:4px;align-items:center">
-          ${a.time?`<span class="activity-time">${esc(a.time)}</span>`:''}
-          <button class="btn btn-ghost btn-sm" onclick="openActivityModal('${date}','${a.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteActivity('${date}','${a.id}')">🗑</button>
+    <div class="activity-swipe">
+      <div class="activity-swipe-bg"><span class="swipe-hint-del">삭제 🗑</span></div>
+      <div class="activity-item" data-id="${a.id}">
+        <div class="activity-header">
+          <div class="activity-title">${esc(a.title)}</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            ${a.time?`<span class="activity-time">${esc(a.time)}</span>`:''}
+            <button class="btn btn-ghost btn-sm" onclick="openActivityModal('${date}','${a.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteActivity('${date}','${a.id}')">🗑</button>
+          </div>
         </div>
+        ${a.linked?`<span class="activity-linked">↗ ${esc(a.linked)}</span>`:''}
+        ${a.content?`<div class="activity-content">${esc(a.content)}</div>`:''}
+        ${a.reflection?`<div class="activity-reflection">${esc(a.reflection)}</div>`:''}
       </div>
-      ${a.linked?`<span class="activity-linked">↗ ${esc(a.linked)}</span>`:''}
-      ${a.content?`<div class="activity-content">${esc(a.content)}</div>`:''}
-      ${a.reflection?`<div class="activity-reflection">${esc(a.reflection)}</div>`:''}
     </div>`).join('');
+  initDailyActivitySwipe();
 }
 
 async function openActivityModal(date, id, prefillTitle){
