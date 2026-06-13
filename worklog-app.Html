@@ -664,6 +664,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .vocab-check:hover{border-color:var(--green);color:var(--green);}
 .vocab-card.learned .vocab-check{background:var(--green);border-color:var(--green);color:#fff;}
 .vocab-day-stats{font-size:12px;color:var(--t2);}
+.vocab-pron{display:flex;gap:5px;margin:5px 0 2px;}
+.pron-btn{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:2px 7px;font-size:13px;line-height:1.35;cursor:pointer;transition:var(--tr);}
+.pron-btn:hover{border-color:var(--accent);background:var(--card);}
+.pron-btn.speaking{border-color:var(--accent);background:rgba(232,160,32,0.18);}
 </style>
 <style>
 /* =========================================================
@@ -5108,6 +5112,11 @@ function _renderVocabDay(){
       <span class="vocab-num">${startIdx+i+1}</span>
       <div class="vocab-content">
         <div class="vocab-word">${wd.w}</div>
+        <div class="vocab-pron">
+          <button class="pron-btn" onclick="speakVocab(${i},'us',this)" title="미국식 발음">🇺🇸</button>
+          <button class="pron-btn" onclick="speakVocab(${i},'uk',this)" title="영국식 발음">🇬🇧</button>
+          <button class="pron-btn" onclick="speakVocab(${i},'au',this)" title="호주식 발음">🇦🇺</button>
+        </div>
         <div class="vocab-type">${wd.t}</div>
         <div class="vocab-meaning">${wd.m}</div>
         ${wd.e?`<div class="vocab-example">${wd.e}</div>`:''}
@@ -5131,6 +5140,36 @@ async function toggleVocabLearned(idx){
 function changeVocabDay(dir){
   if(dir===0) _vocabDayOffset=0; else _vocabDayOffset+=dir;
   _renderVocabDay();
+}
+
+// 영어 단어 발음 (미국/영국/호주) — Web Speech API
+const _ACCENT_LANG={ us:'en-US', uk:'en-GB', au:'en-AU' };
+function _pickEnVoice(lang){
+  const vs=window.speechSynthesis.getVoices()||[];
+  const L=lang.toLowerCase();
+  // 정확히 해당 억양 매칭 → 영어 일반 → 아무 영어 음성
+  return vs.find(v=>(v.lang||'').toLowerCase()===L)
+       || vs.find(v=>(v.lang||'').toLowerCase().replace('_','-')===L)
+       || vs.find(v=>/^en/i.test(v.lang||''));
+}
+function speakVocab(i, accent, btn){
+  const card=document.getElementById('vc-'+i);
+  const word=card?.querySelector('.vocab-word')?.textContent?.trim()||'';
+  if(!word) return;
+  if(!window.speechSynthesis){ toast('이 브라우저는 음성 재생을 지원하지 않습니다','error'); return; }
+  const lang=_ACCENT_LANG[accent]||'en-US';
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(word);
+  u.lang=lang; u.rate=0.9;
+  // 정확히 해당 억양 음성이 있으면 지정, 없으면 u.lang으로 엔진이 억양 선택
+  const v=_pickEnVoice(lang);
+  if(v && (v.lang||'').toLowerCase().replace('_','-')===lang.toLowerCase()) u.voice=v;
+  if(btn){
+    document.querySelectorAll('.pron-btn.speaking').forEach(b=>b.classList.remove('speaking'));
+    btn.classList.add('speaking');
+    u.onend=u.onerror=()=>btn.classList.remove('speaking');
+  }
+  window.speechSynthesis.speak(u);
 }
 
 // ═══════════════════════════════════════════════
