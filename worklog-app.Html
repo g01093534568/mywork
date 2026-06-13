@@ -206,6 +206,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .daily-todo-list h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);}
 .daily-todo-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;}
 .daily-todo-item:last-child{border-bottom:none;}
+/* 오늘의 할 일 스와이프 */
+.daily-swipe{position:relative;overflow:hidden;touch-action:pan-y;}
+.daily-swipe .daily-todo-item{background:var(--card);position:relative;z-index:1;will-change:transform;padding-left:2px;padding-right:2px;}
+.daily-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,#16a34a 50%,#dc2626 50%);}
+.daily-swipe-bg .swipe-hint-done,.daily-swipe-bg .swipe-hint-del{display:flex;align-items:center;gap:4px;}
 .activities-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .activities-panel h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);display:flex;justify-content:space-between;align-items:center;}
 .activity-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;position:relative;}
@@ -6308,23 +6313,23 @@ async function saveTodo(){
   }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
-// 모바일 할 일 카드 스와이프 제스처 (오른쪽=완료, 왼쪽=삭제)
-function initTodoSwipe(){
-  const cardsEl=document.getElementById('todo-cards');
-  if(!cardsEl || cardsEl._swipeInit) return;
-  cardsEl._swipeInit=true;
+// 할 일 항목 스와이프 제스처 범용 핸들러 (오른쪽=완료, 왼쪽=삭제)
+// containerEl 에 이벤트 위임(1회 바인딩) — innerHTML 재생성에도 리스너 유지
+function attachSwipe(containerEl, itemSel, onRight, onLeft){
+  if(!containerEl || containerEl._swipeInit) return;
+  containerEl._swipeInit=true;
   const THRESH=80;              // 액션 발동 임계 거리(px)
-  let card=null,startX=0,startY=0,dx=0,locked=null,dragging=false;
-  const reset=()=>{ card=null; dx=0; locked=null; dragging=false; };
-  cardsEl.addEventListener('touchstart',e=>{
-    const c=e.target.closest('.todo-m-card');
+  let item=null,startX=0,startY=0,dx=0,locked=null,dragging=false;
+  const reset=()=>{ item=null; dx=0; locked=null; dragging=false; };
+  containerEl.addEventListener('touchstart',e=>{
+    const c=e.target.closest(itemSel);
     if(!c) return;
-    card=c; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
+    item=c; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
     dx=0; locked=null; dragging=false;
-    card.style.transition='none';
+    item.style.transition='none';
   },{passive:true});
-  cardsEl.addEventListener('touchmove',e=>{
-    if(!card) return;
+  containerEl.addEventListener('touchmove',e=>{
+    if(!item) return;
     const ddx=e.touches[0].clientX-startX, ddy=e.touches[0].clientY-startY;
     if(locked===null){
       if(Math.abs(ddx)<8 && Math.abs(ddy)<8) return;
@@ -6333,21 +6338,35 @@ function initTodoSwipe(){
     if(locked==='v') return;     // 세로 스크롤은 그대로 둠
     e.preventDefault();
     dragging=true; dx=ddx;
-    card.style.transform=`translateX(${dx}px)`;
-    card.style.opacity=String(Math.max(0.45, 1-Math.abs(dx)/320));
+    item.style.transform=`translateX(${dx}px)`;
+    item.style.opacity=String(Math.max(0.45, 1-Math.abs(dx)/320));
   },{passive:false});
   const finish=()=>{
-    if(!card){ reset(); return; }
-    const c=card, id=c.dataset.id, moved=dx;
+    if(!item){ reset(); return; }
+    const c=item, moved=dx;
     c.style.transition='transform .25s ease, opacity .25s ease';
     if(dragging && Math.abs(moved)>=THRESH){
-      if(moved>0){ c.style.transform='translateX(115%)'; c.style.opacity='0'; setTimeout(()=>toggleTodoDone(id),170); }
-      else { c.style.transform='translateX(-115%)'; c.style.opacity='0'; setTimeout(()=>swipeDeleteTodo(id),170); }
+      if(moved>0){ c.style.transform='translateX(115%)'; c.style.opacity='0'; setTimeout(()=>onRight(c),170); }
+      else { c.style.transform='translateX(-115%)'; c.style.opacity='0'; setTimeout(()=>onLeft(c),170); }
     } else { c.style.transform=''; c.style.opacity=''; }
     reset();
   };
-  cardsEl.addEventListener('touchend',finish);
-  cardsEl.addEventListener('touchcancel',finish);
+  containerEl.addEventListener('touchend',finish);
+  containerEl.addEventListener('touchcancel',finish);
+}
+
+// 모바일 할 일 카드 스와이프 (오른쪽=완료, 왼쪽=삭제)
+function initTodoSwipe(){
+  attachSwipe(document.getElementById('todo-cards'), '.todo-m-card',
+    c=>toggleTodoDone(c.dataset.id),
+    c=>swipeDeleteTodo(c.dataset.id));
+}
+
+// 업무 세션 — 오늘의 할 일 리스트 스와이프 (오른쪽=완료, 왼쪽=삭제)
+function initDailyTodoSwipe(){
+  attachSwipe(document.getElementById('daily-todo-list-content'), '.daily-todo-item',
+    c=>toggleTodoDone(c.dataset.id, c.dataset.date),
+    c=>swipeDeleteTodo(c.dataset.id));
 }
 
 // 스와이프 삭제 — 확인 후 삭제, 취소 시 카드 복원
@@ -6432,7 +6451,9 @@ async function renderDailyTodos(date){
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;padding:2px 0 6px">${icon} ${key}</div>`;
     items.forEach(t=>{
       const doneToday=isDoneOnDate(t,date);
-      bodyHtml+=`<div class="daily-todo-item" data-id="${t.id}">
+      bodyHtml+=`<div class="daily-swipe">
+        <div class="daily-swipe-bg"><span class="swipe-hint-done">✓ ${doneToday?'완료 취소':'완료'}</span><span class="swipe-hint-del">삭제 🗑</span></div>
+        <div class="daily-todo-item" data-id="${t.id}" data-date="${date}">
         <div class="check-btn ${doneToday?'checked':''}" onclick="toggleTodoDone('${t.id}','${date}')"></div>
         <span style="${doneToday?'text-decoration:line-through;color:var(--t3);':''}flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
         <span class="tag tag-${t.priority}" style="margin-left:6px;flex-shrink:0">${priLabel[t.priority]||'-'}</span>
@@ -6440,11 +6461,12 @@ async function renderDailyTodos(date){
           <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${t.id}')" style="padding:2px 5px;font-size:11px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteTodo('${t.id}')" style="padding:2px 5px;font-size:11px">🗑</button>
         </div>
-      </div>`;
+      </div></div>`;
     });
     bodyHtml+=`</div>`;
   });
   cont.innerHTML=statsHtml+bodyHtml;
+  initDailyTodoSwipe();
 }
 
 async function renderDailyActivities(date){
