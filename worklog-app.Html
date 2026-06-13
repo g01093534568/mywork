@@ -3025,6 +3025,9 @@ function stopRealtimeSync() {
   _vocabMap = null; // 계정 전환 시 이전 사용자 단어진행 캐시 제거
 }
 let currentTodoTab = '업무';
+// 세션별 마지막 하위 탭 — 메모리에만 보관(로그인/새로고침 시 초기화).
+// 로그인 직후엔 각 세션이 기본(첫) 화면, 같은 로그인 중 세션 복귀 시엔 마지막 화면 복원.
+let _sessionSubTab = {};
 let strategyDraft = [];
 let pgKpiDraft = [];
 let fgKpiDraft = [];
@@ -3116,6 +3119,11 @@ async function enterApp(){
   migrateLocalStorageToSupabase();
 
   startRealtimeSync();
+  // 로그인 직후엔 각 세션이 기본(첫) 화면으로 시작하도록 하위 탭 기억 초기화
+  // (emMgmtInitialized는 enterApp보다 뒤에 let 선언 → 파싱 중 세션복원 경로의 TDZ 회피 위해 건드리지 않음.
+  //  에너지 세션은 _sessionSubTab.energy 초기화만으로 기본 탭 복귀가 보장됨)
+  _sessionSubTab = {};
+  currentTodoTab = '업무';
   navigate('home');
   // 🦾 자비스 — 세션 복원이 스크립트 파싱 중 enterApp를 호출하므로,
   // 하단에 let으로 선언된 _jarvis* 변수의 TDZ를 피해 setTimeout으로 지연 시작
@@ -3306,7 +3314,7 @@ function navigate(page){
   if(page==='gmail') renderGmailPage();
   if(page==='energy') initEnergyMgmt();
   if(page==='admin'){
-    const _savedAdminTab = localStorage.getItem('wl_nav_admin_'+currentUser.사원번호);
+    const _savedAdminTab = _sessionSubTab.admin;
     const _isAdmin = currentUser.role==='admin';
     const _isFacAdmin = currentUser.role==='facility-admin';
     const _allowed = ['google',...(_isAdmin||_isFacAdmin?['facility','energy','knowledge']:[]),...(_isAdmin?['goals','users']:[])];
@@ -3585,12 +3593,12 @@ async function deletePersonalGoal(id){
 // PERSONAL PAGE
 // ═══════════════════════════════════════════════
 async function renderPersonalPage(){
-  const lastPersonalTab = localStorage.getItem('wl_nav_personal_'+currentUser.사원번호) || 'annual';
+  const lastPersonalTab = _sessionSubTab.personal || 'annual';
   await switchPersonalTab(lastPersonalTab);
 }
 
 async function switchPersonalTab(tab){
-  localStorage.setItem('wl_nav_personal_'+currentUser.사원번호, tab);
+  _sessionSubTab.personal = tab;
   document.querySelectorAll('.personal-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.personal-tab').forEach(t=>t.classList.remove('active'));
   const panel=document.getElementById('personal-'+tab);
@@ -7102,7 +7110,7 @@ function importUsersCSV(e){
 }
 
 async function switchAdminTab(tab){
-  localStorage.setItem('wl_nav_admin_'+currentUser.사원번호, tab);
+  _sessionSubTab.admin = tab;
   ['google','goals','facility','users','energy','knowledge'].forEach(t=>{
     const tabEl=document.getElementById('admin-tab-'+t);
     const panelEl=document.getElementById('admin-'+t);
@@ -8959,13 +8967,27 @@ async function _generateAttachmentBlob(record, energyInfos) {
 
 let emMgmtInitialized = false;
 async function initEnergyMgmt() {
-  if (emMgmtInitialized) return;
   emMgmtInitialized = true;
   const userNameDisplay = document.getElementById('em-userName');
   if (userNameDisplay && currentUser) userNameDisplay.textContent = currentUser.시설명 || '';
   showDashboard();
-  loadFacilityOptionsForEnergyInput();
-  loadEnergyRecords();
+  // 로그인 직후엔 기본 탭(사용량 입력), 같은 로그인 중 복귀 시엔 마지막 탭 복원
+  activateEmTab(_sessionSubTab.energy || 'energy');
+}
+
+// 에너지 세션 상단 탭(사용량 입력/데이터 조회) 활성화 + 마지막 탭 기억
+function activateEmTab(tabName) {
+  _sessionSubTab.energy = tabName;
+  document.querySelectorAll('.em-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  document.querySelectorAll('.em-tab-content').forEach(c => c.classList.remove('active'));
+  const content = document.getElementById('em-' + tabName);
+  if (content) content.classList.add('active');
+  if (tabName === 'energy') {
+    loadFacilityOptionsForEnergyInput();
+    loadEnergyRecords();
+  } else if (tabName === 'dataView') {
+    loadDataViewTab();
+  }
 }
 
 // ---- app.js ----
@@ -9031,20 +9053,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            const tabName = tab.dataset.tab;
-
-            tabs.forEach(t => t.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-
-            tab.classList.add('active');
-            document.getElementById('em-' + tabName).classList.add('active');
-
-            if (tabName === 'energy') {
-                loadFacilityOptionsForEnergyInput();
-                loadEnergyRecords();
-            } else if (tabName === 'dataView') {
-                loadDataViewTab();
-            }
+            activateEmTab(tab.dataset.tab);
         });
     });
 
