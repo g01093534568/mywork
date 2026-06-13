@@ -2856,6 +2856,9 @@ const DB = {
   async getBooks(uid){ const k=`books:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('books').select('*').eq('사원번호',uid).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToBook)); },
   async upsertBook(uid,b){ const {error}=await SB.from('books').upsert(bookToDb(b,uid)); if(error)throw error; _cd(`books:${uid}`); },
   async deleteBook(id){ const {error}=await SB.from('books').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`books:${currentUser.사원번호}`); },
+  // ── 영어공부 단어 학습 진행 (사원별 1행, data: { [dayIdx]: [학습한 단어 인덱스] }) ──
+  async getVocabProgress(uid){ const k=`vocab:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('vocab_progress').select('data').eq('사원번호',uid).maybeSingle(); if(error){console.error('[vocab]',error.message);return _cs(k,{});} return _cs(k,(data&&data.data)||{}); },
+  async saveVocabProgress(uid,map){ const {error}=await SB.from('vocab_progress').upsert({사원번호:uid,data:map,updated_at:new Date().toISOString()}); if(error)throw error; _cd(`vocab:${uid}`); },
   // ── AI 지식자료 (전체 공용) ──
   async getKnowledge(){ const k='knowledge:all'; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('knowledge_sources').select('*').order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
   async addKnowledge(uid,src){ const obj={title:src.title,src_type:src.src_type||'file',content:src.content||'',uploaded_by:uid,created_at:new Date().toISOString()}; const {error}=await SB.from('knowledge_sources').insert(obj); if(error)throw error; _cd('knowledge:all'); },
@@ -2899,6 +2902,22 @@ function startRealtimeSync() {
       if (currentPage === 'personal') _rtDebounce(renderPersonalGoals);
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'vocab_progress', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`vocab:${uid}`); _vocabMap = null; // 다른 기기 변경 → 캐시 비우고 최신 재로딩
+      if (currentPage === 'personal' && document.getElementById('personal-english')?.classList.contains('active')) _rtDebounce(() => renderEnglishStudy());
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'books', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`books:${uid}`);
+      if (currentPage === 'personal' && document.getElementById('personal-books')?.classList.contains('active')) _rtDebounce(renderBooksTab);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`ex:${uid}:golf`, `ex:${uid}:running`, `ex:${uid}:running_race`);
+      if (currentPage === 'personal' && document.getElementById('personal-exercise')?.classList.contains('active')) _rtDebounce(renderExerciseTab);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'knowledge_sources' }, () => {
+      _cd('knowledge:all'); // 전체 공용 — 관리자 업로드 시 즉시 반영
+      if (document.getElementById('ks-list-body')) _rtDebounce(ksRenderList);
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'annual_goals', filter: `사원번호=eq.${uid}` }, () => {
       _cd(`ag:${uid}`);
       if (currentPage === 'personal') _rtDebounce(renderAnnualGoals);
@@ -2929,6 +2948,7 @@ function startRealtimeSync() {
 function stopRealtimeSync() {
   if (_rtChannel) { SB.removeChannel(_rtChannel); _rtChannel = null; }
   if (_rtTimer) { clearTimeout(_rtTimer); _rtTimer = null; }
+  _vocabMap = null; // 계정 전환 시 이전 사용자 단어진행 캐시 제거
 }
 let currentTodoTab = '업무';
 let strategyDraft = [];
@@ -4867,11 +4887,23 @@ function _getVocabDayIndex(){
   const now=new Date(); now.setHours(0,0,0,0);
   return Math.floor((now-base)/86400000)+_vocabDayOffset;
 }
-function _vocabLearnedKey(dayIdx){ return `wl_vocab_${currentUser.사원번호}_d${dayIdx}`; }
-function _getLearnedSet(dayIdx){ try{ return new Set(JSON.parse(localStorage.getItem(_vocabLearnedKey(dayIdx))||'[]')); }catch{ return new Set(); } }
-function _saveLearnedSet(dayIdx,set){ localStorage.setItem(_vocabLearnedKey(dayIdx),JSON.stringify([...set])); }
+// vocab 진행상태는 Supabase(vocab_progress)에 저장 → 폰·PC 실시간 동기화
+let _vocabMap=null; // { [dayIdx]: [학습한 단어 인덱스] }
+async function _loadVocabMap(){
+  if(_vocabMap) return _vocabMap;
+  const uid=currentUser.사원번호;
+  _vocabMap=await DB.getVocabProgress(uid);
+  // 구버전 localStorage 데이터 1회 자동 이전 (서버가 비어있을 때만)
+  if(_vocabMap && Object.keys(_vocabMap).length===0){
+    const prefix=`wl_vocab_${uid}_d`, migrated={};
+    for(let i=0;i<localStorage.length;i++){ const key=localStorage.key(i); if(key&&key.startsWith(prefix)){ try{ const arr=JSON.parse(localStorage.getItem(key)||'[]'); if(arr.length) migrated[key.slice(prefix.length)]=arr; }catch{} } }
+    if(Object.keys(migrated).length){ _vocabMap=migrated; try{ await DB.saveVocabProgress(uid,migrated); }catch(e){ console.error('[vocab migrate]',e); } }
+  }
+  return _vocabMap;
+}
+function _getLearnedSet(dayIdx){ const arr=(_vocabMap&&_vocabMap[dayIdx])||[]; return new Set(arr); }
 
-function renderEnglishStudy(){ _vocabDayOffset=_vocabDayOffset||0; _renderVocabDay(); }
+async function renderEnglishStudy(){ _vocabDayOffset=_vocabDayOffset||0; await _loadVocabMap(); _renderVocabDay(); }
 
 function _renderVocabDay(){
   const dayIdx=_getVocabDayIndex();
@@ -4904,12 +4936,15 @@ function _renderVocabDay(){
   }).join('');
 }
 
-function toggleVocabLearned(idx){
+async function toggleVocabLearned(idx){
   const dayIdx=_getVocabDayIndex();
   const learned=_getLearnedSet(dayIdx);
   if(learned.has(idx)) learned.delete(idx); else learned.add(idx);
-  _saveLearnedSet(dayIdx,learned);
-  _renderVocabDay();
+  if(!_vocabMap) _vocabMap={};
+  _vocabMap[String(dayIdx)]=[...learned];
+  _renderVocabDay(); // 낙관적 즉시 반영
+  try{ await DB.saveVocabProgress(currentUser.사원번호,_vocabMap); }
+  catch(e){ console.error('[vocab save]',e); toast('동기화 실패 — vocab_progress 테이블을 확인하세요','error'); }
 }
 
 function changeVocabDay(dir){
