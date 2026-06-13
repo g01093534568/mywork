@@ -179,8 +179,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .todo-m-card-title{font-size:14px;font-weight:600;flex:1;cursor:pointer;text-align:left;}
 .todo-m-card-title.done{text-decoration:line-through;color:var(--t3);}
 .todo-m-card-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
-.todo-m-card-actions{display:flex;gap:6px;justify-content:flex-end;}
-@media(max-width:600px){.todo-table-wrapper{display:none;}#todo-cards{display:block;}}
+.todo-m-card-actions{display:flex;gap:6px;justify-content:space-between;align-items:center;}
+.swipe-tip{font-size:11px;color:var(--t3);opacity:0.8;}
+@media(max-width:600px){.todo-table-wrapper{display:none;}#todo-cards{display:block;}
+  /* 모바일: 스와이프로 삭제 → 일일 목록 삭제 버튼 숨김 */
+  .daily-todo-actions .btn-danger{display:none;}
+}
 /* Fade-out animation */
 @keyframes fadeOutEl{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(12px)}}
 .fade-out-el{animation:fadeOutEl 0.25s ease forwards;pointer-events:none;overflow:hidden;}
@@ -6154,8 +6158,8 @@ async function renderTodos(){
           ${todo.dueDate&&!todo.isRecurring?`<span style="font-size:11px;color:var(--t3)">~${fmtDate(todo.dueDate)}</span>`:''}
         </div>
         <div class="todo-m-card-actions">
-          <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteTodo('${todo.id}')">🗑</button>
+          <span class="swipe-tip">← 밀어 삭제 · 완료 밀기 →</span>
+          <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${todo.id}')">✏️ 편집</button>
         </div>
       </div></div>`;
     }).join('');
@@ -6457,7 +6461,7 @@ async function renderDailyTodos(date){
         <div class="check-btn ${doneToday?'checked':''}" onclick="toggleTodoDone('${t.id}','${date}')"></div>
         <span style="${doneToday?'text-decoration:line-through;color:var(--t3);':''}flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
         <span class="tag tag-${t.priority}" style="margin-left:6px;flex-shrink:0">${priLabel[t.priority]||'-'}</span>
-        <div style="display:flex;gap:2px;margin-left:4px;flex-shrink:0">
+        <div class="daily-todo-actions" style="display:flex;gap:2px;margin-left:4px;flex-shrink:0">
           <button class="btn btn-ghost btn-sm" onclick="openTodoModal('${t.id}')" style="padding:2px 5px;font-size:11px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteTodo('${t.id}')" style="padding:2px 5px;font-size:11px">🗑</button>
         </div>
