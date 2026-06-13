@@ -2874,6 +2874,9 @@ let currentPage = 'home';
 // ── Supabase Realtime 실시간 동기화 ──────────────────
 let _rtChannel = null;
 let _rtTimer = null;
+let _rtReconnectTimer = null;   // 채널 오류 시 재연결 예약
+let _rtConnectedOnce = false;    // 최초 연결 후 재연결 구분(따라잡기용)
+let _lastResume = 0;             // 복귀 새로고침 쓰로틀
 
 function _rtDebounce(fn) {
   if (_rtTimer) clearTimeout(_rtTimer);
@@ -2942,12 +2945,68 @@ function startRealtimeSync() {
     })
     .subscribe((status) => {
       console.log('[Realtime]', status);
+      if (status === 'SUBSCRIBED') {
+        if (_rtReconnectTimer) { clearTimeout(_rtReconnectTimer); _rtReconnectTimer = null; }
+        // 재연결(끊겼다 다시 붙음)이면 그동안 놓친 변경을 따라잡기 위해 현재 페이지 새로고침
+        if (_rtConnectedOnce) { _invalidateUserCache(); _refreshCurrentPage(); }
+        _rtConnectedOnce = true;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        // 비자발적 단절 → 잠시 후 채널 재시작 (CLOSED는 의도적 종료라 제외)
+        if (currentUser && !_rtReconnectTimer) {
+          _rtReconnectTimer = setTimeout(() => { _rtReconnectTimer = null; _restartRealtime(); }, 2500);
+        }
+      }
     });
 }
+
+// 채널 재시작 (네트워크 변동·절전 복귀 등)
+function _restartRealtime() {
+  if (!currentUser) return;
+  if (_rtChannel) { SB.removeChannel(_rtChannel); _rtChannel = null; }
+  startRealtimeSync();
+}
+
+// 사용자 캐시 전부 무효화 → 다음 렌더에서 최신 재조회
+function _invalidateUserCache() {
+  Object.keys(_C).forEach(k => delete _C[k]);
+  _vocabMap = null;
+}
+
+// 현재 보고 있는 페이지(및 활성 탭) 재렌더
+function _refreshCurrentPage() {
+  if (!currentUser) return;
+  try {
+    const p = currentPage;
+    if (p === 'home') renderHome();
+    else if (p === 'todo') renderTodos();
+    else if (p === 'daily') renderDailyPage();
+    else if (p === 'personal') renderPersonalPage();
+    // gmail: 외부 연동, energy: 캐시 미사용(항상 최신), admin: 무거워 제외 → 재진입 시 갱신
+  } catch (e) { console.error('[refreshCurrentPage]', e); }
+}
+
+// 앱 복귀(화면 켜짐·탭 전환·네트워크 회복) 시 — 죽은 채널 살리고 놓친 변경 따라잡기
+function _onAppResume() {
+  if (!currentUser) return;
+  const now = Date.now();
+  if (now - _lastResume < 1500) return; // 쓰로틀(중복 이벤트 방지)
+  _lastResume = now;
+  if (!_rtChannel || (_rtChannel.state && _rtChannel.state !== 'joined')) {
+    _restartRealtime(); // 재연결되면 SUBSCRIBED 콜백이 따라잡기(새로고침) 수행
+    return;
+  }
+  _invalidateUserCache();
+  _refreshCurrentPage();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') _onAppResume(); });
+window.addEventListener('online', _onAppResume);
+window.addEventListener('pageshow', (e) => { if (e.persisted) _onAppResume(); }); // bfcache 복귀
 
 function stopRealtimeSync() {
   if (_rtChannel) { SB.removeChannel(_rtChannel); _rtChannel = null; }
   if (_rtTimer) { clearTimeout(_rtTimer); _rtTimer = null; }
+  if (_rtReconnectTimer) { clearTimeout(_rtReconnectTimer); _rtReconnectTimer = null; }
+  _rtConnectedOnce = false;
   _vocabMap = null; // 계정 전환 시 이전 사용자 단어진행 캐시 제거
 }
 let currentTodoTab = '업무';
