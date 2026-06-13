@@ -2931,6 +2931,7 @@ function startRealtimeSync() {
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'vocab_progress', filter: `사원번호=eq.${uid}` }, () => {
+      if (Date.now() - _vocabSelfWriteAt < 5000) return; // 본인 저장 echo는 무시 — 캐시 무효화로 인한 체크 초기화 방지
       _cd(`vocab:${uid}`); _vocabMap = null; // 다른 기기 변경 → 캐시 비우고 최신 재로딩
       if (currentPage === 'personal' && document.getElementById('personal-english')?.classList.contains('active')) _rtDebounce(() => renderEnglishStudy());
     })
@@ -5074,6 +5075,7 @@ function _getVocabDayIndex(){
 }
 // vocab 진행상태는 Supabase(vocab_progress)에 저장 → 폰·PC 실시간 동기화
 let _vocabMap=null; // { [dayIdx]: [학습한 단어 인덱스] }
+let _vocabSelfWriteAt=0; // 본인 저장 시각 — 실시간 echo로 인한 캐시 무효화/재렌더 억제용
 async function _loadVocabMap(){
   if(_vocabMap) return _vocabMap;
   const uid=currentUser.사원번호;
@@ -5127,13 +5129,15 @@ function _renderVocabDay(){
 }
 
 async function toggleVocabLearned(idx){
+  await _loadVocabMap(); // 실시간 echo로 캐시가 비워졌을 수 있어, 읽기 전 최신 맵 보장 (이후 동기 구간에서 null 덮어쓰기 방지)
   const dayIdx=_getVocabDayIndex();
   const learned=_getLearnedSet(dayIdx);
   if(learned.has(idx)) learned.delete(idx); else learned.add(idx);
   if(!_vocabMap) _vocabMap={};
   _vocabMap[String(dayIdx)]=[...learned];
   _renderVocabDay(); // 낙관적 즉시 반영
-  try{ await DB.saveVocabProgress(currentUser.사원번호,_vocabMap); }
+  _vocabSelfWriteAt=Date.now(); // 본인 저장 → 실시간 echo 무시 표시
+  try{ await DB.saveVocabProgress(currentUser.사원번호,_vocabMap); _vocabSelfWriteAt=Date.now(); }
   catch(e){ console.error('[vocab save]',e); toast('동기화 실패 — vocab_progress 테이블을 확인하세요','error'); }
 }
 
