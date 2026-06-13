@@ -221,6 +221,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .activity-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 22px;font-size:14px;font-weight:700;color:#fff;border-radius:var(--r2);background:#dc2626;}
 .activity-swipe-bg .swipe-hint-del{display:flex;align-items:center;gap:6px;}
 @media(max-width:600px){ .activity-header .btn-danger{display:none;} }
+/* 당겨서 새로고침(모바일) */
+.ptr-indicator{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%) translateY(0);z-index:70;width:38px;height:38px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;will-change:transform,opacity;}
+.ptr-indicator .ptr-spinner{font-size:18px;color:var(--accent);line-height:1;will-change:transform;}
+.ptr-indicator.ready{border-color:var(--accent);background:var(--accent);}
+.ptr-indicator.ready .ptr-spinner{color:#1a1000;}
+.ptr-indicator.spinning .ptr-spinner{animation:ptrSpin .7s linear infinite;}
+@keyframes ptrSpin{to{transform:rotate(360deg);}}
 .activities-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .activities-panel h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);display:flex;justify-content:space-between;align-items:center;}
 .activity-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;position:relative;}
@@ -3190,6 +3197,72 @@ let gcalRenderGen = 0;
 (function(){
   const s=sessionStorage.getItem('wl_session');
   if(s){ try{ currentUser=JSON.parse(s); enterApp(); }catch(e){} }
+})();
+
+// ── 당겨서 새로고침 (모바일) — 페이지 리로드 없이 현재 페이지 데이터만 갱신(세션 유지) ──
+async function refreshCurrentPage(){
+  DB.clearCache();
+  try{ navigate(currentPage); }catch(e){ console.error('refresh failed', e); }
+}
+(function initPullToRefresh(){
+  const ind=document.createElement('div');
+  ind.className='ptr-indicator';
+  ind.innerHTML='<span class="ptr-spinner">↻</span>';
+  document.body.appendChild(ind);
+  const spin=ind.querySelector('.ptr-spinner');
+  const MAX=90, THRESH=64;
+  let startY=0, pulling=false, dy=0, locked=null, refreshing=false;
+  const atTop=()=> (window.scrollY||document.documentElement.scrollTop||0)<=0;
+  const blocked=()=> document.getElementById('app-screen').style.display==='none'
+    || document.querySelector('.modal-overlay.active')
+    || document.querySelector('.sidebar.open')
+    || document.getElementById('ai-chat-panel')?.style.display==='flex';
+  const settle=(y,op)=>{ ind.style.transition='transform .3s ease, opacity .3s ease'; ind.style.transform=`translateX(-50%) translateY(${y}px)`; ind.style.opacity=String(op); };
+  window.addEventListener('touchstart',e=>{
+    if(refreshing||blocked()||!atTop()){ pulling=false; return; }
+    startY=e.touches[0].clientY; pulling=true; dy=0; locked=null;
+    ind.style.transition='none';
+  },{passive:true});
+  window.addEventListener('touchmove',e=>{
+    if(!pulling||refreshing) return;
+    const ddy=e.touches[0].clientY-startY;
+    if(locked===null){
+      if(Math.abs(ddy)<6) return;
+      locked = (ddy>0 && atTop()) ? 'pull' : 'no';
+    }
+    if(locked!=='pull') return;
+    if(ddy<=0){ dy=0; ind.style.transform='translateX(-50%) translateY(0)'; ind.style.opacity='0'; return; }
+    e.preventDefault();
+    dy=Math.min(MAX, ddy*0.5);
+    ind.style.transform=`translateX(-50%) translateY(${dy}px)`;
+    ind.style.opacity=String(Math.min(1, dy/THRESH));
+    spin.style.transform=`rotate(${dy*4}deg)`;
+    ind.classList.toggle('ready', dy>=THRESH);
+  },{passive:false});
+  const end=async ()=>{
+    if(!pulling){ return; }
+    pulling=false;
+    if(locked==='pull' && dy>=THRESH && !refreshing){
+      refreshing=true;
+      ind.classList.remove('ready'); ind.classList.add('spinning');
+      ind.style.transition='transform .25s ease';
+      ind.style.transform='translateX(-50%) translateY(54px)'; ind.style.opacity='1';
+      const started=Date.now();
+      try{ await refreshCurrentPage(); }catch(e){}
+      const wait=Math.max(0, 600-(Date.now()-started));
+      setTimeout(()=>{
+        ind.classList.remove('spinning');
+        settle(0,0);
+        setTimeout(()=>{ ind.style.transition=''; spin.style.transform=''; refreshing=false; }, 320);
+      }, wait);
+    } else {
+      settle(0,0); ind.classList.remove('ready');
+      setTimeout(()=>{ ind.style.transition=''; spin.style.transform=''; }, 320);
+    }
+    dy=0; locked=null;
+  };
+  window.addEventListener('touchend',end);
+  window.addEventListener('touchcancel',end);
 })();
 
 // ═══════════════════════════════════════════════
