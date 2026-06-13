@@ -5137,8 +5137,9 @@ async function toggleVocabLearned(idx){
   catch(e){ console.error('[vocab save]',e); toast('동기화 실패 — vocab_progress 테이블을 확인하세요','error'); }
 }
 
-function changeVocabDay(dir){
+async function changeVocabDay(dir){
   if(dir===0) _vocabDayOffset=0; else _vocabDayOffset+=dir;
+  await _loadVocabMap(); // 실시간 동기화로 캐시가 비워졌을 수 있어 렌더 전 재로딩
   _renderVocabDay();
 }
 
