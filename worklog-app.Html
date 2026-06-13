@@ -3101,6 +3101,11 @@ async function enterApp(){
   document.getElementById('admin-tab-users').style.display = isAdmin ? '' : 'none';
   document.getElementById('admin-tab-energy').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
   document.getElementById('admin-tab-knowledge').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
+  // 개인 세션 중 증권&환율·운동 탭은 관리자(admin)만 노출
+  const _tabStock = document.getElementById('personal-tab-stock');
+  const _tabExercise = document.getElementById('personal-tab-exercise');
+  if(_tabStock) _tabStock.style.display = isAdmin ? '' : 'none';
+  if(_tabExercise) _tabExercise.style.display = isAdmin ? '' : 'none';
 
   // 저장된 Google 계정·API키 복원 — 이전 사용자 값 잔류 방지를 위해 항상 덮어씀
   const savedGcalEmail = localStorage.getItem('gcal_email_' + currentUser.사원번호);
@@ -3303,6 +3308,8 @@ function navigate(page){
   closeDrawer();
   // 에너지관리는 '업무 세션'의 하위 탭으로 통합됨 → daily로 라우팅
   if(page==='energy'){ _sessionSubTab.daily='energy'; page='daily'; }
+  // 운동은 개인 세션의 탭 — 별도 page가 없으므로 personal로 라우팅
+  if(page==='exercise'){ if(currentUser.role==='admin') _sessionSubTab.personal='exercise'; page='personal'; }
   document.querySelectorAll('.page-section').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   // page-energy는 별도 섹션이지만 하위 탭으로 제어하므로 인라인 display 초기화
@@ -3626,6 +3633,8 @@ async function renderPersonalPage(){
 }
 
 async function switchPersonalTab(tab){
+  // 증권&환율·운동은 관리자(admin) 전용 — 비관리자가 접근하면 연간목표로
+  if((tab==='stock'||tab==='exercise') && currentUser.role!=='admin') tab='annual';
   _sessionSubTab.personal = tab;
   document.querySelectorAll('.personal-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.personal-tab').forEach(t=>t.classList.remove('active'));
