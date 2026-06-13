@@ -1930,9 +1930,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <div id="subTabAnalysis2" class="sub-tab-content">
                 <div class="data-charts">
                   <h3 style="margin-top:25px;">에너지 비용 분석 (1년 단위)</h3>
-                  <div class="chart-box" style="background:white;padding:20px;border-radius:10px;">
-                    <h4>에너지 종류별 월간 비용 비교 (원)</h4>
-                    <canvas id="totalCostChart"></canvas>
+                  <div class="chart-container" style="grid-template-columns:1fr;">
+                    <div class="chart-box"><h4>전기 비용 추세 (원)</h4><canvas id="elecCostChart"></canvas></div>
+                    <div class="chart-box"><h4>상하수도 비용 추세 (원)</h4><canvas id="waterCostChart"></canvas></div>
+                    <div class="chart-box"><h4>도시가스 비용 추세 (원)</h4><canvas id="gasCostChart"></canvas></div>
+                    <div class="chart-box"><h4>통신 비용 추세 (원)</h4><canvas id="commCostChart"></canvas></div>
                   </div>
                 </div>
               </div>
@@ -10103,7 +10105,10 @@ function updateSummary(records) {
 let elecChart = null;
 let waterChart = null;
 let gasChart = null;
-let costChart = null;
+let elecCostChart = null;
+let waterCostChart = null;
+let gasCostChart = null;
+let commCostChart = null;
 
 function renderCharts(records) {
     if (typeof Chart === 'undefined') return;  // Chart.js 미로드 시 무시
@@ -10184,26 +10189,54 @@ function renderCharts(records) {
         });
     }
 
-    // 3. 비용 분석 차트 (전체 비교)
-    const ctxCost = document.getElementById('totalCostChart');
-    if (ctxCost) {
-        if (costChart) costChart.destroy();
-        costChart = new Chart(ctxCost, {
-            type: 'bar',
-            data: { 
-                labels: months, 
-                datasets: Object.keys(typeConfigs).map(t => ({
-                    ...getDataset(t, 'usageCost'),
-                    type: 'bar'
-                }))
-            },
-            options: {
-                ...commonOptions('금액 (원)'),
-                scales: {
-                    x: { stacked: false },
-                    y: { stacked: false, ticks: { callback: v => v.toLocaleString() } }
-                }
-            }
+    // 비용 분석 차트 — 사용량 분석과 동일하게 에너지 종류별 개별 라인 차트
+    const costOptions = () => {
+        const opt = commonOptions('금액 (원)');
+        opt.scales.y.ticks = { callback: v => v.toLocaleString() };
+        return opt;
+    };
+
+    // 4. 전기 비용 차트 (원)
+    const ctxElecCost = document.getElementById('elecCostChart');
+    if (ctxElecCost) {
+        if (elecCostChart) elecCostChart.destroy();
+        elecCostChart = new Chart(ctxElecCost, {
+            type: 'line',
+            data: { labels: months, datasets: [getDataset('전기', 'usageCost')] },
+            options: costOptions()
+        });
+    }
+
+    // 5. 상하수도 비용 차트 (원)
+    const ctxWaterCost = document.getElementById('waterCostChart');
+    if (ctxWaterCost) {
+        if (waterCostChart) waterCostChart.destroy();
+        waterCostChart = new Chart(ctxWaterCost, {
+            type: 'line',
+            data: { labels: months, datasets: [getDataset('상하수도', 'usageCost')] },
+            options: costOptions()
+        });
+    }
+
+    // 6. 도시가스 비용 차트 (원)
+    const ctxGasCost = document.getElementById('gasCostChart');
+    if (ctxGasCost) {
+        if (gasCostChart) gasCostChart.destroy();
+        gasCostChart = new Chart(ctxGasCost, {
+            type: 'line',
+            data: { labels: months, datasets: [getDataset('도시가스', 'usageCost')] },
+            options: costOptions()
+        });
+    }
+
+    // 7. 통신 비용 차트 (원)
+    const ctxCommCost = document.getElementById('commCostChart');
+    if (ctxCommCost) {
+        if (commCostChart) commCostChart.destroy();
+        commCostChart = new Chart(ctxCommCost, {
+            type: 'line',
+            data: { labels: months, datasets: [getDataset('통신', 'usageCost')] },
+            options: costOptions()
         });
     }
 }
