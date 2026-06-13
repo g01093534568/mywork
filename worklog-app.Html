@@ -5086,24 +5086,44 @@ async function _loadVocabMap(){
     for(let i=0;i<localStorage.length;i++){ const key=localStorage.key(i); if(key&&key.startsWith(prefix)){ try{ const arr=JSON.parse(localStorage.getItem(key)||'[]'); if(arr.length) migrated[key.slice(prefix.length)]=arr; }catch{} } }
     if(Object.keys(migrated).length){ _vocabMap=migrated; try{ await DB.saveVocabProgress(uid,migrated); }catch(e){ console.error('[vocab migrate]',e); } }
   }
+  // 구버전 키(절대 일수) → 사이클 day 키로 1회 이전. 같은 사이클 day끼리 합집합 → 기존 체크 보존
+  if(_vocabMap && Object.keys(_vocabMap).length){
+    const t=_vocabTotalDays(); let changed=false; const remap={};
+    for(const k in _vocabMap){
+      const n=parseInt(k,10);
+      const ck=isNaN(n)?k:String(((n%t)+t)%t);
+      if(ck!==k) changed=true;
+      const set=new Set(remap[ck]||[]);
+      (_vocabMap[k]||[]).forEach(x=>set.add(x));
+      remap[ck]=[...set];
+    }
+    if(changed){
+      _vocabMap=remap;
+      _vocabSelfWriteAt=Date.now();
+      try{ await DB.saveVocabProgress(uid,_vocabMap); _vocabSelfWriteAt=Date.now(); }
+      catch(e){ console.error('[vocab cycle migrate]',e); }
+    }
+  }
   return _vocabMap;
 }
-function _getLearnedSet(dayIdx){ const arr=(_vocabMap&&_vocabMap[dayIdx])||[]; return new Set(arr); }
+function _getLearnedSet(key){ const arr=(_vocabMap&&_vocabMap[key])||[]; return new Set(arr); }
+// 완료 체크 저장 키 = 사이클 day(0~totalDays-1). 같은 Day N은 날짜와 무관하게 항상 같은 키 → 체크 영구 유지
+function _vocabTotalDays(){ return Math.ceil(HACKERS_WORDS.length/20); }
+function _vocabCycleDay(){ const t=_vocabTotalDays(); return ((_getVocabDayIndex()%t)+t)%t; }
 
 async function renderEnglishStudy(){ _vocabDayOffset=_vocabDayOffset||0; await _loadVocabMap(); _renderVocabDay(); }
 
 function _renderVocabDay(){
-  const dayIdx=_getVocabDayIndex();
-  const totalDays=Math.ceil(HACKERS_WORDS.length/20);
-  const displayDay=(dayIdx%totalDays)+1;
-  const startIdx=(dayIdx%totalDays)*20;
+  const cycleDay=_vocabCycleDay();
+  const displayDay=cycleDay+1;
+  const startIdx=cycleDay*20;
   const words=HACKERS_WORDS.slice(startIdx,startIdx+20);
   const label=document.getElementById('vocab-day-label');
   const range=document.getElementById('vocab-day-range');
   const stats=document.getElementById('vocab-day-stats');
   if(label) label.textContent=`Day ${displayDay}`;
   if(range) range.textContent=`(단어 ${startIdx+1}~${startIdx+words.length})`;
-  const learned=_getLearnedSet(dayIdx);
+  const learned=_getLearnedSet(String(cycleDay));
   const fill=document.getElementById('vocab-progress-fill');
   if(fill) fill.style.width=`${Math.round((learned.size/words.length)*100)}%`;
   if(stats) stats.textContent=`${learned.size}/${words.length} 학습 완료`;
@@ -5130,11 +5150,11 @@ function _renderVocabDay(){
 
 async function toggleVocabLearned(idx){
   await _loadVocabMap(); // 실시간 echo로 캐시가 비워졌을 수 있어, 읽기 전 최신 맵 보장 (이후 동기 구간에서 null 덮어쓰기 방지)
-  const dayIdx=_getVocabDayIndex();
-  const learned=_getLearnedSet(dayIdx);
+  const cycleDay=String(_vocabCycleDay());
+  const learned=_getLearnedSet(cycleDay);
   if(learned.has(idx)) learned.delete(idx); else learned.add(idx);
   if(!_vocabMap) _vocabMap={};
-  _vocabMap[String(dayIdx)]=[...learned];
+  _vocabMap[cycleDay]=[...learned];
   _renderVocabDay(); // 낙관적 즉시 반영
   _vocabSelfWriteAt=Date.now(); // 본인 저장 → 실시간 echo 무시 표시
   try{ await DB.saveVocabProgress(currentUser.사원번호,_vocabMap); _vocabSelfWriteAt=Date.now(); }
