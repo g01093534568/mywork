@@ -5144,14 +5144,25 @@ function changeVocabDay(dir){
 
 // 영어 단어 발음 (미국/영국/호주) — Web Speech API
 const _ACCENT_LANG={ us:'en-US', uk:'en-GB', au:'en-AU' };
-// 정확히 해당 억양 음성만 선택, 그 중 로컬(오프라인) 음성을 우선 — 네트워크 음성은 끊김/깨짐 발생
-// 정확한 억양 음성이 없으면 null → u.lang에 맡겨 OS가 억양 선택
-function _pickEnVoice(lang){
+const _accentHintShown={};
+// 항상 '영어' 음성을 골라 반환 (한국어 기본음성 폴백 방지).
+// 점수: 정확한 억양 > 다른 영어 / 로컬(오프라인) 우선 / Apple 고품질 우선, Google 네트워크 음성 후순위.
+function _pickEnVoice(region){
   const vs=window.speechSynthesis.getVoices()||[];
-  const L=lang.toLowerCase();
-  const exact=vs.filter(v=>(v.lang||'').toLowerCase().replace('_','-')===L);
-  if(!exact.length) return null;
-  return exact.find(v=>v.localService) || exact[0];
+  const isEn=v=>/^en(-|_|$)/i.test(v.lang||'');
+  const en=vs.filter(isEn);
+  if(!en.length) return null;
+  const score=v=>{
+    let s=0;
+    const vl=(v.lang||'').toLowerCase().replace('_','-');
+    if(vl===region) s+=100;                 // 정확한 억양
+    if(v.localService) s+=20;               // 로컬(오프라인) — 끊김/깨짐 방지
+    if(/(samantha|alex|daniel|karen|catherine|moira|tessa|fiona|aaron|nicky|arthur|martha|enhanced|premium|siri)/i.test(v.name||'')) s+=8; // Apple 고품질
+    if(/google/i.test(v.name||'')) s-=15;   // 네트워크 의존 → 깨짐 우려, 후순위
+    if(/compact/i.test(v.name||'')) s-=2;   // 저용량 음성 약간 후순위
+    return s;
+  };
+  return en.slice().sort((a,b)=>score(b)-score(a))[0];
 }
 function speakVocab(i, accent, btn){
   const card=document.getElementById('vc-'+i);
@@ -5160,11 +5171,20 @@ function speakVocab(i, accent, btn){
   const synth=window.speechSynthesis;
   if(!synth){ toast('이 브라우저는 음성 재생을 지원하지 않습니다','error'); return; }
   const lang=_ACCENT_LANG[accent]||'en-US';
+  const region=lang.toLowerCase();
   const doSpeak=()=>{
     synth.cancel();
     const u=new SpeechSynthesisUtterance(word);
     u.lang=lang; u.rate=1; u.pitch=1; u.volume=1;
-    const v=_pickEnVoice(lang); if(v) u.voice=v;
+    const v=_pickEnVoice(region);
+    if(v) u.voice=v;            // 영어 음성 강제 지정 → 한국어로 안 떨어짐
+    // 요청한 억양의 '정확한' 음성이 기기에 없으면 1회만 안내
+    const hasExact=(synth.getVoices()||[]).some(x=>(x.lang||'').toLowerCase().replace('_','-')===region);
+    if(!hasExact && !_accentHintShown[accent]){
+      _accentHintShown[accent]=true;
+      const nm={us:'미국',uk:'영국',au:'호주'}[accent]||accent;
+      toast(`${nm} 억양 음성이 이 기기에 없어 다른 영어 음성으로 재생됩니다. (Mac: 시스템 설정 › 손쉬운 사용 › 읽어주기 › 시스템 음성 › 음성 관리에서 추가)`);
+    }
     if(btn){
       document.querySelectorAll('.pron-btn.speaking').forEach(b=>b.classList.remove('speaking'));
       btn.classList.add('speaking');
