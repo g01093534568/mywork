@@ -6449,9 +6449,10 @@ function attachSwipe(containerEl, itemSel, onRight, onLeft){
     if(!item){ reset(); return; }
     const c=item, moved=dx;
     c.style.transition='transform .25s ease, opacity .25s ease';
-    if(dragging && Math.abs(moved)>=THRESH){
-      if(moved>0){ c.style.transform='translateX(115%)'; c.style.opacity='0'; setTimeout(()=>onRight(c),170); }
-      else { c.style.transform='translateX(-115%)'; c.style.opacity='0'; setTimeout(()=>onLeft(c),170); }
+    const act = moved>0 ? onRight : onLeft;   // 해당 방향 핸들러 없으면 제자리 복귀
+    if(dragging && Math.abs(moved)>=THRESH && act){
+      if(moved>0){ c.style.transform='translateX(115%)'; c.style.opacity='0'; setTimeout(()=>act(c),170); }
+      else { c.style.transform='translateX(-115%)'; c.style.opacity='0'; setTimeout(()=>act(c),170); }
     } else { c.style.transform=''; c.style.opacity=''; }
     reset();
   };
@@ -6476,7 +6477,7 @@ function initDailyTodoSwipe(){
 // 업무 세션 — 업무일지 스와이프 (왼쪽=삭제, 오른쪽=복원)
 function initDailyActivitySwipe(){
   attachSwipe(document.getElementById('daily-activities-content'), '.activity-item',
-    ()=>renderDailyActivities(),
+    null,                                  // 오른쪽 스와이프 → 동작 없음(제자리 복귀)
     c=>swipeDeleteActivity(c.dataset.id));
 }
 
