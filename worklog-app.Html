@@ -1069,9 +1069,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="nav-item" onclick="navigate('gmail')" id="nav-gmail">
         <span class="nav-icon">✉️</span><span>Gmail</span>
       </div>
-      <div class="nav-item" onclick="navigate('energy')" id="nav-energy">
-        <span class="nav-icon">⚡</span><span>에너지 관리</span>
-      </div>
       <div class="nav-label">설정</div>
       <div class="nav-item" onclick="navigate('admin')" id="nav-admin">
         <span class="nav-icon">⚙️</span><span>설정</span>
@@ -1166,9 +1163,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <!-- ── DAILY LOG PAGE ── -->
     <div id="page-daily" class="page-section">
       <div class="page-header">
-        <h2>업무</h2>
+        <h2>업무 세션</h2>
         <p>오늘의 업무 활동을 기록하고 성찰하세요</p>
       </div>
+      <div class="personal-tabs" style="margin-bottom:18px">
+        <div class="personal-tab active" id="daily-subtab-work" onclick="switchDailyTab('work')">📔 일일업무</div>
+        <div class="personal-tab" id="daily-subtab-energy" onclick="switchDailyTab('energy')">⚡ 에너지관리</div>
+      </div>
+      <div id="daily-sub-work">
       <div class="daily-date-bar">
         <button class="btn btn-secondary btn-sm" onclick="changeDate(-1)">◀ 이전</button>
         <button class="btn btn-secondary btn-sm" onclick="changeDate(0)">오늘</button>
@@ -1207,6 +1209,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div class="gcal-loading">Google 계정 연동 후 캘린더가 표시됩니다</div>
         </div>
       </div>
+      </div><!-- /daily-sub-work -->
 
     </div>
 
@@ -3298,8 +3301,12 @@ function closeDrawer(){
 
 function navigate(page){
   closeDrawer();
+  // 에너지관리는 '업무 세션'의 하위 탭으로 통합됨 → daily로 라우팅
+  if(page==='energy'){ _sessionSubTab.daily='energy'; page='daily'; }
   document.querySelectorAll('.page-section').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  // page-energy는 별도 섹션이지만 하위 탭으로 제어하므로 인라인 display 초기화
+  const _pe=document.getElementById('page-energy'); if(_pe) _pe.style.display='';
   document.getElementById('page-'+page).classList.add('active');
   const navEl=document.getElementById('nav-'+page);
   if(navEl) navEl.classList.add('active');
@@ -3309,13 +3316,10 @@ function navigate(page){
   if(page==='home') renderHome();
   if(page==='todo') renderTodos();
   if(page==='daily'){
-    renderDailyPage();
-    startGcalAutoRefresh();
-    if (gcalToken) renderCustomCalendar(); else restoreGcalToken();
+    switchDailyTab(_sessionSubTab.daily || 'work');
   } else stopGcalAutoRefresh();
   if(page==='personal') renderPersonalPage();
   if(page==='gmail') renderGmailPage();
-  if(page==='energy') initEnergyMgmt();
   if(page==='admin'){
     const _savedAdminTab = _sessionSubTab.admin;
     const _isAdmin = currentUser.role==='admin';
@@ -3326,6 +3330,27 @@ function navigate(page){
     switchAdminTab(_adminTab);
   }
 
+}
+
+// 업무 세션 하위 탭: 일일업무 / 에너지관리
+function switchDailyTab(tab){
+  if(tab!=='work' && tab!=='energy') tab='work';
+  _sessionSubTab.daily = tab;
+  const wt=document.getElementById('daily-subtab-work'), et=document.getElementById('daily-subtab-energy');
+  if(wt) wt.classList.toggle('active', tab==='work');
+  if(et) et.classList.toggle('active', tab==='energy');
+  const work=document.getElementById('daily-sub-work');
+  const energy=document.getElementById('page-energy');
+  if(work)   work.style.display   = tab==='work'   ? '' : 'none';
+  if(energy) energy.style.display = tab==='energy' ? 'block' : 'none';
+  if(tab==='work'){
+    renderDailyPage();
+    startGcalAutoRefresh();
+    if(gcalToken) renderCustomCalendar(); else restoreGcalToken();
+  } else {
+    stopGcalAutoRefresh();
+    initEnergyMgmt();
+  }
 }
 
 // ═══════════════════════════════════════════════
