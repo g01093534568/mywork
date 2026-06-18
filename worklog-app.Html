@@ -3330,7 +3330,7 @@ function navigate(page){
   document.getElementById('page-'+page).classList.add('active');
   const navEl=document.getElementById('nav-'+page);
   if(navEl) navEl.classList.add('active');
-  if(currentPage==='personal' && page!=='personal'){ stopStockAutoRefresh(); stopFxAutoRefresh(); }
+  if(currentPage==='personal' && page!=='personal'){ stopStockAutoRefresh(); stopFxAutoRefresh(); stopKospiAutoRefresh(); }
   currentPage=page;
   localStorage.setItem('wl_nav_page_'+currentUser.사원번호, page);
   if(page==='home') renderHome();
@@ -3655,8 +3655,8 @@ async function switchPersonalTab(tab){
   const tabEl=document.getElementById('personal-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
-  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); startFxAutoRefresh(); loadKospiChart(); }
-  else { stopStockAutoRefresh(); stopFxAutoRefresh(); }
+  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); startFxAutoRefresh(); loadKospiChart(); startKospiAutoRefresh(); }
+  else { stopStockAutoRefresh(); stopFxAutoRefresh(); stopKospiAutoRefresh(); }
   if(tab==='annual') initAnnualGoalsTab();
   if(tab==='exercise') renderExerciseTab();
   if(tab==='books') renderBooksTab();
@@ -5624,6 +5624,18 @@ function updateKospiTFButtons(){
     b.style.fontWeight=on?'700':'400';
   });
 }
+
+// KOSPI 5분 자동 새로고침 — 주식 탭 진입 시 시작, 이탈 시 중단. 장 운영시간 외엔 자동 종료
+const KOSPI_REFRESH_SEC=300;
+let kospiRefreshTimer=null;
+function startKospiAutoRefresh(){
+  stopKospiAutoRefresh();
+  kospiRefreshTimer=setInterval(()=>{
+    if(!isWithinTradingHours()){ stopKospiAutoRefresh(); return; }
+    loadKospiChart();
+  }, KOSPI_REFRESH_SEC*1000);
+}
+function stopKospiAutoRefresh(){ if(kospiRefreshTimer){ clearInterval(kospiRefreshTimer); kospiRefreshTimer=null; } }
 
 function renderKospiSvg(vals, dates, lineColor){
   const svg=document.getElementById('kospi-svg');
