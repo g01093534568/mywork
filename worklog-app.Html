@@ -1282,7 +1282,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             </div>
             <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
               <div id="kospi-status" style="font-size:11px;color:var(--t3)">로딩 중...</div>
-              <button class="btn btn-ghost btn-sm" onclick="loadKospiChart()" style="font-size:11px;padding:4px 8px">🔄 새로고침</button>
+              <div style="display:flex;gap:4px;align-items:center">
+                <button class="btn btn-ghost btn-sm" id="kospi-tf-intra" onclick="setKospiTimeframe('intra')" style="font-size:11px;padding:4px 8px">당일</button>
+                <button class="btn btn-ghost btn-sm" id="kospi-tf-daily" onclick="setKospiTimeframe('daily')" style="font-size:11px;padding:4px 8px">3개월</button>
+                <button class="btn btn-ghost btn-sm" onclick="loadKospiChart()" style="font-size:11px;padding:4px 8px">🔄</button>
+              </div>
             </div>
           </div>
           <div style="position:relative;height:190px">
@@ -5502,8 +5506,9 @@ async function loadKospiChart(){
   changeEl.style.color=lineColor;
   statusEl.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 기준`;
 
-  // ── 차트 데이터 (Naver 우선 — 현재가와 동일 소스로 끝점 일치, 날짜 포함) ──
-  const chartTries=[
+  // ── 차트 데이터 ── 당일 시간단위(네이버 30분 표본) / 3개월 일봉 토글
+  // 3개월 일봉 (Naver 우선)
+  const dailyTries=[
     ['Naver price API', async()=>{
       const r=await naverFetch(`https://m.stock.naver.com/api/index/KOSPI/price?startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
       const rows=await r.json();
@@ -5536,32 +5541,88 @@ async function loadKospiChart(){
     }],
   ];
 
-  let chartData={vals:[],dates:[]};
-  for(const[name,fn] of chartTries){
+  let chartData={vals:[],dates:[],intraday:false};
+
+  // 당일 모드: 네이버 시간별시세를 09:00~현재 30분 간격으로 표본 추출(분봉 전용 API 부재 대안)
+  if(_kospiTF==='intra'){
     try{
-      const v=await fn(); console.log('[KOSPI 차트]',name,'points:',v.vals.length);
-      if(v.vals.length>=2){chartData=v;break;}
-    }catch(e){console.warn('[KOSPI 차트 실패]',name,e.message);}
+      const pts=await fetchKospiIntraday(now, toN);
+      if(pts.length>=2){
+        // 끝점에 실시간 현재가 반영 — 동일 네이버 소스라 점프 없음
+        const nowLabel=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        if(cur>0 && pts[pts.length-1].label!==nowLabel) pts.push({label:nowLabel,val:cur});
+        chartData={vals:pts.map(p=>p.val),dates:pts.map(p=>p.label),intraday:true};
+      }
+    }catch(e){ console.warn('[KOSPI 인트라데이 실패]',e.message); }
   }
 
-  if(chartData.vals.length<2) chartData={vals:[cur,cur],dates:['','']};
-
-  // ① 소스마다 정렬 순서가 달라(네이버=최신순, 야후=과거순) 그래프가 좌우 반전되는 문제 → 날짜 오름차순으로 정규화
-  (function normalizeAsc(){
-    const key=d=>String(d||'').replace(/\D/g,''); // 'YYYYMMDD'
-    const rows=chartData.vals.map((v,i)=>({v,d:chartData.dates[i]||''}));
-    if(rows.every(r=>key(r.d).length>=8)){ // 모든 날짜가 온전할 때만 정렬(2점 폴백 등은 건드리지 않음)
-      rows.sort((a,b)=>key(a.d).localeCompare(key(b.d))); // 과거 → 현재
-      chartData={vals:rows.map(r=>r.v),dates:rows.map(r=>r.d)};
+  // 당일 표본 실패(장전·휴장·오류) 또는 일봉 모드 → 일봉 사용
+  if(!chartData.intraday){
+    for(const[name,fn] of dailyTries){
+      try{
+        const v=await fn(); console.log('[KOSPI 일봉]',name,'points:',v.vals.length);
+        if(v.vals.length>=2){chartData={vals:v.vals,dates:v.dates,intraday:false};break;}
+      }catch(e){console.warn('[KOSPI 일봉 실패]',name,e.message);}
     }
-  })();
+    if(chartData.vals.length<2) chartData={vals:[cur,cur],dates:['',''],intraday:false};
+    // ① 일봉: 소스마다 정렬 순서가 달라(네이버=최신순, 야후=과거순) 좌우 반전 → 날짜 오름차순 정규화
+    (function normalizeAsc(){
+      const key=d=>String(d||'').replace(/\D/g,''); // 'YYYYMMDD'
+      const rows=chartData.vals.map((v,i)=>({v,d:chartData.dates[i]||''}));
+      if(rows.every(r=>key(r.d).length>=8)){ // 모든 날짜가 온전할 때만 정렬(2점 폴백 등은 건드리지 않음)
+        rows.sort((a,b)=>key(a.d).localeCompare(key(b.d))); // 과거 → 현재
+        chartData={vals:rows.map(r=>r.v),dates:rows.map(r=>r.d),intraday:false};
+      }
+    })();
+    // ② 장중 현재가를 끝점에 반영 — 마지막 점이 오늘이 아니면 live 포인트 추가(상단 현재가와 그래프 끝 일치)
+    const todayK=fmtD(now);
+    const lastK=String(chartData.dates[chartData.dates.length-1]||'').replace(/\D/g,'');
+    if(cur>0 && lastK && lastK!==todayK){ chartData.vals.push(cur); chartData.dates.push(todayK); }
+  }
 
-  // ③ 장중 현재가를 차트 끝점에 반영 — 마지막 점이 오늘이 아니면 live 포인트 추가(상단 현재가와 그래프 끝 일치)
-  const todayK=fmtD(now);
-  const lastK=String(chartData.dates[chartData.dates.length-1]||'').replace(/\D/g,'');
-  if(cur>0 && lastK && lastK!==todayK){ chartData.vals.push(cur); chartData.dates.push(todayK); }
-
+  if(statusEl) statusEl.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 기준 · ${chartData.intraday?'당일 30분':'3개월 일봉'}`;
+  updateKospiTFButtons();
   renderKospiSvg(chartData.vals,chartData.dates,lineColor);
+}
+
+// 당일 시간별 시세를 09:00~현재까지 30분 간격으로 표본 추출(네이버 분봉 API 부재 대안)
+// 각 표본: sise_index_time?thistime=...&page=1 의 최상단 행(해당 시각 체결가). 병렬 요청.
+async function fetchKospiIntraday(now, toN){
+  const pad=n=>String(n).padStart(2,'0');
+  const ymd=`${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+  const nowMin=now.getHours()*60+now.getMinutes();
+  const endMin=Math.min(nowMin, 15*60+30);     // 장 마감 15:30 상한
+  if(endMin < 9*60+5) return [];               // 장 시작(09:00) 전 → 인트라데이 없음
+  const sampleMin=[];
+  for(let m=9*60; m<=endMin; m+=30) sampleMin.push(m);
+  if(sampleMin[sampleMin.length-1]!==endMin) sampleMin.push(endMin); // 현재 시각 포함
+  const fetchOne=async m=>{
+    const tt=`${ymd}${pad(Math.floor(m/60))}${pad(m%60)}00`;
+    const r=await naverFetch(`https://finance.naver.com/sise/sise_index_time.naver?code=KOSPI&thistime=${tt}&page=1`);
+    const txt=await r.text(); // EUC-KR이지만 시각·가격은 ASCII라 그대로 추출 가능
+    const mt=txt.match(/(\d{2}:\d{2})[\s\S]{0,300}?([0-9]{1,2},[0-9]{3}\.[0-9]{2})/); // 최상단 행: 시각 → 체결가
+    if(!mt) return null;
+    const val=toN(mt[2]);
+    return val>0 ? {label:mt[1], val} : null;
+  };
+  const res=await Promise.all(sampleMin.map(m=>fetchOne(m).catch(()=>null)));
+  // 라벨 기준 중복 제거 + 시간 오름차순(좌=과거 → 우=현재)
+  const seen=new Set(), pts=[];
+  for(const p of res){ if(p && !seen.has(p.label)){ seen.add(p.label); pts.push(p); } }
+  pts.sort((a,b)=>a.label.localeCompare(b.label));
+  return pts;
+}
+
+let _kospiTF='intra'; // 'intra'=당일 시간단위(기본), 'daily'=3개월 일단위
+function setKospiTimeframe(tf){ _kospiTF=tf; updateKospiTFButtons(); loadKospiChart(); }
+function updateKospiTFButtons(){
+  const map={intra:'kospi-tf-intra',daily:'kospi-tf-daily'};
+  Object.entries(map).forEach(([tf,id])=>{
+    const b=document.getElementById(id); if(!b) return;
+    const on=_kospiTF===tf;
+    b.style.color=on?'var(--accent)':'var(--t3)';
+    b.style.fontWeight=on?'700':'400';
+  });
 }
 
 function renderKospiSvg(vals, dates, lineColor){
@@ -5609,7 +5670,9 @@ function renderKospiSvg(vals, dates, lineColor){
   // X축 날짜 레이블 (아래: 등간격 5개)
   if(xEl && dates && dates.length>=2){
     const fmtLabel=d=>{
-      const s=String(d||'').replace(/\D/g,''); // 'YYYYMMDD'
+      const str=String(d||'');
+      if(str.includes(':')) return str; // 인트라데이 HH:MM 라벨은 그대로
+      const s=str.replace(/\D/g,''); // 'YYYYMMDD'
       return s.length>=8?s.slice(4,6)+'.'+s.slice(6,8):''; // 월.일(MM.DD) — 날짜별 시간 진행이 보이게
     };
     const count=Math.min(5,n);
