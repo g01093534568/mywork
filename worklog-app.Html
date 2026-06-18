@@ -5828,7 +5828,8 @@ async function deleteStock(id){
 // ── 네이버 증권 ───────────────────────────────
 function bustUrl(u){ return u+(u.includes('?')?'&':'?')+'_nc='+Date.now(); }
 const NAVER_PROXY=[
-  u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u=>`/api/proxy?url=${encodeURIComponent(u)}`,        // ① 자체 Vercel 서버리스 프록시(같은 도메인·CORS 없음·최우선)
+  u=>`https://corsproxy.io/?${encodeURIComponent(u)}`, // ②~④ 공개 프록시 폴백(현재 다수 차단됨)
   u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}&_t=${Date.now()}`,
   u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   u=>`https://thingproxy.freeboard.io/fetch/${u}`
