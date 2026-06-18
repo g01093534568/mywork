@@ -5599,8 +5599,8 @@ function renderKospiSvg(vals, dates, lineColor){
   // X축 날짜 레이블 (아래: 등간격 5개)
   if(xEl && dates && dates.length>=2){
     const fmtLabel=d=>{
-      const s=String(d||'').replace(/\D/g,'');
-      return s.length>=8?s.slice(2,4)+'.'+s.slice(4,6):'';
+      const s=String(d||'').replace(/\D/g,''); // 'YYYYMMDD'
+      return s.length>=8?s.slice(4,6)+'.'+s.slice(6,8):''; // 월.일(MM.DD) — 날짜별 시간 진행이 보이게
     };
     const count=Math.min(5,n);
     const indices=[...new Set(
