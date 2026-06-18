@@ -5440,26 +5440,33 @@ async function loadKospiChart(){
   if(statusEl) statusEl.textContent='로딩 중...';
   if(errEl) errEl.style.display='none';
 
-  // ── 현재가 (Yahoo Finance → Naver 순서로 시도) ──
+  // ── 현재가 (Naver 우선 — KOSPI는 네이버가 실시간·정확. Yahoo는 지연 + prevClose 결측으로 변동률 오류) ──
   const basicTries=[
-    ['Yahoo Finance', async()=>{
-      const r=await naverFetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=1d');
-      const d=await r.json();
-      const meta=d?.chart?.result?.[0]?.meta; if(!meta?.regularMarketPrice) throw new Error('no data');
-      const cur=meta.regularMarketPrice;
-      const prev=meta.previousClose||meta.chartPreviousClose||cur;
-      return{cur, chg:cur-prev, pct:prev?(cur-prev)/prev*100:0};
-    }],
-    ['Naver polling', async()=>{
-      const r=await naverFetch('https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KOSPI');
-      const d=await r.json();
-      const o=d?.result?.KOSPI; if(!o) throw new Error('no data');
-      return{cur:toN(o.nv),chg:toN(o.cv),pct:toN(o.cr)};
-    }],
     ['Naver basic', async()=>{
       const r=await naverFetch('https://m.stock.naver.com/api/index/KOSPI/basic');
       const d=await r.json();
       return{cur:toN(d.closePrice),chg:toN(d.compareToPreviousClosePrice),pct:toN(d.fluctuationsRatio)};
+    }],
+    ['Naver polling', async()=>{
+      const r=await naverFetch('https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KOSPI');
+      const d=await r.json();
+      // 실제 응답 구조: result.areas[0].datas[0], 값은 ×100 정수(nv:902447 → 9024.47)
+      const o=d?.result?.areas?.[0]?.datas?.[0]; if(!o||!o.nv) throw new Error('no data');
+      return{cur:toN(o.nv)/100, chg:toN(o.cv)/100, pct:toN(o.cr)};
+    }],
+    ['Yahoo Finance', async()=>{
+      const r=await naverFetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=5d');
+      const d=await r.json();
+      const result=d?.chart?.result?.[0]; const meta=result?.meta;
+      if(!meta?.regularMarketPrice) throw new Error('no data');
+      const cur=meta.regularMarketPrice;
+      // Yahoo의 previousClose는 KOSPI에서 결측(null), chartPreviousClose는 2주 전 값이라 신뢰 불가
+      // → 차트의 직전 거래일 종가로 변동률 계산
+      const closes=(result.indicators?.quote?.[0]?.close||[]).filter(c=>c!=null&&c>0);
+      const prev=closes.length>=2?closes[closes.length-2]:(meta.previousClose||cur);
+      const chg=cur-prev, pct=prev?chg/prev*100:0;
+      if(Math.abs(pct)>20) throw new Error('비정상 변동률(데이터 오류)'); // 지수가 하루 ±20% 넘을 수 없음
+      return{cur, chg, pct};
     }],
   ];
 
@@ -5485,8 +5492,16 @@ async function loadKospiChart(){
   changeEl.style.color=lineColor;
   statusEl.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 기준`;
 
-  // ── 차트 데이터 (Yahoo Finance → Naver 순서로 시도, 날짜 포함) ──
+  // ── 차트 데이터 (Naver 우선 — 현재가와 동일 소스로 끝점 일치, 날짜 포함) ──
   const chartTries=[
+    ['Naver price API', async()=>{
+      const r=await naverFetch(`https://m.stock.naver.com/api/index/KOSPI/price?startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
+      const rows=await r.json();
+      if(!Array.isArray(rows)||!rows.length) throw new Error('empty');
+      const ok=rows.filter(r=>toN(r.closePrice)>0);
+      // 날짜 필드는 localTradedAt('2026-06-18'). localDate/date는 결측 → 비우면 정렬 안 돼 그래프 좌우 반전됨
+      return{vals:ok.map(r=>toN(r.closePrice)),dates:ok.map(r=>r.localTradedAt||r.localDate||r.date||'')};
+    }],
     ['Yahoo Finance chart', async()=>{
       const r=await naverFetch(`https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=3mo`);
       const d=await r.json();
@@ -5500,13 +5515,6 @@ async function loadKospiChart(){
         return `${dd.getFullYear()}${String(dd.getMonth()+1).padStart(2,'0')}${String(dd.getDate()).padStart(2,'0')}`;
       });
       return{vals:valid.map(x=>x.c),dates};
-    }],
-    ['Naver price API', async()=>{
-      const r=await naverFetch(`https://m.stock.naver.com/api/index/KOSPI/price?startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
-      const rows=await r.json();
-      if(!Array.isArray(rows)||!rows.length) throw new Error('empty');
-      const ok=rows.filter(r=>toN(r.closePrice)>0);
-      return{vals:ok.map(r=>toN(r.closePrice)),dates:ok.map(r=>r.localDate||r.date||'')};
     }],
     ['Naver fchart', async()=>{
       const r=await naverFetch(`https://fchart.stock.naver.com/siseJson.nhn?symbol=KOSPI&requestType=1&startTime=${fmtD(past)}&endTime=${fmtD(now)}&timeframe=day`);
