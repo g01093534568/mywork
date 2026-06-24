@@ -55,6 +55,10 @@ a{color:inherit;text-decoration:none;}
 input,select,textarea{font-family:inherit;background:var(--bg2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);padding:10px 14px;font-size:14px;outline:none;transition:var(--tr);width:100%;}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,0.12);}
 input::placeholder,textarea::placeholder{color:var(--t3);}
+/* 캐럿 브라우징(F7) 등으로 메뉴·본문 등 편집 불가 영역에 깜빡이는 텍스트 캐럿이 보이는 현상 방지.
+   기본은 캐럿 투명, 실제 입력 가능한 필드(readonly 제외)에서만 캐럿 표시 */
+*{caret-color:transparent;}
+input:not([readonly]),textarea:not([readonly]),[contenteditable]:not([contenteditable="false"]){caret-color:auto;}
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator{filter:invert(0.7) sepia(1) saturate(4) hue-rotate(5deg);opacity:0.85;cursor:pointer;border-radius:3px;padding:2px;transition:opacity 0.15s;}
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
