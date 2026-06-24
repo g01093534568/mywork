@@ -1560,7 +1560,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="admin-tab active" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
         <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
         <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
-        <div class="admin-tab" id="admin-tab-energy" onclick="switchAdminTab('energy')">⚡ 에너지 관리</div>
+        <div class="admin-tab" id="admin-tab-energy" onclick="switchAdminTab('energy')">⚡ 에너지 및 차량 관리</div>
         <div class="admin-tab" id="admin-tab-knowledge" onclick="switchAdminTab('knowledge')">📚 AI 지식자료</div>
         <div class="admin-tab" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
       </div>
@@ -1695,6 +1695,28 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <tbody id="energyInfoTableBody"></tbody>
           </table>
           <div id="energyInfoPaginationContainer" style="display:flex;justify-content:center;align-items:center;gap:5px;margin:20px 0;flex-wrap:wrap;"></div>
+        </div>
+        <div class="admin-section" style="margin-top:40px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+            <h3>차량 정보 관리</h3>
+            <div class="admin-action-group">
+              <button class="add-btn add-item-btn" id="addVehicleInfoBtn">정보 추가</button>
+              <button type="button" class="submit-btn download-excel-btn" id="downloadVehicleInfoExcelBtn">엑셀다운로드</button>
+              <button type="button" class="submit-btn upload-excel-btn" id="uploadVehicleInfoExcelBtn">엑셀업로드</button>
+              <button type="button" class="delete-btn em-delete-btn delete-item-btn" id="deleteSelectedVehicleInfoBtn" style="display:none;">삭제</button>
+              <input type="file" id="vehicleInfoExcelFileInput" accept=".xlsx,.xls" style="display:none;">
+            </div>
+          </div>
+          <table class="facility-table">
+            <thead>
+              <tr>
+                <th style="width:50px;"><input type="checkbox" id="selectAllVehicleInfoCheckbox"></th>
+                <th>시설명</th><th>차량번호</th><th>사용연료</th><th>연식</th><th>종류</th><th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="vehicleInfoTableBody"></tbody>
+          </table>
+          <div id="vehicleInfoPaginationContainer" style="display:flex;justify-content:center;align-items:center;gap:5px;margin:20px 0;flex-wrap:wrap;"></div>
         </div>
         <div class="admin-section" style="margin-top:40px;">
           <h3>데이터 관리</h3>
@@ -2046,6 +2068,49 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="em-modal-buttons">
         <button type="submit" class="em-save-btn">저장</button>
         <button type="button" class="em-cancel-energy-info-btn">취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 차량 정보 모달 (에너지 관리자) -->
+<div id="vehicleInfoModal" class="em-modal">
+  <div class="em-modal-content">
+    <span class="em-close-vehicle-info">&times;</span>
+    <h3 id="vehicleInfoModalTitle">차량 정보 추가</h3>
+    <form id="vehicleInfoForm">
+      <div class="em-form-group">
+        <label for="editVehicleFacilityName">시설명</label>
+        <select id="editVehicleFacilityName" required><option value="">선택하세요</option></select>
+      </div>
+      <div class="em-form-group">
+        <label for="editVehicleNumber">차량번호</label>
+        <input type="text" id="editVehicleNumber" required>
+      </div>
+      <div class="em-form-group">
+        <label for="editVehicleFuel">사용연료</label>
+        <input type="text" id="editVehicleFuel" placeholder="예: 경유, 휘발유, 전기" required>
+      </div>
+      <div class="em-form-group">
+        <label for="editVehicleYear">연식</label>
+        <input type="text" id="editVehicleYear" placeholder="예: 2020" required>
+      </div>
+      <div class="em-form-group">
+        <label for="editVehicleType">종류</label>
+        <select id="editVehicleType" required>
+          <option value="">선택하세요</option>
+          <option value="경승용차">경승용차</option>
+          <option value="소형승용차">소형승용차</option>
+          <option value="중형승용차">중형승용차</option>
+          <option value="대형승용차">대형승용차</option>
+          <option value="중형승합차">중형승합차</option>
+          <option value="대형승합차">대형승합차</option>
+          <option value="소형화물차">소형화물차</option>
+        </select>
+      </div>
+      <div class="em-modal-buttons">
+        <button type="submit" class="em-save-btn">저장</button>
+        <button type="button" class="em-cancel-vehicle-info-btn">취소</button>
       </div>
     </form>
   </div>
@@ -7346,7 +7411,7 @@ async function switchAdminTab(tab){
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
-  if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); }
+  if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); loadVehicleInfos(); }
   if(tab==='knowledge') await ksRenderList();
 }
 
@@ -9014,6 +9079,9 @@ function _rowToRecord(r) {
 function _rowToInfo(r) {
   return { id: r.id, facilityName: r.facility_name, energyType: r.energy_type, customerNumber: r.customer_number || '', bankName: r.bank_name || '', accountNumber: r.account_number || '' };
 }
+function _rowToVehicle(r) {
+  return { id: r.id, facilityName: r.facility_name, vehicleNumber: r.vehicle_number || '', fuel: r.fuel || '', modelYear: r.model_year || '', vehicleType: r.vehicle_type || '' };
+}
 // role 은 worklog 값 그대로 유지 (변환 없음)
 function _wlUserToFacility(u) {
   return { id: u.id, facilityName: u.시설명 || '', username: u.사원번호 || '', password: u.패스워드 || '', role: u.role || 'user', parentFacility: u.parent_facility || '' };
@@ -9082,6 +9150,22 @@ async function _emInfoQuery() {
   const { data, error } = await q;
   if (error) throw error;
   return (data || []).map(_rowToInfo);
+}
+
+// 차량 정보 쿼리 (시설명 기준 권한 필터 — 에너지 정보와 동일)
+async function _emVehicleQuery() {
+  const role = _emRole(), facility = _emFacility();
+  let q = SB.from('vehicle_info').select('*');
+  if (role === 'user') {
+    if (facility) q = q.eq('facility_name', facility);
+  } else if (role === 'facility-admin') {
+    const names = await _getManagedFacilityNames(facility);
+    if (!names.length) return [];
+    q = q.in('facility_name', names);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []).map(_rowToVehicle);
 }
 
 // 시설(users) 쿼리
@@ -9237,6 +9321,12 @@ let energyInfoCurrentPage = 1;
 const energyInfoItemsPerPage = 20;
 let allEnergyInfos = [];
 
+// 차량 정보 페이지네이션 변수
+let vehicleInfoCurrentPage = 1;
+const vehicleInfoItemsPerPage = 20;
+let allVehicleInfos = [];
+let currentEditVehicleInfoIndex = null;
+
 function showLogin() {
     // 로그인 폼 제거됨 — 서버 오류는 콘솔/토스트로 처리
     console.warn('에너지 관리 서버 연결 필요 (localhost:3000)');
@@ -9319,6 +9409,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const checkboxes = document.querySelectorAll('.energy-info-checkbox');
             checkboxes.forEach(cb => cb.checked = this.checked);
             updateEnergyInfoDeleteButtonVisibility();
+        });
+    }
+
+    // 차량 정보 전체 선택 체크박스 이벤트
+    const selectAllVehicleInfoCheckbox = document.getElementById('selectAllVehicleInfoCheckbox');
+    if (selectAllVehicleInfoCheckbox) {
+        selectAllVehicleInfoCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.vehicle-info-checkbox');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+            updateVehicleInfoDeleteButtonVisibility();
         });
     }
 
@@ -10697,6 +10797,84 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // 차량 정보 관리 이벤트 리스너
+    const vehicleInfoModal = document.getElementById('vehicleInfoModal');
+    const closeVehicleInfoBtn = document.querySelector('.em-close-vehicle-info');
+    const cancelVehicleInfoBtn = document.querySelector('.em-cancel-vehicle-info-btn');
+    const addVehicleInfoBtn = document.getElementById('addVehicleInfoBtn');
+    const vehicleInfoForm = document.getElementById('vehicleInfoForm');
+
+    if (addVehicleInfoBtn) {
+        addVehicleInfoBtn.addEventListener('click', () => {
+            openVehicleInfoModal(false);
+        });
+    }
+
+    if (closeVehicleInfoBtn) {
+        closeVehicleInfoBtn.addEventListener('click', closeVehicleInfoModal);
+    }
+
+    if (cancelVehicleInfoBtn) {
+        cancelVehicleInfoBtn.addEventListener('click', closeVehicleInfoModal);
+    }
+
+    window.addEventListener('click', (e) => {
+        if (e.target === vehicleInfoModal) {
+            closeVehicleInfoModal();
+        }
+    });
+
+    if (vehicleInfoForm) {
+        vehicleInfoForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const facilityName = document.getElementById('editVehicleFacilityName').value.trim();
+            const vehicleNumber = document.getElementById('editVehicleNumber').value.trim();
+            const fuel = document.getElementById('editVehicleFuel').value.trim();
+            const modelYear = document.getElementById('editVehicleYear').value.trim();
+            const vehicleType = document.getElementById('editVehicleType').value.trim();
+
+            if (!facilityName) { alert('시설명을 선택해주세요.'); return; }
+            if (!vehicleNumber) { alert('차량번호를 입력해주세요.'); return; }
+            if (!fuel) { alert('사용연료를 입력해주세요.'); return; }
+            if (!modelYear) { alert('연식을 입력해주세요.'); return; }
+            if (!vehicleType) { alert('종류를 선택해주세요.'); return; }
+
+            try {
+                let sbError;
+                if (currentEditVehicleInfoIndex !== null) {
+                    const { error } = await SB.from('vehicle_info').update({
+                        facility_name: facilityName,
+                        vehicle_number: vehicleNumber,
+                        fuel: fuel,
+                        model_year: modelYear,
+                        vehicle_type: vehicleType
+                    }).eq('id', currentEditVehicleInfoIndex);
+                    sbError = error;
+                } else {
+                    const { data: existing } = await SB.from('vehicle_info').select('id')
+                        .eq('facility_name', facilityName).eq('vehicle_number', vehicleNumber).maybeSingle();
+                    if (existing) { alert('해당 시설의 동일한 차량번호 정보가 이미 존재합니다.'); return; }
+                    const { error } = await SB.from('vehicle_info').insert({
+                        facility_name: facilityName,
+                        vehicle_number: vehicleNumber,
+                        fuel: fuel,
+                        model_year: modelYear,
+                        vehicle_type: vehicleType
+                    });
+                    sbError = error;
+                }
+                if (sbError) { alert('저장 실패: ' + sbError.message); return; }
+                alert(currentEditVehicleInfoIndex !== null ? '차량 정보가 수정되었습니다.' : '차량 정보가 추가되었습니다.');
+                closeVehicleInfoModal();
+                loadVehicleInfos();
+            } catch (error) {
+                console.error('차량 정보 저장 오류:', error);
+                alert('차량 정보 저장 중 오류가 발생했습니다.\n' + error.message);
+            }
+        });
+    }
 });
 
 // 에너지 정보 관리 함수들
@@ -10895,6 +11073,195 @@ window.deleteEnergyInfo = async function(index) {
     } catch (error) {
         console.error('에너지 정보 삭제 오류:', error);
         alert('에너지 정보 삭제 중 오류가 발생했습니다.');
+    }
+};
+
+// 차량 정보 관리 함수들
+async function loadVehicleInfos() {
+    try {
+        const infos = await _emVehicleQuery();
+        const sortedInfos = infos.sort((a, b) => {
+            const facilityCompare = a.facilityName.localeCompare(b.facilityName, 'ko-KR');
+            if (facilityCompare !== 0) return facilityCompare;
+            return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '', 'ko-KR');
+        });
+        renderVehicleInfos(sortedInfos);
+    } catch (error) {
+        console.error('차량 정보 로드 오류:', error);
+        renderVehicleInfos([]);
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            alert('서버 연결 오류가 발생했습니다. 서버가 실행 중인지 확인하세요.');
+        }
+    }
+}
+
+function renderVehicleInfos(infos, page = 1) {
+    const tbody = document.getElementById('vehicleInfoTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    allVehicleInfos = infos || [];
+    vehicleInfoCurrentPage = page;
+
+    if (!infos || infos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--t3);">등록된 차량 정보가 없습니다.</td></tr>';
+        renderVehicleInfoPagination(0, 1);
+        return;
+    }
+
+    const totalPages = Math.ceil(infos.length / vehicleInfoItemsPerPage);
+    const startIndex = (page - 1) * vehicleInfoItemsPerPage;
+    const endIndex = Math.min(startIndex + vehicleInfoItemsPerPage, infos.length);
+    const pageRecords = infos.slice(startIndex, endIndex);
+
+    pageRecords.forEach((info, idx) => {
+        const index = startIndex + idx;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="checkbox" class="vehicle-info-checkbox" data-index="${index}"></td>
+            <td>${info.facilityName || '-'}</td>
+            <td>${info.vehicleNumber || '-'}</td>
+            <td>${info.fuel || '-'}</td>
+            <td>${info.modelYear || '-'}</td>
+            <td>${info.vehicleType || '-'}</td>
+            <td>
+                <button class="edit-btn" onclick="editVehicleInfo(${index})">수정</button>
+                <button class="delete-btn" onclick="deleteVehicleInfo(${index})">삭제</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    renderVehicleInfoPagination(infos.length, totalPages);
+
+    updateVehicleInfoDeleteButtonVisibility();
+    document.querySelectorAll('.vehicle-info-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateVehicleInfoDeleteButtonVisibility);
+    });
+}
+
+// 차량 정보 페이지네이션 렌더링
+function renderVehicleInfoPagination(totalItems, totalPages) {
+    const container = document.getElementById('vehicleInfoPaginationContainer');
+    if (!container) return;
+
+    if (totalItems === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = `<span style="margin-right:15px;color:var(--t3);font-size:12px;">총 ${totalItems}건</span>`;
+
+    html += `<button class="pagination-btn" onclick="goToVehicleInfoPage(1)" ${vehicleInfoCurrentPage === 1 ? 'disabled' : ''}>≪</button>`;
+    html += `<button class="pagination-btn" onclick="goToVehicleInfoPage(${vehicleInfoCurrentPage - 1})" ${vehicleInfoCurrentPage === 1 ? 'disabled' : ''}>＜</button>`;
+
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, vehicleInfoCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        html += `<span style="margin:0 5px;color:var(--t3);">...</span>`;
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === vehicleInfoCurrentPage;
+        html += `<button class="pagination-btn${isActive ? ' active' : ''}" onclick="goToVehicleInfoPage(${i})">${i}</button>`;
+    }
+
+    if (endPage < totalPages) {
+        html += `<span style="margin:0 5px;color:var(--t3);">...</span>`;
+    }
+
+    html += `<button class="pagination-btn" onclick="goToVehicleInfoPage(${vehicleInfoCurrentPage + 1})" ${vehicleInfoCurrentPage === totalPages ? 'disabled' : ''}>＞</button>`;
+    html += `<button class="pagination-btn" onclick="goToVehicleInfoPage(${totalPages})" ${vehicleInfoCurrentPage === totalPages ? 'disabled' : ''}>≫</button>`;
+
+    container.innerHTML = html;
+}
+
+// 차량 정보 페이지 이동
+window.goToVehicleInfoPage = function(page) {
+    if (page < 1 || allVehicleInfos.length === 0) return;
+    const totalPages = Math.ceil(allVehicleInfos.length / vehicleInfoItemsPerPage);
+    if (page > totalPages) page = totalPages;
+    renderVehicleInfos(allVehicleInfos, page);
+};
+
+// 차량 정보 체크박스 선택에 따라 삭제 버튼 표시
+function updateVehicleInfoDeleteButtonVisibility() {
+    const checkboxes = document.querySelectorAll('.vehicle-info-checkbox:checked');
+    const deleteBtn = document.getElementById('deleteSelectedVehicleInfoBtn');
+    if (deleteBtn) deleteBtn.style.display = checkboxes.length > 0 ? 'inline-block' : 'none';
+}
+
+async function openVehicleInfoModal(isEdit = false, index = null) {
+    currentEditVehicleInfoIndex = index;
+    const modalTitle = document.getElementById('vehicleInfoModalTitle');
+    modalTitle.textContent = isEdit ? '차량 정보 수정' : '차량 정보 추가';
+
+    await loadFacilityOptionsForVehicleInfo();
+
+    if (!isEdit) {
+        document.getElementById('editVehicleFacilityName').value = '';
+        document.getElementById('editVehicleNumber').value = '';
+        document.getElementById('editVehicleFuel').value = '';
+        document.getElementById('editVehicleYear').value = '';
+        document.getElementById('editVehicleType').value = '';
+    }
+
+    const modal = document.getElementById('vehicleInfoModal');
+    modal.style.display = 'block';
+}
+
+function closeVehicleInfoModal() {
+    const modal = document.getElementById('vehicleInfoModal');
+    modal.style.display = 'none';
+    currentEditVehicleInfoIndex = null;
+}
+
+async function loadFacilityOptionsForVehicleInfo() {
+    try {
+        const names = await getWorklogFacilityNames();
+        const select = document.getElementById('editVehicleFacilityName');
+        if (!select) return;
+        select.innerHTML = '<option value="">선택하세요</option>';
+        names.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('시설 목록 로드 오류:', error);
+    }
+}
+
+window.editVehicleInfo = async function(index) {
+    const info = allVehicleInfos[index];
+    if (!info) { alert('차량 정보를 찾을 수 없습니다.'); return; }
+    await openVehicleInfoModal(true, info.id);
+    document.getElementById('editVehicleFacilityName').value = info.facilityName;
+    document.getElementById('editVehicleNumber').value = info.vehicleNumber;
+    document.getElementById('editVehicleFuel').value = info.fuel;
+    document.getElementById('editVehicleYear').value = info.modelYear;
+    document.getElementById('editVehicleType').value = info.vehicleType;
+};
+
+window.deleteVehicleInfo = async function(index) {
+    if (!confirm('정말 이 차량 정보를 삭제하시겠습니까?')) return;
+    const info = allVehicleInfos[index];
+    if (!info) return;
+    try {
+        const { error } = await SB.from('vehicle_info').delete().eq('id', info.id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        alert('차량 정보가 삭제되었습니다.');
+        loadVehicleInfos();
+    } catch (error) {
+        console.error('차량 정보 삭제 오류:', error);
+        alert('차량 정보 삭제 중 오류가 발생했습니다.');
     }
 };
 
@@ -12009,6 +12376,153 @@ async function uploadEnergyInfoExcel(event) {
     event.target.value = '';
 }
 
+// ==================== 차량 정보 관리 관련 기능 ====================
+
+// 선택된 차량 정보 삭제
+async function deleteSelectedVehicleInfo() {
+    const checkboxes = document.querySelectorAll('.vehicle-info-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        alert('삭제할 항목을 선택해주세요.');
+        return;
+    }
+
+    if (!confirm(`선택한 ${checkboxes.length}개 차량 정보를 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+    const ids = indices.map(i => allVehicleInfos[i]?.id).filter(Boolean);
+
+    try {
+        const { error } = await SB.from('vehicle_info').delete().in('id', ids);
+        if (error) throw error;
+        alert(`${ids.length}개 차량 정보가 삭제되었습니다.`);
+
+        const selectAllCheckbox = document.getElementById('selectAllVehicleInfoCheckbox');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+        if (typeof loadVehicleInfos === 'function') loadVehicleInfos();
+    } catch (error) {
+        console.error('차량 정보 삭제 오류:', error);
+        alert('차량 정보 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+// 차량 정보 엑셀 다운로드
+async function downloadVehicleInfoExcel() {
+    try {
+        if (typeof XLSX === 'undefined') {
+            alert('엑셀 라이브러리가 로드되지 않았습니다.');
+            return;
+        }
+
+        const vehicleInfo = await _emVehicleQuery();
+        if (!vehicleInfo || vehicleInfo.length === 0) {
+            alert('다운로드할 차량 정보가 없습니다.');
+            return;
+        }
+
+        const worksheetData = [
+            ['시설명', '차량번호', '사용연료', '연식', '종류']
+        ];
+
+        vehicleInfo.forEach(info => {
+            worksheetData.push([
+                info.facilityName || '',
+                info.vehicleNumber || '',
+                info.fuel || '',
+                info.modelYear || '',
+                info.vehicleType || ''
+            ]);
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+
+        ws['!cols'] = [
+            { wch: 25 },  // 시설명
+            { wch: 18 },  // 차량번호
+            { wch: 12 },  // 사용연료
+            { wch: 10 },  // 연식
+            { wch: 14 }   // 종류
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, '차량정보');
+
+        const today = new Date();
+        const filename = `차량정보_${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}_${String(today.getDate()).padStart(2, '0')}.xlsx`;
+        XLSX.writeFile(wb, filename);
+
+        alert('엑셀 파일이 다운로드되었습니다.');
+    } catch (error) {
+        console.error('엑셀 다운로드 오류:', error);
+        alert('엑셀 다운로드 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 차량 정보 엑셀 업로드
+async function uploadVehicleInfoExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (jsonData.length < 2) {
+            alert('유효한 데이터가 없습니다.');
+            event.target.value = '';
+            return;
+        }
+
+        const vehicleInfoList = [];
+        for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (row && row.length >= 2 && row[0] && row[1]) {
+                vehicleInfoList.push({
+                    facilityName: String(row[0] || '').trim(),
+                    vehicleNumber: String(row[1] || '').trim(),
+                    fuel: String(row[2] || '').trim(),
+                    modelYear: String(row[3] || '').trim(),
+                    vehicleType: String(row[4] || '').trim()
+                });
+            }
+        }
+
+        if (vehicleInfoList.length === 0) {
+            alert('가져올 수 있는 차량 정보가 없습니다.');
+            event.target.value = '';
+            return;
+        }
+
+        const confirmed = confirm(`${vehicleInfoList.length}개의 차량 정보를 추가하시겠습니까?`);
+        if (!confirmed) {
+            event.target.value = '';
+            return;
+        }
+
+        const insertInfos = vehicleInfoList.map(info => ({
+            facility_name: info.facilityName,
+            vehicle_number: info.vehicleNumber,
+            fuel: info.fuel || '',
+            model_year: info.modelYear || '',
+            vehicle_type: info.vehicleType || ''
+        }));
+        const { error: infoErr } = await SB.from('vehicle_info').insert(insertInfos);
+        if (infoErr) throw infoErr;
+        alert(`차량 정보 추가 완료!\n${vehicleInfoList.length}개 추가되었습니다.`);
+        if (typeof loadVehicleInfos === 'function') loadVehicleInfos();
+    } catch (error) {
+        console.error('엑셀 업로드 오류:', error);
+        alert('엑셀 파일 처리 중 오류가 발생했습니다: ' + error.message);
+    }
+
+    event.target.value = '';
+}
+
 // ==================== 이벤트 리스너 등록 ====================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -12080,6 +12594,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (energyInfoExcelFileInput) {
         energyInfoExcelFileInput.addEventListener('change', uploadEnergyInfoExcel);
+    }
+
+    // 차량 정보 관련 이벤트
+    const deleteSelectedVehicleInfoBtn = document.getElementById('deleteSelectedVehicleInfoBtn');
+    const downloadVehicleInfoExcelBtn = document.getElementById('downloadVehicleInfoExcelBtn');
+    const uploadVehicleInfoExcelBtn = document.getElementById('uploadVehicleInfoExcelBtn');
+    const vehicleInfoExcelFileInput = document.getElementById('vehicleInfoExcelFileInput');
+
+    if (deleteSelectedVehicleInfoBtn) {
+        deleteSelectedVehicleInfoBtn.addEventListener('click', deleteSelectedVehicleInfo);
+    }
+
+    if (downloadVehicleInfoExcelBtn) {
+        downloadVehicleInfoExcelBtn.addEventListener('click', downloadVehicleInfoExcel);
+    }
+
+    if (uploadVehicleInfoExcelBtn) {
+        uploadVehicleInfoExcelBtn.addEventListener('click', () => {
+            vehicleInfoExcelFileInput.click();
+        });
+    }
+
+    if (vehicleInfoExcelFileInput) {
+        vehicleInfoExcelFileInput.addEventListener('change', uploadVehicleInfoExcel);
     }
 });
 
