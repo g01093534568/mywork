@@ -2429,7 +2429,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <div class="form-group">
         <label>구분 *</label>
-        <select id="trd-type">
+        <select id="trd-type" onchange="updateTradeTotal()">
           <option value="buy">▲ 매수</option>
           <option value="sell">▼ 매도</option>
         </select>
@@ -2445,9 +2445,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <input type="number" id="trd-price" placeholder="0" min="0" oninput="updateTradeTotal()" />
       </div>
     </div>
-    <div style="background:var(--bg3);border-radius:var(--r2);padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:var(--t2)">총 거래금액</span>
-      <span id="trd-total" style="font-size:18px;font-weight:700;color:var(--accent)">₩0</span>
+    <div class="form-group" id="trd-fee-wrap" style="display:none">
+      <label>매도 수수료·세금 (원)</label>
+      <input type="number" id="trd-fee" placeholder="0" min="0" oninput="updateTradeTotal()" />
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">증권사 수수료 + 거래세 등. 실현손익에서 차감됩니다.</div>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--r2);padding:12px 16px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--t2)">총 거래금액</span>
+        <span id="trd-total" style="font-size:18px;font-weight:700;color:var(--accent)">₩0</span>
+      </div>
+      <div id="trd-net-row" style="display:none;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--t2)">수수료 차감 후 실수령액</span>
+        <span id="trd-net" style="font-size:15px;font-weight:700;color:var(--blue)">₩0</span>
+      </div>
     </div>
     <div class="form-group">
       <label>메모</label>
@@ -2906,10 +2917,10 @@ function dbToStock(r) {
   return { id:r.id, name:r.name, ticker:r.ticker||'', currentPrice:Number(r.current_price)||0, prevClose:Number(r.prev_close)||0 };
 }
 function tradeToDb(t, 사원번호) {
-  return { id:t.id, 사원번호, stock_id:t.stockId||'', stock_name:t.stockName, ticker:t.ticker||'', trade_date:t.date, type:t.type, qty:t.qty, price:t.price, memo:t.memo||'', created_at:t.createdAt||new Date().toISOString() };
+  return { id:t.id, 사원번호, stock_id:t.stockId||'', stock_name:t.stockName, ticker:t.ticker||'', trade_date:t.date, type:t.type, qty:t.qty, price:t.price, fee:t.fee||0, memo:t.memo||'', created_at:t.createdAt||new Date().toISOString() };
 }
 function dbToTrade(r) {
-  return { id:r.id, stockId:r.stock_id||'', stockName:r.stock_name, ticker:r.ticker||'', date:r.trade_date, type:r.type, qty:Number(r.qty), price:Number(r.price), memo:r.memo||'', createdAt:r.created_at };
+  return { id:r.id, stockId:r.stock_id||'', stockName:r.stock_name, ticker:r.ticker||'', date:r.trade_date, type:r.type, qty:Number(r.qty), price:Number(r.price), fee:Number(r.fee)||0, memo:r.memo||'', createdAt:r.created_at };
 }
 function fundToDb(f, 사원번호) {
   return { id:f.id, 사원번호, name:f.name, fund_type:f.type||'', principal:f.principal||0, valuation:f.valuation||0, start_date:f.startDate||null, memo:f.memo||'' };
@@ -6559,7 +6570,7 @@ async function renderTrades(){
         } else if(t.type==='sell'&&pos[key].qty>0){
           const avg=pos[key].cost/pos[key].qty;
           const sold=Math.min(qty,pos[key].qty);
-          realizedPnl+=(price-avg)*sold;
+          realizedPnl+=(price-avg)*sold-(Number(t.fee)||0);
           pos[key].cost-=avg*sold;
           pos[key].qty=Math.max(0,pos[key].qty-sold);
         }
@@ -6590,6 +6601,7 @@ async function renderTrades(){
       <td>₩${fmtNum(t.price)}</td>
       <td style="font-weight:600;color:${t.type==='buy'?'var(--red)':'var(--blue)'}">
         ₩${fmtNum(total)}
+        ${t.type==='sell'&&Number(t.fee)>0?`<div style="font-size:11px;font-weight:500;color:var(--t3)">수수료 -₩${fmtNum(Number(t.fee))}</div>`:''}
       </td>
       <td style="color:var(--t2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.memo||'')}">${esc(t.memo||'')}</td>
       <td><div style="display:flex;gap:4px;justify-content:center">
@@ -6657,6 +6669,7 @@ async function openTradeModal(stockId, tradeId){
     }
     document.getElementById('trd-qty').value=t.qty;
     document.getElementById('trd-price').value=t.price;
+    document.getElementById('trd-fee').value=t.fee||'';
     document.getElementById('trd-memo').value=t.memo||'';
   } else {
     document.getElementById('trade-modal-title').textContent='매매 기록 추가';
@@ -6665,6 +6678,7 @@ async function openTradeModal(stockId, tradeId){
     document.getElementById('trd-type').value='buy';
     document.getElementById('trd-qty').value='';
     document.getElementById('trd-price').value='';
+    document.getElementById('trd-fee').value='';
     document.getElementById('trd-memo').value='';
     document.getElementById('trd-new-name').value='';
     document.getElementById('trd-new-ticker').value='';
@@ -6685,8 +6699,19 @@ async function openTradeModal(stockId, tradeId){
 function updateTradeTotal(){
   const qty=parseFloat(document.getElementById('trd-qty').value)||0;
   const price=parseFloat(document.getElementById('trd-price').value)||0;
+  const isSell=document.getElementById('trd-type').value==='sell';
+  const feeWrap=document.getElementById('trd-fee-wrap');
+  const netRow=document.getElementById('trd-net-row');
+  if(feeWrap) feeWrap.style.display=isSell?'':'none';
+  const total=qty*price;
   const el=document.getElementById('trd-total');
-  if(el) el.textContent='₩'+fmtNum(qty*price);
+  if(el) el.textContent='₩'+fmtNum(total);
+  const fee=parseFloat(document.getElementById('trd-fee').value)||0;
+  if(netRow){
+    netRow.style.display=(isSell&&fee>0)?'flex':'none';
+    const netEl=document.getElementById('trd-net');
+    if(netEl) netEl.textContent='₩'+fmtNum(total-fee);
+  }
 }
 
 async function saveTrade(){
@@ -6695,6 +6720,7 @@ async function saveTrade(){
   const type=document.getElementById('trd-type').value;
   const qty=parseFloat(document.getElementById('trd-qty').value)||0;
   const price=parseFloat(document.getElementById('trd-price').value)||0;
+  const fee=type==='sell'?(parseFloat(document.getElementById('trd-fee').value)||0):0;
   const memo=document.getElementById('trd-memo').value.trim();
   const editId=document.getElementById('trd-edit-id').value;
   if(!date){ toast('날짜를 입력하세요','error'); return; }
@@ -6726,7 +6752,7 @@ async function saveTrade(){
 
   const prevTrades=await DB.getTrades(currentUser.사원번호);
   const data={
-    id:editId||uid(), stockId, stockName, ticker, date, type, qty, price, memo,
+    id:editId||uid(), stockId, stockName, ticker, date, type, qty, price, fee, memo,
     createdAt:editId?(prevTrades.find(t=>t.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString()
   };
   try{
