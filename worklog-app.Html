@@ -981,13 +981,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 }
 .em-save-btn:hover { background: var(--accent2); }
 .em-cancel-btn,
-.em-cancel-energy-info-btn {
+.em-cancel-energy-info-btn,
+.em-cancel-vehicle-info-btn {
   flex: 1; padding: 10px; border-radius: var(--r2); border: none;
   background: var(--card2); color: var(--t2); font-weight: 600;
   font-size: 14px; cursor: pointer; transition: var(--tr);
 }
 .em-cancel-btn:hover,
-.em-cancel-energy-info-btn:hover { background: var(--bg3); color: var(--t1); }
+.em-cancel-energy-info-btn:hover,
+.em-cancel-vehicle-info-btn:hover { background: var(--bg3); color: var(--t1); }
 
 /* 경고 박스 */
 #page-energy .admin-warning-box,
@@ -2076,7 +2078,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 <!-- 차량 정보 모달 (에너지 관리자) -->
 <div id="vehicleInfoModal" class="em-modal">
   <div class="em-modal-content">
-    <span class="em-close-vehicle-info">&times;</span>
     <h3 id="vehicleInfoModalTitle">차량 정보 추가</h3>
     <form id="vehicleInfoForm">
       <div class="em-form-group">
