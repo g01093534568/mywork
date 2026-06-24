@@ -1320,6 +1320,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div id="stock-grid-container"></div>
 
+        <!-- ── 보유 펀드 현황 ── -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:32px;margin-bottom:18px">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--purple,#a78bfa)">💼 보유 펀드 현황</div>
+            <div id="fund-summary" style="font-size:12px;color:var(--t2);margin-top:2px">가입한 펀드의 투자원금·평가금액을 입력하면 수익률이 계산됩니다</div>
+          </div>
+          <button class="btn btn-primary" onclick="openFundModal()">+ 펀드 추가</button>
+        </div>
+        <div id="fund-grid-container"></div>
+
         <!-- ── 매매일지 ── -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:28px;margin-bottom:14px">
           <div>
@@ -2450,6 +2460,52 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- Fund Modal -->
+<div class="modal-overlay" id="fund-modal">
+  <div class="modal">
+    <h3 id="fund-modal-title">펀드 추가</h3>
+    <input type="hidden" id="fm-edit-id" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>펀드명 *</label>
+        <input type="text" id="fm-name" placeholder="예: 미래에셋 글로벌 그로스" />
+      </div>
+      <div class="form-group">
+        <label>펀드유형</label>
+        <input type="text" id="fm-type" placeholder="예: 주식형, 채권형, ETF형" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>투자원금 (원) *</label>
+        <input type="number" id="fm-principal" placeholder="예: 5000000" min="0" oninput="fmCalcPreview()" />
+      </div>
+      <div class="form-group">
+        <label>평가금액 (원) *</label>
+        <input type="number" id="fm-valuation" placeholder="예: 5320000" min="0" oninput="fmCalcPreview()" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>가입일</label>
+        <input type="date" id="fm-start" />
+      </div>
+      <div class="form-group">
+        <label>메모</label>
+        <input type="text" id="fm-memo" placeholder="계좌, 자동이체 등" />
+      </div>
+    </div>
+    <div id="fm-preview" style="font-size:13px;font-weight:600;padding:10px 14px;background:rgba(167,139,250,0.08);border-radius:var(--r2);border:1px solid rgba(167,139,250,0.18);margin-bottom:4px">평가손익 ─</div>
+    <div style="font-size:11px;color:var(--t3);padding:10px 14px;margin-top:6px">
+      💡 펀드는 기준가가 하루 1회 갱신되어 자동 시세가 어렵습니다. <strong style="color:var(--purple,#a78bfa)">평가금액</strong>만 가끔 갱신해 주세요.
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('fund-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveFund()">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- Google Calendar Add Modal -->
 <div class="modal-overlay" id="gcal-modal">
   <div class="modal" style="max-width:480px;">
@@ -2855,6 +2911,12 @@ function tradeToDb(t, 사원번호) {
 function dbToTrade(r) {
   return { id:r.id, stockId:r.stock_id||'', stockName:r.stock_name, ticker:r.ticker||'', date:r.trade_date, type:r.type, qty:Number(r.qty), price:Number(r.price), memo:r.memo||'', createdAt:r.created_at };
 }
+function fundToDb(f, 사원번호) {
+  return { id:f.id, 사원번호, name:f.name, fund_type:f.type||'', principal:f.principal||0, valuation:f.valuation||0, start_date:f.startDate||null, memo:f.memo||'' };
+}
+function dbToFund(r) {
+  return { id:r.id, name:r.name, type:r.fund_type||'', principal:Number(r.principal)||0, valuation:Number(r.valuation)||0, startDate:r.start_date||'', memo:r.memo||'' };
+}
 
 // ═══════════════════════════════════════════════
 // DATABASE (Supabase) + in-memory cache
@@ -2933,6 +2995,14 @@ const DB = {
   },
   async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; _cd(`stocks:${uid}`); },
   async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`stocks:${currentUser.사원번호}`); },
+
+  async getFunds(uid){
+    const k=`funds:${uid}`;
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('funds').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFund));
+  },
+  async upsertFund(uid,f){ const {error}=await SB.from('funds').upsert(fundToDb(f,uid)); if(error)throw error; _cd(`funds:${uid}`); },
+  async deleteFund(id){ const {error}=await SB.from('funds').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`funds:${currentUser.사원번호}`); },
 
   async getTrades(uid){
     const k=`trades:${uid}`;
@@ -3036,6 +3106,10 @@ function startRealtimeSync() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `사원번호=eq.${uid}` }, () => {
       _cd(`trades:${uid}`);
       if (currentPage === 'personal') _rtDebounce(() => Promise.all([renderStocks(), renderTrades()]));
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'funds', filter: `사원번호=eq.${uid}` }, () => {
+      _cd(`funds:${uid}`);
+      if (currentPage === 'personal') _rtDebounce(renderFunds);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'org_goals' }, () => {
       _cd('org');
@@ -3725,7 +3799,7 @@ async function switchPersonalTab(tab){
   const tabEl=document.getElementById('personal-tab-'+tab);
   if(panel) panel.classList.add('active');
   if(tabEl) tabEl.classList.add('active');
-  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades()]); startStockAutoRefresh(); startFxAutoRefresh(); loadKospiChart(); startKospiAutoRefresh(); }
+  if(tab==='stock'){ await Promise.all([renderStocks(),renderTrades(),renderFunds()]); startStockAutoRefresh(); startFxAutoRefresh(); loadKospiChart(); startKospiAutoRefresh(); }
   else { stopStockAutoRefresh(); stopFxAutoRefresh(); stopKospiAutoRefresh(); }
   if(tab==='annual') initAnnualGoalsTab();
   if(tab==='exercise') renderExerciseTab();
@@ -5973,6 +6047,146 @@ async function deleteStock(id){
   try{
     await DB.deleteStock(id);
     await renderStocks();
+    toast('삭제되었습니다');
+  }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
+}
+
+// ═══════════════════════════════════════════════
+// FUNDS (펀드) — 수동 입력형 카드
+// ═══════════════════════════════════════════════
+async function renderFunds(){
+  const funds=await DB.getFunds(currentUser.사원번호);
+  const cont=document.getElementById('fund-grid-container');
+  const summary=document.getElementById('fund-summary');
+  if(!cont) return;
+
+  // 가나다 정렬
+  funds.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko-KR',{sensitivity:'base',numeric:true}));
+
+  // 요약(총계)
+  if(summary){
+    if(funds.length){
+      const tP=funds.reduce((s,f)=>s+(Number(f.principal)||0),0);
+      const tV=funds.reduce((s,f)=>s+(Number(f.valuation)||0),0);
+      const pnl=tV-tP; const pct=tP?(pnl/tP*100):0;
+      const c=pnl>0?'var(--red)':pnl<0?'#3d8ef0':'var(--t2)'; const sg=pnl>=0?'+':'';
+      summary.innerHTML=`총 투자원금 ₩${fmtNum(Math.round(tP))} · 평가금액 ₩${fmtNum(Math.round(tV))} · <span style="color:${c};font-weight:700">평가손익 ${sg}${fmtNum(Math.round(pnl))}원 (${sg}${pct.toFixed(2)}%)</span>`;
+    } else {
+      summary.textContent='가입한 펀드의 투자원금·평가금액을 입력하면 수익률이 계산됩니다';
+    }
+  }
+
+  if(!funds.length){
+    cont.innerHTML='<div class="empty-state" style="padding:48px 20px"><div class="icon">💼</div><p>+ 펀드 추가로 가입한 펀드를 등록해 보세요</p></div>';
+    return;
+  }
+  const cols=Math.min(funds.length,4);
+  cont.innerHTML=`<div class="stock-grid" style="grid-template-columns:repeat(${cols},1fr)">${funds.map(f=>{
+    const principal=Number(f.principal)||0;
+    const valuation=Number(f.valuation)||0;
+    const pnl=valuation-principal;
+    const pct=principal?(pnl/principal*100):0;
+    const dir=pnl>0?'up':pnl<0?'down':'flat';
+    const arrow=pnl>0?'▲':pnl<0?'▼':'─';
+    const sign=pnl>=0?'+':'';
+    const pnlClass=pnl>0?'pnl-pos':pnl<0?'pnl-neg':'pnl-flat';
+    const sub=[f.type,f.startDate?`가입 ${f.startDate}`:''].filter(Boolean).join(' · ');
+    return `<div class="stock-card stock-${dir}" data-fid="${f.id}">
+      <div class="stock-card-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openFundModal('${f.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteFund('${f.id}')">🗑</button>
+      </div>
+      <div class="stock-card-name">${esc(f.name)}</div>
+      <div class="stock-card-ticker">${sub?esc(sub):'&nbsp;'}</div>
+      <div class="stock-card-price">${valuation?'₩'+fmtNum(Math.round(valuation)):'─'}</div>
+      <div class="stock-card-change stock-${dir}">${principal&&valuation?`${arrow} ${sign}${fmtNum(Math.round(pnl))}원 (${sign}${pct.toFixed(2)}%)`:'금액 입력 필요'}</div>
+      <div class="stock-card-meta">
+        <div class="stock-card-meta-grid">
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">투자원금</span>
+            <span class="stock-meta-value" style="color:var(--t1)">${principal?'₩'+fmtNum(Math.round(principal)):'─'}</span>
+          </div>
+          <div class="stock-meta-item">
+            <span class="stock-meta-label">평가금액</span>
+            <span class="stock-meta-value" style="color:var(--t1)">${valuation?'₩'+fmtNum(Math.round(valuation)):'─'}</span>
+          </div>
+        </div>
+        ${principal&&valuation?`
+        <div class="stock-pnl-row">
+          <span class="stock-pnl-label">평가손익</span>
+          <span class="stock-pnl-value ${pnlClass}">${sign}${fmtNum(Math.round(pnl))}원&nbsp;<span style="font-size:11px;opacity:0.85">(${sign}${pct.toFixed(2)}%)</span></span>
+        </div>`:''}
+        ${f.memo?`<div style="font-size:11px;color:var(--t3);margin-top:8px">📝 ${esc(f.memo)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function fmCalcPreview(){
+  const p=parseFloat(document.getElementById('fm-principal').value)||0;
+  const v=parseFloat(document.getElementById('fm-valuation').value)||0;
+  const el=document.getElementById('fm-preview');
+  if(!el) return;
+  if(!p||!v){ el.textContent='평가손익 ─'; el.style.color=''; return; }
+  const pnl=v-p; const pct=p?(pnl/p*100):0;
+  const c=pnl>0?'var(--red)':pnl<0?'#3d8ef0':'var(--t2)'; const sg=pnl>=0?'+':'';
+  el.innerHTML=`평가손익 <span style="color:${c}">${sg}${fmtNum(Math.round(pnl))}원 (${sg}${pct.toFixed(2)}%)</span>`;
+}
+
+async function openFundModal(id){
+  if(id){
+    const funds=await DB.getFunds(currentUser.사원번호);
+    const f=funds.find(x=>x.id===id);
+    if(!f) return;
+    document.getElementById('fund-modal-title').textContent='펀드 수정';
+    document.getElementById('fm-edit-id').value=id;
+    document.getElementById('fm-name').value=f.name;
+    document.getElementById('fm-type').value=f.type||'';
+    document.getElementById('fm-principal').value=f.principal||'';
+    document.getElementById('fm-valuation').value=f.valuation||'';
+    document.getElementById('fm-start').value=f.startDate||'';
+    document.getElementById('fm-memo').value=f.memo||'';
+  } else {
+    document.getElementById('fund-modal-title').textContent='펀드 추가';
+    document.getElementById('fm-edit-id').value='';
+    document.getElementById('fm-name').value='';
+    document.getElementById('fm-type').value='';
+    document.getElementById('fm-principal').value='';
+    document.getElementById('fm-valuation').value='';
+    document.getElementById('fm-start').value='';
+    document.getElementById('fm-memo').value='';
+  }
+  fmCalcPreview();
+  openModal('fund-modal');
+}
+
+async function saveFund(){
+  const name=document.getElementById('fm-name').value.trim();
+  if(!name){ toast('펀드명을 입력하세요','error'); return; }
+  const editId=document.getElementById('fm-edit-id').value;
+  const data={
+    id:editId||uid(),
+    name,
+    type:document.getElementById('fm-type').value.trim(),
+    principal:parseFloat(document.getElementById('fm-principal').value)||0,
+    valuation:parseFloat(document.getElementById('fm-valuation').value)||0,
+    startDate:document.getElementById('fm-start').value||'',
+    memo:document.getElementById('fm-memo').value.trim(),
+  };
+  try{
+    await DB.upsertFund(currentUser.사원번호,data);
+    closeModal('fund-modal');
+    await renderFunds();
+    toast('저장되었습니다');
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
+}
+
+async function deleteFund(id){
+  if(!await confirmDialog('삭제하시겠습니까?')) return;
+  await fadeOutEl(document.querySelector(`.stock-card[data-fid="${id}"]`));
+  try{
+    await DB.deleteFund(id);
+    await renderFunds();
     toast('삭제되었습니다');
   }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); }
 }
