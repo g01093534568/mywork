@@ -1799,9 +1799,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <!-- 연동 전 프롬프트 -->
         <div class="gmail-connect-prompt" id="gmail-connect-prompt" style="width:100%;">
           <div style="font-size:32px;">✉️</div>
-          <div style="font-size:15px;font-weight:700;color:var(--t1);">Gmail 연동이 필요합니다</div>
-          <div style="font-size:13px;color:var(--t3);">설정 → Google 계정 탭에서 Gmail을 연동하세요</div>
-          <button class="btn btn-primary" onclick="navigate('admin');setTimeout(()=>switchAdminTab('google'),100)">설정으로 이동</button>
+          <div style="font-size:15px;font-weight:700;color:var(--t1);" id="gmail-connect-title">Gmail 연동이 필요합니다</div>
+          <div style="font-size:13px;color:var(--t3);" id="gmail-connect-desc">설정 → Google 계정 탭에서 Gmail을 연동하세요</div>
+          <button class="btn btn-primary" id="gmail-connect-btn" onclick="navigate('admin');setTimeout(()=>switchAdminTab('google'),100)">설정으로 이동</button>
         </div>
         <!-- 연동 후 본체 (JS로 표시) -->
         <div id="gmail-body" style="display:none;width:100%;display:none;flex:1;overflow:hidden;display:flex;">
@@ -3355,7 +3355,6 @@ function doLogout(){
   Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
-  _gcalSilentState='idle';
   gcalEvents=[];
   gcalCalendars=[];
   gmailToken=null;
@@ -3376,9 +3375,6 @@ let gmailNextPageToken = null;
 function _gcalTokenKey() { return 'gcal_token_' + (currentUser?.사원번호 || '_guest'); }
 function _gcalTokenTimeKey() { return 'gcal_token_time_' + (currentUser?.사원번호 || '_guest'); }
 let gcalToken = null;
-// 무음(silent) 재인증 시도 상태 — 'idle' | 'pending' | 'failed'
-// 탭을 오갈 때마다 구글 인증 창이 반복해서 뜨는 것을 막기 위해 페이지 로드당 1회만 시도한다.
-let _gcalSilentState = 'idle';
 let gcalCalendars = [];
 let gcalViewYear = new Date().getFullYear();
 let gcalViewMonth = new Date().getMonth();
@@ -7809,7 +7805,6 @@ function stopGcalAutoRefresh() {
 /* ── 토큰 관리 ── */
 function saveGcalToken(token, email) {
   gcalToken = token;
-  _gcalSilentState = 'idle';
   gmailToken = token; // 동일 토큰 공유
   gcalCalendars = [];
   sessionStorage.setItem(_gcalTokenKey(), token);
@@ -7817,6 +7812,8 @@ function saveGcalToken(token, email) {
   updateGcalConnectionUI(true, email);
   updateGmailConnectionUI(true, email);
   renderCustomCalendar();
+  // Gmail 페이지에서 연결한 경우 받은편지함도 바로 채운다
+  if (currentPage === 'gmail') { gmailLoadLabels(); renderGmailInbox(); }
 }
 
 function restoreGcalToken() {
@@ -7831,31 +7828,14 @@ function restoreGcalToken() {
     renderCustomCalendar();
     return;
   }
-  // sessionStorage 토큰 없음 → 저장된 이메일로 silent auth 시도 (사용자 개입 없음)
+  // 세션 토큰이 없으면 여기서 아무것도 하지 않는다 — 연결 카드만 띄운다.
+  // GIS 토큰 모델(implicit)은 prompt:'none'이어도 OAuth 팝업 창을 연다.
+  // 숨은 iframe으로 조용히 갱신하는 경로가 없으므로, 자동으로 호출하면
+  // 업무 탭에 들어올 때마다(=로그인할 때마다) 구글 창이 뜬다.
+  // → 토큰 요청은 사용자가 버튼을 누를 때만 (gcalAutoReconnect) 수행한다.
   const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
   if (!email) return;
-  // 이미 실패했거나 진행 중이면 다시 시도하지 않는다.
-  // (업무 탭을 오갈 때마다 구글 인증 창이 반복해서 뜨는 것을 방지)
-  if (_gcalSilentState === 'pending') return;
-  if (_gcalSilentState === 'failed') { showGcalReconnectPrompt(email); return; }
-  _gcalSilentState = 'pending';
-  const fail = () => { _gcalSilentState = 'failed'; showGcalReconnectPrompt(email); };
-  const attempt = () => {
-    if (!window.google?.accounts?.oauth2) { fail(); return; }
-    try {
-      makeTokenClient(email, 'none', (resp) => {
-        if (resp.error || !resp.access_token) { fail(); return; }
-        saveGcalToken(resp.access_token, email);
-      }, fail).requestAccessToken({ prompt: 'none' });
-    } catch (e) { fail(); }
-  };
-  if (window.google?.accounts?.oauth2) {
-    attempt();
-  } else {
-    // Google API 비동기 로드 완료 대기 (최대 6초)
-    const tid = setInterval(() => { if (window.google?.accounts?.oauth2) { clearInterval(tid); attempt(); } }, 300);
-    setTimeout(() => { clearInterval(tid); if (!gcalToken && _gcalSilentState === 'pending') fail(); }, 6000);
-  }
+  showGcalReconnectPrompt(email);
 }
 
 function showGcalReconnectPrompt(email) {
@@ -7864,10 +7844,11 @@ function showGcalReconnectPrompt(email) {
   wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:14px;text-align:center;padding:20px;">
     <div style="font-size:28px;">🔗</div>
     <div>
-      <div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px;">Google Calendar 재연동이 필요합니다</div>
-      <div style="font-size:12px;color:var(--t3);">이전에 연동한 계정: ${email}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px;">캘린더를 불러오려면 연결하세요</div>
+      <div style="font-size:12px;color:var(--t3);">연동된 계정: ${email}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px;">보안상 접근 권한은 1시간마다 만료됩니다</div>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="gcalAutoReconnect()">🔗 다시 연동하기</button>
+    <button class="btn btn-primary btn-sm" onclick="gcalAutoReconnect()">🔗 캘린더 연결</button>
   </div>`;
 }
 
@@ -7879,9 +7860,10 @@ function gcalAutoReconnect() {
       if (resp.error === 'interaction_required' || resp.error === 'access_denied') { tryAuth(''); return; }
       if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
       saveGcalToken(resp.access_token, email);
-    }, () => { if (pr === 'none') tryAuth(''); }).requestAccessToken({ prompt: pr });
+    }, () => toast('구글 창이 닫혔거나 팝업이 차단됐습니다.', 'error')).requestAccessToken({ prompt: pr });
   };
-  tryAuth('none');
+  // 클릭으로 시작하므로 prompt:'' — 이미 동의한 계정이면 동의 화면 없이 바로 끝난다.
+  tryAuth('');
 }
 
 function makeTokenClient(email, pr, callback, errorCallback) {
@@ -7906,9 +7888,9 @@ function gcalEnsureToken(onReady) {
       if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
       saveGcalToken(resp.access_token, email || '');
       onReady();
-    }, () => { if (pr === 'none') tryAuth(''); }).requestAccessToken({ prompt: pr });
+    }, () => toast('구글 창이 닫혔거나 팝업이 차단됐습니다.', 'error')).requestAccessToken({ prompt: pr });
   };
-  tryAuth(email ? 'none' : '');
+  tryAuth('');
 }
 
 /* ── 설정 UI 업데이트 ── */
@@ -7939,7 +7921,6 @@ function connectGoogleCalendarWithEmail() {
 
 function disconnectGoogleCalendar() {
   gcalToken = null;
-  _gcalSilentState = 'idle';
   gcalEvents = [];
   gcalCalendars = [];
   gmailToken = null;
@@ -8447,6 +8428,24 @@ function updateGmailConnectionUI(connected, email) {
   const body = document.getElementById('gmail-body');
   if (prompt) prompt.style.display = connected ? 'none' : 'flex';
   if (body) body.style.display = connected ? 'flex' : 'none';
+  if (connected) return;
+  // 계정은 이미 저장돼 있고 접근 권한만 만료된 경우 — 설정까지 갈 필요 없이 바로 연결
+  const saved = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : '';
+  const title = document.getElementById('gmail-connect-title');
+  const desc = document.getElementById('gmail-connect-desc');
+  const btn = document.getElementById('gmail-connect-btn');
+  if (!title || !desc || !btn) return;
+  if (saved) {
+    title.textContent = '메일을 불러오려면 연결하세요';
+    desc.textContent = `연동된 계정: ${saved} · 보안상 접근 권한은 1시간마다 만료됩니다`;
+    btn.textContent = '🔗 Gmail 연결';
+    btn.onclick = () => gcalAutoReconnect();
+  } else {
+    title.textContent = 'Gmail 연동이 필요합니다';
+    desc.textContent = '설정 → Google 계정 탭에서 Gmail을 연동하세요';
+    btn.textContent = '설정으로 이동';
+    btn.onclick = () => { navigate('admin'); setTimeout(() => switchAdminTab('google'), 100); };
+  }
 }
 
 function gmailEnsureToken(onReady) {
