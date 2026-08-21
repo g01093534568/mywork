@@ -3354,6 +3354,7 @@ function doLogout(){
   Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')||k===_logoutTokenKey||k===_logoutTokenTimeKey).forEach(k=>sessionStorage.removeItem(k));
   sessionStorage.removeItem('wl_session');
   gcalToken=null;
+  _gcalSilentState='idle';
   gcalEvents=[];
   gcalCalendars=[];
   gmailToken=null;
@@ -3374,6 +3375,9 @@ let gmailNextPageToken = null;
 function _gcalTokenKey() { return 'gcal_token_' + (currentUser?.사원번호 || '_guest'); }
 function _gcalTokenTimeKey() { return 'gcal_token_time_' + (currentUser?.사원번호 || '_guest'); }
 let gcalToken = null;
+// 무음(silent) 재인증 시도 상태 — 'idle' | 'pending' | 'failed'
+// 탭을 오갈 때마다 구글 인증 창이 반복해서 뜨는 것을 막기 위해 페이지 로드당 1회만 시도한다.
+let _gcalSilentState = 'idle';
 let gcalCalendars = [];
 let gcalViewYear = new Date().getFullYear();
 let gcalViewMonth = new Date().getMonth();
@@ -7804,6 +7808,7 @@ function stopGcalAutoRefresh() {
 /* ── 토큰 관리 ── */
 function saveGcalToken(token, email) {
   gcalToken = token;
+  _gcalSilentState = 'idle';
   gmailToken = token; // 동일 토큰 공유
   gcalCalendars = [];
   sessionStorage.setItem(_gcalTokenKey(), token);
@@ -7828,19 +7833,27 @@ function restoreGcalToken() {
   // sessionStorage 토큰 없음 → 저장된 이메일로 silent auth 시도 (사용자 개입 없음)
   const email = currentUser ? localStorage.getItem('gcal_email_' + currentUser.사원번호) : null;
   if (!email) return;
+  // 이미 실패했거나 진행 중이면 다시 시도하지 않는다.
+  // (업무 탭을 오갈 때마다 구글 인증 창이 반복해서 뜨는 것을 방지)
+  if (_gcalSilentState === 'pending') return;
+  if (_gcalSilentState === 'failed') { showGcalReconnectPrompt(email); return; }
+  _gcalSilentState = 'pending';
+  const fail = () => { _gcalSilentState = 'failed'; showGcalReconnectPrompt(email); };
   const attempt = () => {
-    if (!window.google?.accounts?.oauth2) { showGcalReconnectPrompt(email); return; }
-    makeTokenClient(email, 'none', (resp) => {
-      if (resp.error) { showGcalReconnectPrompt(email); return; }
-      saveGcalToken(resp.access_token, email);
-    }).requestAccessToken({ prompt: 'none' });
+    if (!window.google?.accounts?.oauth2) { fail(); return; }
+    try {
+      makeTokenClient(email, 'none', (resp) => {
+        if (resp.error || !resp.access_token) { fail(); return; }
+        saveGcalToken(resp.access_token, email);
+      }, fail).requestAccessToken({ prompt: 'none' });
+    } catch (e) { fail(); }
   };
   if (window.google?.accounts?.oauth2) {
     attempt();
   } else {
     // Google API 비동기 로드 완료 대기 (최대 6초)
     const tid = setInterval(() => { if (window.google?.accounts?.oauth2) { clearInterval(tid); attempt(); } }, 300);
-    setTimeout(() => { clearInterval(tid); if (!gcalToken) showGcalReconnectPrompt(email); }, 6000);
+    setTimeout(() => { clearInterval(tid); if (!gcalToken && _gcalSilentState === 'pending') fail(); }, 6000);
   }
 }
 
@@ -7865,18 +7878,20 @@ function gcalAutoReconnect() {
       if (resp.error === 'interaction_required' || resp.error === 'access_denied') { tryAuth(''); return; }
       if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
       saveGcalToken(resp.access_token, email);
-    }).requestAccessToken({ prompt: pr });
+    }, () => { if (pr === 'none') tryAuth(''); }).requestAccessToken({ prompt: pr });
   };
   tryAuth('none');
 }
 
-function makeTokenClient(email, pr, callback) {
+function makeTokenClient(email, pr, callback, errorCallback) {
   return google.accounts.oauth2.initTokenClient({
     client_id: GCAL_CLIENT_ID,
     scope: GCAL_SCOPE,
     ...(email && { login_hint: email }),
     prompt: pr,
     callback,
+    // 팝업 차단·사용자 닫기 등은 callback이 아니라 error_callback으로 온다
+    error_callback: errorCallback || (() => {}),
   });
 }
 
@@ -7890,7 +7905,7 @@ function gcalEnsureToken(onReady) {
       if (resp.error) { toast('Google 연동 실패: ' + resp.error, 'error'); return; }
       saveGcalToken(resp.access_token, email || '');
       onReady();
-    }).requestAccessToken({ prompt: pr });
+    }, () => { if (pr === 'none') tryAuth(''); }).requestAccessToken({ prompt: pr });
   };
   tryAuth(email ? 'none' : '');
 }
@@ -7923,6 +7938,7 @@ function connectGoogleCalendarWithEmail() {
 
 function disconnectGoogleCalendar() {
   gcalToken = null;
+  _gcalSilentState = 'idle';
   gcalEvents = [];
   gcalCalendars = [];
   gmailToken = null;
