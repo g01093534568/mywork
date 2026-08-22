@@ -295,6 +295,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
 .section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
 .section-badge-green{color:var(--green);background:rgba(59,201,138,0.12);border:1px solid rgba(59,201,138,0.28);}
+/* 개인목표 탭 — 집중 보기 */
+.pg-focus-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.pg-focus-stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;min-width:100px;}
+.pg-focus-stat-num{font-size:22px;font-weight:800;color:var(--green);line-height:1.15;}
+.pg-focus-stat-label{font-size:11px;color:var(--t3);margin-top:3px;}
+.pg-focus-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:12px;}
+.pg-focus-card{background:var(--card);border:1px solid rgba(59,201,138,0.28);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;}
+.pg-focus-card.unlinked{border-color:var(--border);}
+.pg-focus-title{font-size:14px;font-weight:700;color:var(--t1);word-break:keep-all;line-height:1.45;}
+.pg-focus-link{font-size:11px;color:var(--t3);word-break:keep-all;line-height:1.4;margin-top:5px;}
+.pg-focus-kpi{font-size:12px;color:var(--t2);word-break:keep-all;line-height:1.5;margin-top:5px;}
+.pg-focus-foot{display:flex;gap:4px;margin-top:10px;justify-content:flex-end;}
+@media(max-width:600px){.pg-focus-grid{grid-template-columns:1fr;}}
 /* 개인 성과목표 인라인 카드 (전략과제 안) */
 .pg-inline-card{background:rgba(59,201,138,0.09);border:1px solid rgba(59,201,138,0.28);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
 .pg-inline-title{font-size:12px;font-weight:700;color:var(--green);margin-bottom:5px;word-break:keep-all;line-height:1.4;}
@@ -1111,12 +1124,23 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <span class="hb-icon">🔔</span><span class="hb-text"></span><span class="hb-cta">AI에게 묻기 →</span>
       </div>
 
-      <div class="section-title">📌 조직 목표 체계</div>
-      <div class="org-goals-wrap" id="org-goals-display">
-        <div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 아직 설정하지 않았습니다</p></div>
+      <div class="personal-tabs" style="margin-bottom:18px">
+        <div class="personal-tab active" id="home-subtab-goals" onclick="switchHomeTab('goals')">📌 목표 체계</div>
+        <div class="personal-tab" id="home-subtab-personal" onclick="switchHomeTab('personal')">👤 개인목표</div>
       </div>
 
-      <div id="facility-goals-display" style="display:none"></div>
+      <div id="home-sub-goals">
+        <div class="section-title">📌 조직 목표 체계</div>
+        <div class="org-goals-wrap" id="org-goals-display">
+          <div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 아직 설정하지 않았습니다</p></div>
+        </div>
+
+        <div id="facility-goals-display" style="display:none"></div>
+      </div>
+
+      <div id="home-sub-personal" style="display:none">
+        <div id="home-personal-display"></div>
+      </div>
 
     </div>
 
@@ -3536,6 +3560,7 @@ async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
   showHomeBriefing();
+  switchHomeTab(_sessionSubTab.home || 'goals');
   const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
   const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${currentUser.사원번호}`;
 
@@ -3554,10 +3579,77 @@ async function renderHome(){
 
   try {
     await renderOrgGoals();
+    if(_sessionSubTab.home==='personal') await renderHomePersonalGoals();
   } catch(e) {
     console.error('[renderHome]', e);
     if(currentPage === 'home') setTimeout(() => renderHome(), 3000);
   }
+}
+
+// 홈 하위 탭: 목표 체계 / 개인목표
+function switchHomeTab(tab){
+  if(tab!=='goals' && tab!=='personal') tab='goals';
+  _sessionSubTab.home = tab;
+  const gt=document.getElementById('home-subtab-goals'), pt=document.getElementById('home-subtab-personal');
+  if(gt) gt.classList.toggle('active', tab==='goals');
+  if(pt) pt.classList.toggle('active', tab==='personal');
+  const g=document.getElementById('home-sub-goals'), p=document.getElementById('home-sub-personal');
+  if(g) g.style.display = tab==='goals' ? '' : 'none';
+  if(p) p.style.display = tab==='personal' ? '' : 'none';
+  if(tab==='personal') renderHomePersonalGoals();
+}
+
+// 개인목표 탭 — 계통도와 달리 전략목표별로 나누지 않고 한 그리드에 펼쳐 보여준다.
+// (계통도 탭에서 연계 구조는 이미 볼 수 있으므로, 여기서는 목표 자체를 크게 본다)
+async function renderHomePersonalGoals(){
+  const wrap=document.getElementById('home-personal-display');
+  if(!wrap) return;
+  if(!wrap.innerHTML.trim()) wrap.innerHTML='<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
+  const [org, goals]=await Promise.all([DB.getOrg(), DB.getPersonalGoals(currentUser.사원번호)]);
+  const taskNames=(org?.전략과제||[]).map(t=>t.과제);
+  const addBtn=`<button class="btn btn-sm btn-secondary" style="border-color:rgba(59,201,138,0.4);color:var(--green)" onclick="openPersonalGoalModal()">+ 개인목표 추가</button>`;
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:6px">
+    <span class="section-badge section-badge-green">👤 개인 성과목표</span>${addBtn}
+  </div>`;
+
+  if(!goals.length){
+    wrap.innerHTML = html + `<div class="empty-state"><div class="icon">🎯</div><p>등록된 개인 성과목표가 없습니다. 위 버튼으로 추가해 보세요!</p></div>`;
+    return;
+  }
+
+  const avg=Math.round(goals.reduce((a,g)=>a+(g.progress||0),0)/goals.length);
+  const done=goals.filter(g=>(g.progress||0)>=100).length;
+  html+=`<div class="pg-focus-stats">
+    <div class="pg-focus-stat"><div class="pg-focus-stat-num">${goals.length}</div><div class="pg-focus-stat-label">전체 목표</div></div>
+    <div class="pg-focus-stat"><div class="pg-focus-stat-num">${avg}%</div><div class="pg-focus-stat-label">평균 진행률</div></div>
+    <div class="pg-focus-stat"><div class="pg-focus-stat-num">${done}</div><div class="pg-focus-stat-label">달성 완료</div></div>
+  </div>`;
+
+  // 연계된 목표 먼저, 미연계는 뒤로 — 진행률 낮은 순(손이 더 필요한 것)이 앞
+  const sorted=[...goals].sort((a,b)=>{
+    const la=a.linked&&taskNames.includes(a.linked)?0:1, lb=b.linked&&taskNames.includes(b.linked)?0:1;
+    if(la!==lb) return la-lb;
+    return (a.progress||0)-(b.progress||0);
+  });
+  html+=`<div class="pg-focus-grid">`;
+  sorted.forEach(pg=>{
+    const kpis=Array.isArray(pg.kpis)&&pg.kpis.length?pg.kpis:(pg.kpi?[pg.kpi]:[]);
+    const linked=pg.linked&&taskNames.includes(pg.linked);
+    const prog=pg.progress||0;
+    html+=`<div class="pg-focus-card${linked?'':' unlinked'}">
+      <div class="pg-focus-title">👤 ${esc(pg.goal)}</div>
+      <div class="pg-focus-link">${linked?`↳ 연계 전략과제: ${esc(pg.linked)}`:'연계된 전략과제 없음'}</div>
+      ${kpis.map(k=>`<div class="pg-focus-kpi">📊 ${esc(k)}</div>`).join('')}
+      <div class="progress-bar-wrap" style="margin-top:auto;padding-top:12px"><div class="progress-bar"><div class="progress-fill" style="width:${prog}%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div></div>
+      <div style="font-size:11px;color:var(--green);text-align:right;margin-top:4px;font-weight:700">${prog}%</div>
+      <div class="pg-focus-foot">
+        <button class="btn btn-ghost btn-sm" onclick="openPersonalGoalModal('${pg.id}')">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="deletePersonalGoal('${pg.id}')">🗑️</button>
+      </div>
+    </div>`;
+  });
+  html+=`</div>`;
+  wrap.innerHTML=html;
 }
 
 async function renderFacilityGoals(){ /* rendered inside renderOrgGoals */ }
@@ -3695,6 +3787,8 @@ async function renderOrgGoals(){
 
 async function renderPersonalGoals(){
   await renderOrgGoals();
+  // 개인목표 탭이 열려 있으면 그쪽도 함께 갱신
+  if(_sessionSubTab.home==='personal') await renderHomePersonalGoals();
 }
 
 // ═══════════════════════════════════════════════
