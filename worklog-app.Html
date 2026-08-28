@@ -541,7 +541,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-day-name{padding:8px 4px;text-align:center;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);}
 .gcal-day-name:first-child{color:var(--red);}
 .gcal-day-name:last-child{color:var(--blue);}
-.gcal-cell{height:110px;padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;vertical-align:top;position:relative;overflow:hidden;}
+.gcal-cell{height:136px;padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;vertical-align:top;position:relative;overflow:hidden;}
 .gcal-cell:hover{background:rgba(255,255,255,0.03);}
 .gcal-cell:nth-child(7n){border-right:none;}
 .gcal-cell.other-month{opacity:0.35;}
@@ -550,9 +550,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .gcal-cell:first-child .gcal-date-num,.gcal-cell:nth-child(7n+1) .gcal-date-num{color:var(--red);}
 .gcal-cell:nth-child(7n) .gcal-date-num{color:var(--blue);}
 .gcal-cell.today .gcal-date-num{color:#1a1000 !important;}
-.gcal-chip{font-size:11px;font-weight:500;padding:2px 6px;border-radius:3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:filter 0.15s;}
+.gcal-chip{font-size:11px;line-height:14px;font-weight:500;padding:2px 6px;border-radius:3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:filter 0.15s;}
 .gcal-chip:hover{filter:brightness(1.3);}
-.gcal-more{font-size:10px;color:var(--t3);padding:1px 4px;}
+.gcal-more{font-size:10px;line-height:12px;color:var(--t3);padding:1px 4px;border-radius:3px;cursor:pointer;transition:var(--tr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gcal-more:hover{color:var(--t1);background:rgba(255,255,255,0.08);}
+/* 하루 전체 일정 팝업 (+N개 클릭) */
+.gcal-day-popup{width:280px;max-width:calc(100vw - 16px);}
+.gcal-day-list{max-height:240px;overflow-y:auto;margin:0 -4px;}
+.gcal-day-row{display:flex;align-items:center;gap:7px;padding:6px;border-radius:5px;cursor:pointer;transition:background 0.12s;}
+.gcal-day-row:hover{background:rgba(255,255,255,0.06);}
+.gcal-day-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.gcal-day-time{font-size:11px;color:var(--t3);flex-shrink:0;width:34px;}
+.gcal-day-title{font-size:12px;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gcal-day-del{background:transparent;color:var(--t3);font-size:11px;padding:2px 5px;border-radius:4px;flex-shrink:0;}
+.gcal-day-del:hover{color:var(--red);background:rgba(224,85,85,0.12);}
 .gcal-event-popup{position:fixed;z-index:2000;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;min-width:220px;max-width:300px;animation:slideUp 0.15s ease;}
 .gcal-popup-title{font-size:14px;font-weight:700;color:var(--t1);margin-bottom:4px;word-break:break-all;}
 .gcal-popup-time{font-size:12px;color:var(--t2);margin-bottom:12px;}
@@ -3404,6 +3415,16 @@ let gcalViewYear = new Date().getFullYear();
 let gcalViewMonth = new Date().getMonth();
 let gcalEvents = [];
 let gcalPopupEl = null;
+let gcalEventsByDate = {};  // 'YYYY-MM-DD' → 그날 일정 전체 (+N개 팝업용)
+// 한 칸에 그릴 최대 칩 수 — .gcal-cell 높이(136px)에 맞춘 값. 넘치면 '+N개 더보기'
+const GCAL_CHIPS_PER_CELL = 4;
+// 종일 일정을 먼저, 그 다음 시작 시각순
+function gcalCompareEvents(a, b) {
+  const aAll = !!a.start.date, bAll = !!b.start.date;
+  if (aAll !== bAll) return aAll ? -1 : 1;
+  const at = a.start.dateTime || '', bt = b.start.dateTime || '';
+  return at.localeCompare(bt);
+}
 let gcalAutoRefreshTimer = null;
 let gcalRenderGen = 0;
 
@@ -8145,9 +8166,12 @@ function buildCalendarCells(y, m, events) {
       cur.setDate(cur.getDate() + 1);
     }
   });
+  // 시간순 정렬 후 팝업에서 재사용 — 칸에는 앞 4개만 그려지므로 나머지는 여기서만 볼 수 있다
+  Object.values(eventsByDate).forEach(list => list.sort(gcalCompareEvents));
+  gcalEventsByDate = eventsByDate;
 
-  const renderChips = (dayEvs) => {
-    const chips = dayEvs.slice(0, 3).map(ev => {
+  const renderChips = (dayEvs, dateStr) => {
+    const chips = dayEvs.slice(0, GCAL_CHIPS_PER_CELL).map(ev => {
       const allDay = !!ev.start.date;
       const timeStr = allDay ? '' : ev.start.dateTime?.substring(11,16) || '';
       const label = ev._isContinue
@@ -8158,7 +8182,8 @@ function buildCalendarCells(y, m, events) {
       const opacity = ev._isContinue ? 'opacity:0.7;' : '';
       return `<div class="gcal-chip" style="background:${bg};color:${fg};${opacity}" onclick="onGcalEventClick(event,'${ev.id}')" title="${esc(ev._calName||'')} · ${esc(ev.summary||'')}">${esc(label)}</div>`;
     }).join('');
-    const more = dayEvs.length > 3 ? `<div class="gcal-more">+${dayEvs.length - 3}개</div>` : '';
+    const hidden = dayEvs.length - GCAL_CHIPS_PER_CELL;
+    const more = hidden > 0 ? `<div class="gcal-more" onclick="onGcalMoreClick(event,'${dateStr}')" title="이 날의 일정 전체 보기">+${hidden}개 더보기</div>` : '';
     return chips + more;
   };
 
@@ -8173,7 +8198,7 @@ function buildCalendarCells(y, m, events) {
     const dateStr = `${prevYear}-${String(prevMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayEvs = eventsByDate[dateStr] || [];
     cells += `<div class="gcal-cell other-month" onclick="onGcalDateClick('${dateStr}',event)">
-      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs)}</div>`;
+      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs, dateStr)}</div>`;
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -8181,14 +8206,14 @@ function buildCalendarCells(y, m, events) {
     const isToday = cellDate.getTime() === today.getTime();
     const dayEvs = eventsByDate[dateStr] || [];
     cells += `<div class="gcal-cell${isToday?' today':''}" onclick="onGcalDateClick('${dateStr}',event)">
-      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs)}</div>`;
+      <div class="gcal-date-num">${d}</div>${renderChips(dayEvs, dateStr)}</div>`;
   }
   const remaining = (7 - (firstDay + daysInMonth) % 7) % 7;
   for (let i = 1; i <= remaining; i++) {
     const dateStr = `${nextYear}-${String(nextMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
     const dayEvs = eventsByDate[dateStr] || [];
     cells += `<div class="gcal-cell other-month" onclick="onGcalDateClick('${dateStr}',event)">
-      <div class="gcal-date-num">${i}</div>${renderChips(dayEvs)}</div>`;
+      <div class="gcal-date-num">${i}</div>${renderChips(dayEvs, dateStr)}</div>`;
   }
   grid.insertAdjacentHTML('beforeend', cells);
 }
@@ -8251,6 +8276,7 @@ function openGcalAddForm(dateStr) {
 
 function onGcalDateClick(dateStr, e) {
   if (e.target.classList.contains('gcal-chip')) return;
+  if (e.target.classList.contains('gcal-more')) return;
   hideGcalPopup();
   gcalEnsureToken(() => openGcalAddForm(dateStr));
 }
@@ -8260,6 +8286,57 @@ function openGcalModal() {
 }
 
 /* ── 이벤트 클릭 → 수정/삭제 팝업 ── */
+function onGcalMoreClick(e, dateStr) {
+  e.stopPropagation();   // 칸 클릭(=일정 추가 폼)으로 번지지 않게
+  showGcalDayPopup(e.currentTarget, dateStr);
+}
+
+// 그날 일정 전체를 목록으로 — 칸에 다 못 그린 일정을 여기서 본다
+function showGcalDayPopup(anchorEl, dateStr) {
+  hideGcalPopup();
+  const evs = gcalEventsByDate[dateStr] || [];
+  const d = new Date(dateStr + 'T00:00:00');
+  const label = `${d.getMonth() + 1}월 ${d.getDate()}일 (${['일','월','화','수','목','금','토'][d.getDay()]})`;
+
+  const rows = evs.map(ev => {
+    const allDay = !!ev.start.date;
+    const t = allDay ? '종일' : (ev.start.dateTime?.substring(11, 16) || '');
+    const cont = ev._isContinue ? '▶ ' : '';
+    return `<div class="gcal-day-row" onclick="openEditGcalModal('${ev.id}')" title="${esc(ev._calName || '')} · ${esc(ev.summary || '')}">
+      <span class="gcal-day-dot" style="background:${ev._calColor || '#3d8ef0'}"></span>
+      <span class="gcal-day-time">${esc(t)}</span>
+      <span class="gcal-day-title">${cont}${esc(ev.summary || '(제목 없음)')}</span>
+      <button class="gcal-day-del" onclick="event.stopPropagation();deleteGcalEvent('${ev.id}')" title="삭제">🗑</button>
+    </div>`;
+  }).join('');
+
+  gcalPopupEl = document.createElement('div');
+  gcalPopupEl.className = 'gcal-event-popup gcal-day-popup';
+  gcalPopupEl.onclick = (ev) => ev.stopPropagation();   // 목록 스크롤·조작 중 닫히지 않게
+  gcalPopupEl.innerHTML = `
+    <div class="gcal-popup-title">${esc(label)}</div>
+    <div class="gcal-popup-time">일정 ${evs.length}개</div>
+    <div class="gcal-day-list">${rows || '<div style="font-size:12px;color:var(--t3);padding:8px 6px">일정이 없습니다</div>'}</div>
+    <div class="gcal-popup-actions" style="margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="hideGcalPopup();gcalEnsureToken(()=>openGcalAddForm('${dateStr}'))">+ 일정 추가</button>
+    </div>`;
+  document.body.appendChild(gcalPopupEl);
+
+  // position:fixed 기준 → 실제 렌더된 크기로 화면 안에 맞춘다
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = gcalPopupEl.offsetWidth, ph = gcalPopupEl.offsetHeight;
+  let top = rect.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6;   // 아래가 좁으면 위로
+  if (top < 8) top = 8;
+  let left = rect.left;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (left < 8) left = 8;
+  gcalPopupEl.style.left = left + 'px';
+  gcalPopupEl.style.top = top + 'px';
+
+  setTimeout(() => document.addEventListener('click', hideGcalPopup, { once: true }), 0);
+}
+
 function onGcalEventClick(e, eventId) {
   e.stopPropagation();
   hideGcalPopup();
