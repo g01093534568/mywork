@@ -340,6 +340,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .tlp-btn-skip{background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
 /* 일정 → 할 일 프롬프트 (완료→일지와 구분되게 강조색) */
 .todo-log-prompt.gcal{border-color:rgba(232,160,32,0.45);}
+/* 할 일 ↔ 캘린더 연결 표시 */
+.tm-gcal-link{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;padding:10px 12px;border:1px solid rgba(232,160,32,0.35);background:rgba(232,160,32,0.08);border-radius:var(--r);font-size:12px;color:var(--t2);}
+.tm-gcal-link button{margin-left:auto;color:var(--accent);}
+.todo-gcal-badge{font-size:11px;color:var(--accent);flex-shrink:0;}
 .todo-log-prompt.gcal .todo-log-prompt-title{color:var(--accent);}
 .todo-log-prompt-sub{font-size:11px;color:var(--t3);margin-bottom:4px;}
 /* Empty state */
@@ -2313,6 +2317,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group">
       <label>메모</label>
       <textarea id="tm-memo" rows="3" placeholder="추가 메모 (선택)"></textarea>
+    </div>
+    <div id="tm-gcal-link" class="tm-gcal-link" style="display:none">
+      <span>📅 캘린더 일정과 연결됨 — 수정·삭제가 캘린더에도 반영됩니다</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="unlinkTodoFromGcal()">연결 해제</button>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeModal('todo-modal')">취소</button>
@@ -7054,6 +7062,7 @@ async function renderTodos(){
           ${over?'<span class="tag tag-high">⚠️ 마감초과</span>':''}
           ${done?'<span class="tag tag-done">완료</span>':''}
           ${todo.time?`<span style="font-size:11px;color:var(--accent)">🕐 ${esc(todo.time)}</span>`:''}
+          ${todo.gcalEventId?'<span class="todo-gcal-badge" title="캘린더 일정과 연결됨 — 수정·삭제가 캘린더에도 반영됩니다">📅 캘린더</span>':''}
           ${todo.dueDate&&!todo.isRecurring?`<span style="font-size:11px;color:var(--t3)">~${fmtDate(todo.dueDate)}</span>`:''}
         </div>
         <div class="todo-m-card-actions">
@@ -7073,7 +7082,7 @@ async function renderTodos(){
       <td><div class="check-btn ${done?'checked':''}" onclick="toggleTodoDone('${todo.id}')"></div></td>
       <td class="todo-title-cell" style="text-align:left">
         <div class="todo-title-text ${done?'done':''}" onclick="openTodoModal('${todo.id}')">${esc(todo.title)}</div>
-        ${todo.time?`<div style="font-size:11px;color:var(--accent);margin-top:2px">🕐 ${esc(todo.time)}</div>`:''}
+        ${todo.time?`<div style="font-size:11px;color:var(--accent);margin-top:2px">🕐 ${esc(todo.time)}${todo.gcalEventId?' <span class="todo-gcal-badge" title="캘린더 일정과 연결됨">📅</span>':''}</div>`:(todo.gcalEventId?'<div class="todo-gcal-badge" style="margin-top:2px" title="캘린더 일정과 연결됨 — 수정·삭제가 캘린더에도 반영됩니다">📅 캘린더 연결</div>':'')}
         ${recurringLabel}
         ${todo.memo?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(todo.memo.substring(0,60))}${todo.memo.length>60?'…':''}</div>`:''}
       </td>
@@ -7122,10 +7131,13 @@ function showTodoLogPrompt(todo, date){
       <input type="text" id="tlp-time" placeholder="시간 (예: 09:00~10:30)" />
     </div>
     <div class="todo-log-prompt-actions">
-      <button class="tlp-btn-skip" onclick="this.closest('.todo-log-prompt').remove()">건너뛰기</button>
-      <button class="tlp-btn-add" onclick="confirmTodoToLog('${esc(todo.id)}','${esc(todo.title)}','${date}')">업무일지 추가</button>
+      <button class="tlp-btn-skip">건너뛰기</button>
+      <button class="tlp-btn-add">업무일지 추가</button>
     </div>`;
   document.body.appendChild(el);
+  // esc()는 작은따옴표를 막지 않는다 — 제목에 '가 있으면 onclick 문자열이 깨졌었다
+  el.querySelector('.tlp-btn-skip').onclick = () => el.remove();
+  el.querySelector('.tlp-btn-add').onclick = () => confirmTodoToLog(todo.id, todo.title, date);
   el.querySelector('#tlp-time').focus();
   // 8초 후 자동 닫힘
   setTimeout(()=>{ if(el.parentNode){ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }},8000);
@@ -7141,6 +7153,28 @@ async function confirmTodoToLog(todoId, todoTitle, date){
     toast('업무일지에 추가되었습니다 ✓');
     if(currentPage==='daily') await renderDailyActivities(date);
   }catch(e){ toast('추가에 실패했습니다','error'); console.error(e); }
+}
+
+function _setTodoGcalLinkUI(linked){
+  const el=document.getElementById('tm-gcal-link');
+  if(el) el.style.display = linked ? 'flex' : 'none';
+}
+
+// 연결만 끊는다 — 할 일도 캘린더 일정도 지우지 않고, 이후로 서로 따라다니지 않게만 한다
+async function unlinkTodoFromGcal(){
+  const id=document.getElementById('todo-edit-id').value;
+  if(!id) return;
+  if(!await confirmDialog('캘린더 연결을 해제할까요?\n할 일과 일정은 그대로 남고, 앞으로 서로 반영되지 않습니다.','연결 해제')) return;
+  try{
+    const todos=await DB.getTodos(currentUser.사원번호);
+    const todo=todos.find(t=>t.id===id);
+    if(!todo) return;
+    await DB.upsertTodo(currentUser.사원번호,{...todo,gcalEventId:'',gcalCalId:''});
+    _setTodoGcalLinkUI(false);
+    await renderTodos();
+    if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
+    toast('캘린더 연결을 해제했습니다');
+  }catch(e){ toast('연결 해제에 실패했습니다','error'); console.error(e); }
 }
 
 async function openTodoModal(id){
@@ -7161,6 +7195,7 @@ async function openTodoModal(id){
     document.getElementById('tm-end-time').value=_tt.end;
     document.getElementById('tm-memo').value=todo.memo||'';
     setRecurringDays(todo.recurringDays||[]);
+    _setTodoGcalLinkUI(!!(todo.gcalEventId && todo.gcalCalId));
   } else {
     document.getElementById('todo-modal-title').textContent='할 일 추가';
     document.getElementById('todo-edit-id').value='';
@@ -7172,6 +7207,7 @@ async function openTodoModal(id){
     document.getElementById('tm-due').value='';
     document.getElementById('tm-start-time').value='';
     document.getElementById('tm-end-time').value='';
+    _setTodoGcalLinkUI(false);
     document.getElementById('tm-memo').value='';
     setRecurringDays([]);
   }
