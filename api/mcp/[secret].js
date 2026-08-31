@@ -87,6 +87,7 @@ const PRIORITY_LABEL = { high: '높음', mid: '중간', low: '낮음' };
 function formatTodo(t, date) {
   const done = isDoneOnDate(t, date);
   const bits = [t.category || '업무', PRIORITY_LABEL[t.priority] || '중간'];
+  if (t.time_range) bits.push(t.time_range);
   if (t.due_date) bits.push(`마감 ${t.due_date}`);
   if (t.is_recurring) bits.push('반복');
   return `${done ? '[완료]' : '[ ]'} ${t.title} (${bits.join(' · ')})`;
@@ -158,6 +159,8 @@ const TOOLS = [
         priority: { type: 'string', enum: ['high', 'mid', 'low'], description: '기본 mid' },
         startDate: { type: 'string', description: 'YYYY-MM-DD 시작일' },
         dueDate: { type: 'string', description: 'YYYY-MM-DD 마감일' },
+        startTime: { type: 'string', description: '시작 시각 HH:MM (예: 09:00)' },
+        endTime: { type: 'string', description: '종료 시각 HH:MM (예: 10:30)' },
         memo: { type: 'string', description: '메모' },
       },
       required: ['title'],
@@ -291,6 +294,7 @@ async function runTool(name, input, ctx) {
         status: 'todo',
         start_date: input.startDate || null,
         due_date: input.dueDate || null,
+        time_range: [input.startTime, input.endTime].filter(Boolean).join('~'),
         memo: input.memo || '',
         is_recurring: false,
         recurring_days: [],
@@ -298,7 +302,8 @@ async function runTool(name, input, ctx) {
         completed_date: null,
       };
       await sb('todos', { method: 'POST', body: JSON.stringify(row) });
-      return `추가했습니다 — ${row.title}` + (row.due_date ? ` (마감 ${row.due_date})` : '');
+      const detail = [row.time_range, row.due_date && `마감 ${row.due_date}`].filter(Boolean).join(' · ');
+      return `추가했습니다 — ${row.title}` + (detail ? ` (${detail})` : '');
     }
 
     case 'complete_todo': {

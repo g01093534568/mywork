@@ -2962,10 +2962,10 @@ function _ownerId(){ return currentUser?.id || '_none'; }
 // DATA CONVERTERS (App <-> Supabase)
 // ═══════════════════════════════════════════════
 function todoToDb(todo, 사원번호) {
-  return { id:todo.id, 사원번호, owner_id:_ownerId(), title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
+  return { id:todo.id, 사원번호, owner_id:_ownerId(), title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, time_range:todo.time||'', memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
 }
 function dbToTodo(r) {
-  return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
+  return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, time:r.time_range||'', memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
 }
 function _normTime(s){ s=s.trim(); if(!s) return s; return s.split('~').map(t=>{ t=t.trim(); if(/^\d{4}$/.test(t)) return t.slice(0,2)+':'+t.slice(2); if(/^\d{3}$/.test(t)) return t[0]+':'+t.slice(1); return t; }).join('~'); }
 function activityToDb(a, 사원번호, date) {
@@ -7377,6 +7377,7 @@ async function renderDailyTodos(date){
         <div class="daily-swipe-bg"><span class="swipe-hint-done">✓ ${doneToday?'완료 취소':'완료'}</span><span class="swipe-hint-del">삭제 🗑</span></div>
         <div class="daily-todo-item" data-id="${t.id}" data-date="${date}">
         <div class="check-btn ${doneToday?'checked':''}" onclick="toggleTodoDone('${t.id}','${date}')"></div>
+        ${t.time?`<span style="font-size:11px;color:var(--accent);flex-shrink:0;margin-right:6px">${esc(t.time)}</span>`:''}
         <span style="${doneToday?'text-decoration:line-through;color:var(--t3);':''}flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
         <span class="tag tag-${t.priority}" style="margin-left:6px;flex-shrink:0">${priLabel[t.priority]||'-'}</span>
         <div class="daily-todo-actions" style="display:flex;gap:2px;margin-left:4px;flex-shrink:0">
@@ -8686,11 +8687,11 @@ function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime) {
 }
 
 async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, el) {
-  const { time } = _gcalSpanLabel(startDate, endDate, startTime, endTime);
   const todo = {
-    // 일정 기간을 그대로 옮긴다 — 시작일이 미래면 그날이 돼야 '오늘 할 일'에 뜬다(todayVisible)
+    // 일정의 기간·시간대를 그대로 옮긴다.
+    // 시작일이 미래면 그날이 돼야 '오늘 할 일'에 뜬다(todayVisible)
     id: uid(), title, category: '업무', priority: 'mid', status: 'todo',
-    startDate, dueDate: endDate, memo: `📅 캘린더 일정 · ${time}`,
+    startDate, dueDate: endDate, time: combineTimeRange(startTime, endTime), memo: '',
     isRecurring: false, recurringDays: [], completedDates: [], completedDate: null,
   };
   try {
