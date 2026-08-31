@@ -2947,23 +2947,31 @@ const DEFAULT_ORG = {
 };
 
 // ═══════════════════════════════════════════════
+// 소유자 키
+// ═══════════════════════════════════════════════
+// 사원번호는 유일하지 않다 — 091111 하나를 8개 계정이, 111111을 2개 계정이 나눠 쓴다.
+// 개인 데이터(할 일·업무일지·목표·자산·운동·독서·단어)는 users.id로 소유자를 가른다.
+// 캐시 키와 실시간 구독 필터도 전부 이 값을 기준으로 맞춘다.
+function _ownerId(){ return currentUser?.id || '_none'; }
+
+// ═══════════════════════════════════════════════
 // DATA CONVERTERS (App <-> Supabase)
 // ═══════════════════════════════════════════════
 function todoToDb(todo, 사원번호) {
-  return { id:todo.id, 사원번호, title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
+  return { id:todo.id, 사원번호, owner_id:_ownerId(), title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
 }
 function dbToTodo(r) {
   return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
 }
 function _normTime(s){ s=s.trim(); if(!s) return s; return s.split('~').map(t=>{ t=t.trim(); if(/^\d{4}$/.test(t)) return t.slice(0,2)+':'+t.slice(2); if(/^\d{3}$/.test(t)) return t[0]+':'+t.slice(1); return t; }).join('~'); }
 function activityToDb(a, 사원번호, date) {
-  return { id:a.id, 사원번호, log_date:date, title:a.title, time_range:_normTime(a.time||''), linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
+  return { id:a.id, 사원번호, owner_id:_ownerId(), log_date:date, title:a.title, time_range:_normTime(a.time||''), linked_task:a.linked||'', content:a.content||'', reflection:a.reflection||'' };
 }
 function dbToActivity(r) {
   return { id:r.id, title:r.title, time:_normTime(r.time_range||''), linked:r.linked_task||'', content:r.content||'', reflection:r.reflection||'', createdAt:r.created_at||'' };
 }
 function pgToDb(g, 사원번호) {
-  return { id:g.id, 사원번호, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked:g.linked||'' };
+  return { id:g.id, 사원번호, owner_id:_ownerId(), goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked:g.linked||'' };
 }
 function dbToPg(r) {
   return { id:r.id, goal:r.goal, kpis:r.kpis||[], kpi:(r.kpis||[])[0]||'', progress:r.progress||0, linked:r.linked||'' };
@@ -2975,19 +2983,19 @@ function dbToFg(r) {
   return { id:r.id, goal:r.goal, kpis:r.kpis||[], kpi:(r.kpis||[])[0]||'', progress:r.progress||0, linkedStrategyGoal:r.linked_strategy_goal||'', linkedStrategyTask:r.linked_strategy_task||'' };
 }
 function stockToDb(s, 사원번호) {
-  return { id:s.id, 사원번호, name:s.name, ticker:s.ticker||'', current_price:s.currentPrice||0, prev_close:s.prevClose||0 };
+  return { id:s.id, 사원번호, owner_id:_ownerId(), name:s.name, ticker:s.ticker||'', current_price:s.currentPrice||0, prev_close:s.prevClose||0 };
 }
 function dbToStock(r) {
   return { id:r.id, name:r.name, ticker:r.ticker||'', currentPrice:Number(r.current_price)||0, prevClose:Number(r.prev_close)||0 };
 }
 function tradeToDb(t, 사원번호) {
-  return { id:t.id, 사원번호, stock_id:t.stockId||'', stock_name:t.stockName, ticker:t.ticker||'', trade_date:t.date, type:t.type, qty:t.qty, price:t.price, fee:t.fee||0, memo:t.memo||'', created_at:t.createdAt||new Date().toISOString() };
+  return { id:t.id, 사원번호, owner_id:_ownerId(), stock_id:t.stockId||'', stock_name:t.stockName, ticker:t.ticker||'', trade_date:t.date, type:t.type, qty:t.qty, price:t.price, fee:t.fee||0, memo:t.memo||'', created_at:t.createdAt||new Date().toISOString() };
 }
 function dbToTrade(r) {
   return { id:r.id, stockId:r.stock_id||'', stockName:r.stock_name, ticker:r.ticker||'', date:r.trade_date, type:r.type, qty:Number(r.qty), price:Number(r.price), fee:Number(r.fee)||0, memo:r.memo||'', createdAt:r.created_at };
 }
 function fundToDb(f, 사원번호) {
-  return { id:f.id, 사원번호, name:f.name, fund_type:f.type||'', principal:f.principal||0, valuation:f.valuation||0, start_date:f.startDate||null, memo:f.memo||'' };
+  return { id:f.id, 사원번호, owner_id:_ownerId(), name:f.name, fund_type:f.type||'', principal:f.principal||0, valuation:f.valuation||0, start_date:f.startDate||null, memo:f.memo||'' };
 }
 function dbToFund(r) {
   return { id:r.id, name:r.name, type:r.fund_type||'', principal:Number(r.principal)||0, valuation:Number(r.valuation)||0, startDate:r.start_date||'', memo:r.memo||'' };
@@ -3028,30 +3036,30 @@ const DB = {
   async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; _cd('org'); },
 
   async getTodos(uid){
-    const k=`todos:${uid}`;
+    const k=`todos:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('todos').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTodo));
+    const {data,error}=await SB.from('todos').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTodo));
   },
-  async upsertTodo(uid,todo){ const {error}=await SB.from('todos').upsert(todoToDb(todo,uid)); if(error)throw error; _cd(`todos:${uid}`); },
-  async deleteTodo(id){ const {error}=await SB.from('todos').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`todos:${currentUser.사원번호}`); },
+  async upsertTodo(uid,todo){ const {error}=await SB.from('todos').upsert(todoToDb(todo,uid)); if(error)throw error; _cd(`todos:${_ownerId()}`); },
+  async deleteTodo(id){ const {error}=await SB.from('todos').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`todos:${_ownerId()}`); },
 
   async getDailyActivities(uid,date){
-    const k=`act:${uid}:${date}`;
+    const k=`act:${_ownerId()}:${date}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('daily_logs').select('*').eq('사원번호',uid).eq('log_date',date).order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToActivity));
+    const {data,error}=await SB.from('daily_logs').select('*').eq('owner_id',_ownerId()).eq('log_date',date).order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToActivity));
   },
-  async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; _cd(`act:${uid}:${date}`); },
-  async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; if(currentUser){ Object.keys(_C).filter(k=>k.startsWith(`act:${currentUser.사원번호}:`)).forEach(k=>delete _C[k]); } },
+  async upsertActivity(uid,date,a){ const {error}=await SB.from('daily_logs').upsert(activityToDb(a,uid,date)); if(error)throw error; _cd(`act:${_ownerId()}:${date}`); },
+  async deleteActivity(id){ const {error}=await SB.from('daily_logs').delete().eq('id',id); if(error)throw error; if(currentUser){ Object.keys(_C).filter(k=>k.startsWith(`act:${_ownerId()}:`)).forEach(k=>delete _C[k]); } },
 
   async getPersonalGoals(uid){
-    const k=`pg:${uid}`;
+    const k=`pg:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
     try {
-      const {data,error}=await SB.from('personal_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToPg));
+      const {data,error}=await SB.from('personal_goals').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToPg));
     } catch(e){ console.error('[DB.getPersonalGoals]',e); return []; }
   },
-  async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; _cd(`pg:${uid}`); },
-  async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`pg:${currentUser.사원번호}`); },
+  async upsertPersonalGoal(uid,g){ const {error}=await SB.from('personal_goals').upsert(pgToDb(g,uid)); if(error)throw error; _cd(`pg:${_ownerId()}`); },
+  async deletePersonalGoal(id){ const {error}=await SB.from('personal_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`pg:${_ownerId()}`); },
 
   async getFacilityGoals(facility){
     const k=`fg:${facility}`;
@@ -3064,49 +3072,49 @@ const DB = {
   async deleteFacilityGoal(id){ const {error}=await SB.from('facility_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`fg:${currentUser.시설명}`); },
 
   async getStocks(uid){
-    const k=`stocks:${uid}`;
+    const k=`stocks:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('stocks').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToStock));
+    const {data,error}=await SB.from('stocks').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToStock));
   },
-  async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; _cd(`stocks:${uid}`); },
-  async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`stocks:${currentUser.사원번호}`); },
+  async upsertStock(uid,s){ const {error}=await SB.from('stocks').upsert(stockToDb(s,uid)); if(error)throw error; _cd(`stocks:${_ownerId()}`); },
+  async deleteStock(id){ const {error}=await SB.from('stocks').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`stocks:${_ownerId()}`); },
 
   async getFunds(uid){
-    const k=`funds:${uid}`;
+    const k=`funds:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('funds').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFund));
+    const {data,error}=await SB.from('funds').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToFund));
   },
-  async upsertFund(uid,f){ const {error}=await SB.from('funds').upsert(fundToDb(f,uid)); if(error)throw error; _cd(`funds:${uid}`); },
-  async deleteFund(id){ const {error}=await SB.from('funds').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`funds:${currentUser.사원번호}`); },
+  async upsertFund(uid,f){ const {error}=await SB.from('funds').upsert(fundToDb(f,uid)); if(error)throw error; _cd(`funds:${_ownerId()}`); },
+  async deleteFund(id){ const {error}=await SB.from('funds').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`funds:${_ownerId()}`); },
 
   async getTrades(uid){
-    const k=`trades:${uid}`;
+    const k=`trades:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('trades').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTrade));
+    const {data,error}=await SB.from('trades').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToTrade));
   },
-  async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; _cd(`trades:${uid}`); },
-  async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`trades:${currentUser.사원번호}`); },
+  async upsertTrade(uid,t){ const {error}=await SB.from('trades').upsert(tradeToDb(t,uid)); if(error)throw error; _cd(`trades:${_ownerId()}`); },
+  async deleteTrade(id){ const {error}=await SB.from('trades').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`trades:${_ownerId()}`); },
 
   async getAnnualGoals(uid){
-    const k=`ag:${uid}`;
+    const k=`ag:${_ownerId()}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('annual_goals').select('*').eq('사원번호',uid); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToAg));
+    const {data,error}=await SB.from('annual_goals').select('*').eq('owner_id',_ownerId()); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToAg));
   },
-  async upsertAnnualGoal(uid,g){ const {error}=await SB.from('annual_goals').upsert(agToDb(g,uid)); if(error)throw error; _cd(`ag:${uid}`); },
-  async deleteAnnualGoal(id){ const {error}=await SB.from('annual_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`ag:${currentUser.사원번호}`); },
+  async upsertAnnualGoal(uid,g){ const {error}=await SB.from('annual_goals').upsert(agToDb(g,uid)); if(error)throw error; _cd(`ag:${_ownerId()}`); },
+  async deleteAnnualGoal(id){ const {error}=await SB.from('annual_goals').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`ag:${_ownerId()}`); },
   async getExercises(uid,type){
-    const k=`ex:${uid}:${type}`;
+    const k=`ex:${_ownerId()}:${type}`;
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('exercises').select('*').eq('사원번호',uid).eq('type',type).order('date',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToExercise));
+    const {data,error}=await SB.from('exercises').select('*').eq('owner_id',_ownerId()).eq('type',type).order('date',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToExercise));
   },
-  async upsertExercise(uid,ex){ const {error}=await SB.from('exercises').upsert(exerciseToDb(ex,uid)); if(error)throw error; _cd(`ex:${uid}:${ex.type}`); },
-  async deleteExercise(id,uid,type){ const {error}=await SB.from('exercises').delete().eq('id',id); if(error)throw error; _cd(`ex:${uid}:${type}`); },
-  async getBooks(uid){ const k=`books:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('books').select('*').eq('사원번호',uid).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToBook)); },
-  async upsertBook(uid,b){ const {error}=await SB.from('books').upsert(bookToDb(b,uid)); if(error)throw error; _cd(`books:${uid}`); },
-  async deleteBook(id){ const {error}=await SB.from('books').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`books:${currentUser.사원번호}`); },
+  async upsertExercise(uid,ex){ const {error}=await SB.from('exercises').upsert(exerciseToDb(ex,uid)); if(error)throw error; _cd(`ex:${_ownerId()}:${ex.type}`); },
+  async deleteExercise(id,uid,type){ const {error}=await SB.from('exercises').delete().eq('id',id); if(error)throw error; _cd(`ex:${_ownerId()}:${type}`); },
+  async getBooks(uid){ const k=`books:${_ownerId()}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('books').select('*').eq('owner_id',_ownerId()).order('created_at',{ascending:false}); if(error){console.error(error);return[];} return _cs(k,(data||[]).map(dbToBook)); },
+  async upsertBook(uid,b){ const {error}=await SB.from('books').upsert(bookToDb(b,uid)); if(error)throw error; _cd(`books:${_ownerId()}`); },
+  async deleteBook(id){ const {error}=await SB.from('books').delete().eq('id',id); if(error)throw error; if(currentUser) _cd(`books:${_ownerId()}`); },
   // ── 영어공부 단어 학습 진행 (사원별 1행, data: { [dayIdx]: [학습한 단어 인덱스] }) ──
-  async getVocabProgress(uid){ const k=`vocab:${uid}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('vocab_progress').select('data').eq('사원번호',uid).maybeSingle(); if(error){console.error('[vocab]',error.message);return _cs(k,{});} return _cs(k,(data&&data.data)||{}); },
-  async saveVocabProgress(uid,map){ const {error}=await SB.from('vocab_progress').upsert({사원번호:uid,data:map,updated_at:new Date().toISOString()}); if(error)throw error; _cd(`vocab:${uid}`); },
+  async getVocabProgress(uid){ const k=`vocab:${_ownerId()}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('vocab_progress').select('data').eq('owner_id',_ownerId()).maybeSingle(); if(error){console.error('[vocab]',error.message);return _cs(k,{});} return _cs(k,(data&&data.data)||{}); },
+  async saveVocabProgress(uid,map){ const {error}=await SB.from('vocab_progress').upsert({owner_id:_ownerId(),사원번호:uid,data:map,updated_at:new Date().toISOString()},{onConflict:'owner_id'}); if(error)throw error; _cd(`vocab:${_ownerId()}`); },
   // ── AI 지식자료 (전체 공용) ──
   async getKnowledge(){ const k='knowledge:all'; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('knowledge_sources').select('*').order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
   async addKnowledge(uid,src){ const obj={title:src.title,src_type:src.src_type||'file',content:src.content||'',uploaded_by:uid,created_at:new Date().toISOString()}; const {error}=await SB.from('knowledge_sources').insert(obj); if(error)throw error; _cd('knowledge:all'); },
@@ -3133,57 +3141,59 @@ function _rtDebounce(fn) {
 
 function startRealtimeSync() {
   if (_rtChannel) return;
-  const uid = currentUser.사원번호;
+  // 개인 테이블 구독은 소유자(users.id) 기준 — 사원번호로 걸면 같은 번호를 쓰는
+  // 다른 계정의 변경까지 받아버린다. 캐시 키도 같은 값으로 맞춰져 있다.
+  const uid = _ownerId();
   const facility = currentUser.시설명;
 
   _rtChannel = SB.channel('worklog-rt-' + uid)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs', filter: `사원번호=eq.${uid}` }, () => {
-      Object.keys(_C).filter(k => k.startsWith(`act:${uid}:`)).forEach(k => delete _C[k]);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs', filter: `owner_id=eq.${uid}` }, () => {
+      Object.keys(_C).filter(k => k.startsWith(`act:${_ownerId()}:`)).forEach(k => delete _C[k]);
       if (currentPage === 'daily') _rtDebounce(renderDailyPage);
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`todos:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`todos:${_ownerId()}`);
       if (currentPage === 'todo') _rtDebounce(renderTodos);
       else if (currentPage === 'daily') _rtDebounce(() => renderDailyTodos());
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_goals', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`pg:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_goals', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`pg:${_ownerId()}`);
       if (currentPage === 'personal') _rtDebounce(renderPersonalGoals);
       else if (currentPage === 'home') _rtDebounce(renderHome);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'vocab_progress', filter: `사원번호=eq.${uid}` }, () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'vocab_progress', filter: `owner_id=eq.${uid}` }, () => {
       if (Date.now() - _vocabSelfWriteAt < 5000) return; // 본인 저장 echo는 무시 — 캐시 무효화로 인한 체크 초기화 방지
-      _cd(`vocab:${uid}`); _vocabMap = null; // 다른 기기 변경 → 캐시 비우고 최신 재로딩
+      _cd(`vocab:${_ownerId()}`); _vocabMap = null; // 다른 기기 변경 → 캐시 비우고 최신 재로딩
       if (currentPage === 'personal' && document.getElementById('personal-english')?.classList.contains('active')) _rtDebounce(() => renderEnglishStudy());
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'books', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`books:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'books', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`books:${_ownerId()}`);
       if (currentPage === 'personal' && document.getElementById('personal-books')?.classList.contains('active')) _rtDebounce(renderBooksTab);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`ex:${uid}:golf`, `ex:${uid}:running`, `ex:${uid}:running_race`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`ex:${_ownerId()}:golf`, `ex:${_ownerId()}:running`, `ex:${_ownerId()}:running_race`);
       if (currentPage === 'personal' && document.getElementById('personal-exercise')?.classList.contains('active')) _rtDebounce(renderExerciseTab);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'knowledge_sources' }, () => {
       _cd('knowledge:all'); // 전체 공용 — 관리자 업로드 시 즉시 반영
       if (document.getElementById('ks-list-body')) _rtDebounce(ksRenderList);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'annual_goals', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`ag:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'annual_goals', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`ag:${_ownerId()}`);
       if (currentPage === 'personal') _rtDebounce(renderAnnualGoals);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'stocks', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`stocks:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stocks', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`stocks:${_ownerId()}`);
       if (currentPage === 'personal') _rtDebounce(() => Promise.all([renderStocks(), renderTrades()]));
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`trades:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`trades:${_ownerId()}`);
       if (currentPage === 'personal') _rtDebounce(() => Promise.all([renderStocks(), renderTrades()]));
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'funds', filter: `사원번호=eq.${uid}` }, () => {
-      _cd(`funds:${uid}`);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'funds', filter: `owner_id=eq.${uid}` }, () => {
+      _cd(`funds:${_ownerId()}`);
       if (currentPage === 'personal') _rtDebounce(renderFunds);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'org_goals' }, () => {
@@ -3633,7 +3643,7 @@ async function renderHome(){
   showHomeBriefing();
   switchHomeTab(_sessionSubTab.home || 'goals');
   const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
-  const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${currentUser.사원번호}`;
+  const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${_ownerId()}`;
 
   // 새로고침 시 sessionStorage → _C 복원 (즉시 렌더링용)
   if(!_C[k_org]) try{ const s=sessionStorage.getItem('_wlc_'+k_org); if(s) _C[k_org]=JSON.parse(s); }catch(e){}
@@ -4000,7 +4010,7 @@ function dbToExercise(d){
   };
 }
 function exerciseToDb(ex, uid){
-  const obj={사원번호:uid,type:ex.type,date:ex.date,location:ex.location||'',score:ex.score||null,distance:ex.distance||null,duration:ex.duration||null,memo:ex.memo||'',updated_at:new Date().toISOString()};
+  const obj={사원번호:uid,owner_id:_ownerId(),type:ex.type,date:ex.date,location:ex.location||'',score:ex.score||null,distance:ex.distance||null,duration:ex.duration||null,memo:ex.memo||'',updated_at:new Date().toISOString()};
   if(ex.id) obj.id=ex.id;
   return obj;
 }
@@ -4322,7 +4332,7 @@ async function saveGolfPractice(btnEl){
       updated_at:new Date().toISOString()
     });
     if(error) throw error;
-    _cd(`ex:${currentUser.사원번호}:golf`);
+    _cd(`ex:${_ownerId()}:golf`);
     if(document.getElementById('golf-prac-memo')) document.getElementById('golf-prac-memo').value='';
     if(document.getElementById('golf-prac-location')) document.getElementById('golf-prac-location').value='';
     if(document.getElementById('golf-prac-edit-id')) document.getElementById('golf-prac-edit-id').value='';
@@ -4660,7 +4670,7 @@ function updateTodayRunningPace(){
 // BOOKS
 // ═══════════════════════════════════════════════
 function dbToBook(d){ return {id:d.id,title:d.title,author:d.author,startDate:d.start_date||'',endDate:d.end_date||'',coverUrl:d.cover_url||'',status:d.status||'읽는중',rating:d.rating||0,memo:d.memo||''}; }
-function bookToDb(b,uid){ const obj={사원번호:uid,title:b.title,author:b.author,start_date:b.startDate||null,end_date:b.endDate||null,cover_url:b.coverUrl||null,status:b.status||'읽는중',rating:b.rating||null,memo:b.memo||null,updated_at:new Date().toISOString()}; if(b.id) obj.id=b.id; return obj; }
+function bookToDb(b,uid){ const obj={사원번호:uid,owner_id:_ownerId(),title:b.title,author:b.author,start_date:b.startDate||null,end_date:b.endDate||null,cover_url:b.coverUrl||null,status:b.status||'읽는중',rating:b.rating||null,memo:b.memo||null,updated_at:new Date().toISOString()}; if(b.id) obj.id=b.id; return obj; }
 
 let _books=[], _bookFilter='all', _bookRating=0;
 
@@ -5590,7 +5600,7 @@ function dbToAg(d){
   };
 }
 function agToDb(g,uid){
-  const obj={사원번호:uid,year:g.year,category:g.category,title:g.title,description:g.desc||'',target:JSON.stringify(g.targets||[]),progress:g.progress||0,status:g.status||'진행중',updated_at:new Date().toISOString()};
+  const obj={사원번호:uid,owner_id:_ownerId(),year:g.year,category:g.category,title:g.title,description:g.desc||'',target:JSON.stringify(g.targets||[]),progress:g.progress||0,status:g.status||'진행중',updated_at:new Date().toISOString()};
   if(g.id) obj.id=g.id;
   return obj;
 }

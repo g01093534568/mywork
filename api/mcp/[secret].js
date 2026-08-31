@@ -99,7 +99,7 @@ function formatTodo(t, date) {
 let _userCache = null;
 async function getUser(empno, facility) {
   if (_userCache) return _userCache;
-  let path = `users?사원번호=eq.${q(empno)}&select=사원번호,성명,시설명,role`;
+  let path = `users?사원번호=eq.${q(empno)}&select=id,사원번호,성명,시설명,role`;
   if (facility) path += `&시설명=eq.${q(facility)}`;
   const rows = await sb(path);
   if (!rows || !rows.length) {
@@ -238,8 +238,8 @@ const TOOLS = [
 /* ── 도구 실행 ───────────────────────────────────────────────── */
 
 // 키워드로 할 일 찾기 — 정확히 하나여야 수정한다.
-async function findTodoByKeyword(empno, keyword) {
-  const rows = await sb(`todos?사원번호=eq.${q(empno)}&select=*`);
+async function findTodoByKeyword(user, keyword) {
+  const rows = await sb(`todos?owner_id=eq.${q(user.id)}&select=*`);
   const kw = keyword.toLowerCase();
   const hits = (rows || []).filter(t => (t.title || '').toLowerCase().includes(kw));
   if (!hits.length) return { error: `"${keyword}"에 해당하는 할 일이 없습니다` };
@@ -258,7 +258,7 @@ async function runTool(name, input, ctx) {
   switch (name) {
     case 'list_todos': {
       const status = input.status || 'all';
-      const rows = (await sb(`todos?사원번호=eq.${q(empno)}&select=*`)) || [];
+      const rows = (await sb(`todos?owner_id=eq.${q(user.id)}&select=*`)) || [];
       const date = todayKST();
       let list = rows;
       if (input.onlyToday) list = list.filter(t => visibleOnDate(t, date));
@@ -270,7 +270,7 @@ async function runTool(name, input, ctx) {
     }
 
     case 'search_todos': {
-      const rows = (await sb(`todos?사원번호=eq.${q(empno)}&select=*`)) || [];
+      const rows = (await sb(`todos?owner_id=eq.${q(user.id)}&select=*`)) || [];
       const kw = (input.keyword || '').toLowerCase();
       const date = todayKST();
       const hits = rows.filter(t =>
@@ -284,6 +284,7 @@ async function runTool(name, input, ctx) {
       const row = {
         id: crypto.randomUUID(),
         사원번호: empno,
+        owner_id: user.id,
         title: input.title,
         category: input.category || '업무',
         priority: input.priority || 'mid',
@@ -301,7 +302,7 @@ async function runTool(name, input, ctx) {
     }
 
     case 'complete_todo': {
-      const found = await findTodoByKeyword(empno, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword);
       if (found.error) return found.error;
       const t = found.todo;
       const date = input.date || todayKST();
@@ -314,7 +315,7 @@ async function runTool(name, input, ctx) {
 
     case 'update_todo_due': {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate || '')) return '마감일은 YYYY-MM-DD 형식이어야 합니다';
-      const found = await findTodoByKeyword(empno, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword);
       if (found.error) return found.error;
       const t = found.todo;
       await sb(`todos?id=eq.${q(t.id)}`, { method: 'PATCH', body: JSON.stringify({ due_date: input.dueDate }) });
@@ -324,7 +325,7 @@ async function runTool(name, input, ctx) {
     case 'get_daily_logs': {
       const date = input.date || todayKST();
       const rows = (await sb(
-        `daily_logs?사원번호=eq.${q(empno)}&log_date=eq.${q(date)}&select=*`)) || [];
+        `daily_logs?owner_id=eq.${q(user.id)}&log_date=eq.${q(date)}&select=*`)) || [];
       if (!rows.length) return `${date} 에 기록된 일지가 없습니다`;
       return `[${date} 업무일지 ${rows.length}건]\n` + rows.map(a =>
         `• ${a.time_range ? a.time_range + ' ' : ''}${a.title}` +
@@ -338,6 +339,7 @@ async function runTool(name, input, ctx) {
       const row = {
         id: crypto.randomUUID(),
         사원번호: empno,
+        owner_id: user.id,
         log_date: date,
         title: input.title,
         time_range: input.time || '',
@@ -353,7 +355,7 @@ async function runTool(name, input, ctx) {
       const scope = input.scope || 'all';
       const out = [];
       if (scope === 'all' || scope === 'personal') {
-        const rows = (await sb(`personal_goals?사원번호=eq.${q(empno)}&select=*`)) || [];
+        const rows = (await sb(`personal_goals?owner_id=eq.${q(user.id)}&select=*`)) || [];
         out.push(rows.length
           ? '[개인 성과목표]\n' + rows.map(g =>
               `• ${g.goal} — ${g.progress || 0}%` +
@@ -373,7 +375,7 @@ async function runTool(name, input, ctx) {
     }
 
     case 'weekly_report': {
-      const rows = (await sb(`todos?사원번호=eq.${q(empno)}&select=*`)) || [];
+      const rows = (await sb(`todos?owner_id=eq.${q(user.id)}&select=*`)) || [];
       const base = todayKST();
       const dow = (new Date(base + 'T00:00:00Z').getUTCDay() + 6) % 7;   // 월요일=0
       const monday = shiftDate(base, -dow);
