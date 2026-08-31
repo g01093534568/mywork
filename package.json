@@ -1,0 +1,9 @@
+{
+  "name": "worklog-app",
+  "private": true,
+  "type": "module",
+  "description": "정적 앱(worklog-app.Html) + Vercel 서버리스 함수. 빌드 스텝 없음 — 이 의존성은 api/ 함수에서만 쓴다.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  }
+}
