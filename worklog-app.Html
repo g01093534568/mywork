@@ -325,7 +325,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 /* Custom confirm dialog */
 .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:10000;animation:fadeIn 0.15s ease;}
 .confirm-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:24px 28px;max-width:360px;width:90%;box-shadow:var(--shadow);animation:slideUp 0.2s ease;}
-.confirm-msg{font-size:14px;color:var(--t1);margin-bottom:20px;line-height:1.6;}
+.confirm-msg{font-size:14px;color:var(--t1);margin-bottom:20px;line-height:1.6;white-space:pre-line;}
 .confirm-actions{display:flex;gap:10px;justify-content:flex-end;}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 /* Todo→Log mini prompt */
@@ -7296,10 +7296,41 @@ async function swipeDeleteActivity(id){
   }catch(e){ toast('삭제에 실패했습니다','error'); console.error(e); await renderDailyActivities(date); }
 }
 
+// ── 할 일 ↔ 캘린더 일정: 한쪽을 지우면 다른 쪽도 지운다 ──
+async function _findTodo(id){
+  try{ return (await DB.getTodos(currentUser.사원번호)).find(t=>t.id===id)||null; }
+  catch(e){ console.error('[_findTodo]',e); return null; }
+}
+// 캘린더 일정이 딸린 할 일이면 확인 문구에 그 사실을 밝힌다
+function _confirmTodoDelete(todo){
+  const linked = !!(todo && todo.gcalEventId && todo.gcalCalId);
+  return confirmDialog(linked ? '연결된 캘린더 일정도 함께 삭제됩니다.\n삭제하시겠습니까?' : '삭제하시겠습니까?');
+}
+// 할 일에 연결된 구글 일정 삭제. 실패해도 할 일 삭제는 그대로 진행한다.
+async function deleteLinkedGcalEvent(todo){
+  if(!todo || !todo.gcalEventId || !todo.gcalCalId) return;
+  if(!gcalToken){ toast('구글 연동이 안 돼 있어 캘린더 일정은 남아 있습니다','error'); return; }
+  try{
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(todo.gcalCalId)}/events/${encodeURIComponent(todo.gcalEventId)}`,
+      { method:'DELETE', headers:{ 'Authorization': `Bearer ${gcalToken}` } });
+    if(res.status===404 || res.status===410) return;   // 캘린더에서 이미 사라진 일정
+    if(res.status!==204 && !res.ok){ toast('캘린더 일정 삭제 실패 ('+res.status+')','error'); return; }
+    if(currentPage==='daily') renderCustomCalendar();
+  }catch(e){ toast('캘린더 일정 삭제 중 네트워크 오류','error'); console.error('[deleteLinkedGcalEvent]',e); }
+}
+// 이 일정에서 만들어진 할 일들
+async function _todosLinkedToEvent(eventId){
+  try{ return (await DB.getTodos(currentUser.사원번호)).filter(t=>t.gcalEventId===eventId); }
+  catch(e){ console.error('[_todosLinkedToEvent]',e); return []; }
+}
+
 // 스와이프 삭제 — 확인 후 삭제, 취소 시 카드 복원
 async function swipeDeleteTodo(id){
-  if(!await confirmDialog('삭제하시겠습니까?')){ await renderTodos(); return; }
+  const _todo = await _findTodo(id);
+  if(!await _confirmTodoDelete(_todo)){ await renderTodos(); return; }
   try{
+    await deleteLinkedGcalEvent(_todo);
     await DB.deleteTodo(id);
     if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
     await renderTodos();
@@ -7308,9 +7339,11 @@ async function swipeDeleteTodo(id){
 }
 
 async function deleteTodo(id){
-  if(!await confirmDialog('삭제하시겠습니까?')) return;
+  const _todo = await _findTodo(id);
+  if(!await _confirmTodoDelete(_todo)) return;
   await fadeOutEl(document.querySelector(`#todo-tbody tr[data-id="${id}"], #todo-cards [data-id="${id}"], .daily-todo-item[data-id="${id}"]`));
   try{
+    await deleteLinkedGcalEvent(_todo);
     await DB.deleteTodo(id);
     if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
     await renderTodos();
@@ -8587,7 +8620,11 @@ async function saveEditGcalEvent() {
 /* ── 삭제 ── */
 async function deleteGcalEvent(eventId) {
   hideGcalPopup();
-  if (!await confirmDialog('이 일정을 삭제할까요?', '삭제')) return;
+  const linkedTodos = await _todosLinkedToEvent(eventId);
+  const msg = linkedTodos.length
+    ? `이 일정에서 만든 할 일 ${linkedTodos.length}건도 함께 삭제됩니다.\n이 일정을 삭제할까요?`
+    : '이 일정을 삭제할까요?';
+  if (!await confirmDialog(msg, '삭제')) return;
   const ev = gcalEvents.find(x => x.id === eventId);
   const calId = ev?._calId || 'primary';
   try {
@@ -8596,8 +8633,17 @@ async function deleteGcalEvent(eventId) {
       headers: { 'Authorization': `Bearer ${gcalToken}` },
     });
     if (res.status !== 204 && !res.ok) { toast('삭제 실패: ' + res.status, 'error'); return; }
-    toast('일정이 삭제됐습니다.');
+    // 이 일정에서 만든 할 일도 함께 정리
+    for (const t of linkedTodos) {
+      try { await DB.deleteTodo(t.id); } catch(e) { console.error('[deleteGcalEvent→todo]', e); }
+    }
+    toast(linkedTodos.length ? `일정과 할 일 ${linkedTodos.length}건이 삭제됐습니다.` : '일정이 삭제됐습니다.');
     renderCustomCalendar();
+    if (linkedTodos.length) {
+      if (currentPage === 'daily') { const _d = document.getElementById('daily-date').value || today(); renderDailyTodos(_d); }
+      else if (currentPage === 'todo') renderTodos();
+      else if (currentPage === 'home') renderHome();
+    }
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
 }
 
