@@ -338,6 +338,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .todo-log-prompt-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end;}
 .tlp-btn-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;}
 .tlp-btn-skip{background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
+/* 일정 → 할 일 프롬프트 (완료→일지와 구분되게 강조색) */
+.todo-log-prompt.gcal{border-color:rgba(232,160,32,0.45);}
+.todo-log-prompt.gcal .todo-log-prompt-title{color:var(--accent);}
+.todo-log-prompt-sub{font-size:11px;color:var(--t3);margin-bottom:4px;}
 /* Empty state */
 .empty-state{text-align:center;padding:40px 20px;color:var(--t3);}
 .empty-state .icon{font-size:36px;margin-bottom:10px;}
@@ -8622,6 +8626,10 @@ async function addGcalEvent() {
     end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
   }
 
+  // 어느 캘린더에 넣는지 — 이름으로 판단하므로 모달을 닫기 전에 읽어둔다
+  const calSel = document.getElementById('gcal-cal-select');
+  const calName = calSel?.options[calSel.selectedIndex]?.text || '';
+
   const event = { summary: title, ...(desc && { description: desc }), ...(location && { location }), start, end };
   try {
     const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, {
@@ -8641,7 +8649,48 @@ async function addGcalEvent() {
     const [ey, em] = startDate.split('-').map(Number);
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
+    // '업무' 캘린더에 넣은 일정은 할 일로도 챙겨야 하는 경우가 많다 — 물어보고 넣는다
+    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate);
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
+}
+
+// 일정 추가 직후 뜨는 확인 카드. 완료→업무일지 프롬프트와 같은 자리·같은 모양이되 색으로 구분한다.
+// 제목에 따옴표가 섞여도 깨지지 않도록 onclick 문자열 대신 클로저로 묶는다.
+function showGcalTodoPrompt(title, dueDate) {
+  document.querySelectorAll('.todo-log-prompt').forEach(el => el.remove());
+  const el = document.createElement('div');
+  el.className = 'todo-log-prompt gcal';
+  el.innerHTML = `
+    <div class="todo-log-prompt-title">📅 일정 추가됨 — 할 일 목록에도 넣을까요?</div>
+    <div class="todo-log-prompt-item" title="${esc(title)}">${esc(title)}</div>
+    <div class="todo-log-prompt-sub">마감일 ${esc(dueDate)} · 분류 업무</div>
+    <div class="todo-log-prompt-actions">
+      <button class="tlp-btn-skip">나중에</button>
+      <button class="tlp-btn-add">할 일 추가</button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.tlp-btn-skip').onclick = () => el.remove();
+  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, dueDate, el);
+  // 완료→일지 프롬프트와 같은 방식으로 자동 정리 (조금 더 길게)
+  setTimeout(() => {
+    if (el.parentNode) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
+  }, 12000);
+}
+
+async function confirmGcalToTodo(title, dueDate, el) {
+  const todo = {
+    id: uid(), title, category: '업무', priority: 'mid', status: 'todo',
+    startDate: null, dueDate, memo: '', isRecurring: false,
+    recurringDays: [], completedDates: [], completedDate: null,
+  };
+  try {
+    await DB.upsertTodo(currentUser.사원번호, todo);
+    el?.remove();
+    toast('할 일에 추가되었습니다 ✓');
+    if (currentPage === 'todo') renderTodos();
+    else if (currentPage === 'daily') renderDailyTodos();
+    else if (currentPage === 'home') renderHome();
+  } catch(e) { toast('할 일 추가에 실패했습니다', 'error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
