@@ -8590,14 +8590,16 @@ async function saveEditGcalEvent() {
   if (endDate < startDate) { toast('종료 날짜가 시작 날짜보다 앞설 수 없습니다.', 'error'); return; }
 
   let start, end;
+  let effEndTime = endTime;   // 종료 시간을 비우면 +1시간 — 연결된 할 일에도 같은 값을 쓴다
+  let effEndDate = endDate;
   if (startTime) {
     start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Asia/Seoul' };
-    if (endTime) {
-      end = { dateTime: `${endDate}T${endTime}:00`, timeZone: 'Asia/Seoul' };
-    } else {
+    if (!effEndTime) {
       const [h, mm] = startTime.split(':').map(Number);
-      end = { dateTime: `${endDate}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
+      effEndTime = `${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+      if (h + 1 >= 24) effEndDate = gcalEndDateToApi(effEndDate);   // 23시대 → 다음 날
     }
+    end = { dateTime: `${effEndDate}T${effEndTime}:00`, timeZone: 'Asia/Seoul' };
   } else {
     start = { date: startDate };
     end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
@@ -8614,7 +8616,33 @@ async function saveEditGcalEvent() {
     closeModal('gcal-edit-modal');
     toast('일정이 수정됐습니다.');
     renderCustomCalendar();
+    // 이 일정에서 만든 할 일이 있으면 같이 맞춘다 (반대 방향은 syncTodoToGcal)
+    syncGcalEventToTodos(eventId, { title, startDate, endDate, startTime, endTime: effEndTime });
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
+}
+
+// 캘린더 → 할 일. 캘린더에 있는 값(제목·기간·시간대)만 덮어쓰고
+// 분류·우선순위·메모·완료 상태는 할 일 쪽 값을 그대로 둔다.
+async function syncGcalEventToTodos(eventId, { title, startDate, endDate, startTime, endTime }) {
+  const linked = await _todosLinkedToEvent(eventId);
+  if (!linked.length) return;
+  const time = combineTimeRange(startTime, endTime) || '';
+  try {
+    for (const t of linked) {
+      // 반복 할 일로 바꿔둔 것은 날짜가 없어야 하므로 제목·시간만 맞춘다
+      const next = t.isRecurring
+        ? { ...t, title, time }
+        : { ...t, title, time, startDate, dueDate: endDate };
+      await DB.upsertTodo(currentUser.사원번호, next);
+    }
+    toast(`연결된 할 일 ${linked.length}건도 수정했습니다 ✓`);
+    if (currentPage === 'daily') { const _d = document.getElementById('daily-date').value || today(); renderDailyTodos(_d); }
+    else if (currentPage === 'todo') renderTodos();
+    else if (currentPage === 'home') renderHome();
+  } catch(e) {
+    toast('연결된 할 일 수정에 실패했습니다', 'error');
+    console.error('[syncGcalEventToTodos]', e);
+  }
 }
 
 /* ── 삭제 ── */
