@@ -8613,14 +8613,14 @@ async function addGcalEvent() {
   if (endDate < startDate) { toast('종료 날짜가 시작 날짜보다 앞설 수 없습니다.', 'error'); return; }
 
   let start, end;
+  let effEndTime = endTime;   // 종료 시간을 비우면 +1시간 — 할 일 메모에도 같은 값을 쓴다
   if (startTime) {
     start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Asia/Seoul' };
-    if (endTime) {
-      end = { dateTime: `${endDate}T${endTime}:00`, timeZone: 'Asia/Seoul' };
-    } else {
+    if (!effEndTime) {
       const [h, mm] = startTime.split(':').map(Number);
-      end = { dateTime: `${endDate}T${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`, timeZone: 'Asia/Seoul' };
+      effEndTime = `${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
     }
+    end = { dateTime: `${endDate}T${effEndTime}:00`, timeZone: 'Asia/Seoul' };
   } else {
     start = { date: startDate };
     end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
@@ -8650,38 +8650,48 @@ async function addGcalEvent() {
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
     // '업무' 캘린더에 넣은 일정은 할 일로도 챙겨야 하는 경우가 많다 — 물어보고 넣는다
-    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate);
+    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate, endDate, startTime, effEndTime);
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
 }
 
 // 일정 추가 직후 뜨는 확인 카드. 완료→업무일지 프롬프트와 같은 자리·같은 모양이되 색으로 구분한다.
 // 제목에 따옴표가 섞여도 깨지지 않도록 onclick 문자열 대신 클로저로 묶는다.
-function showGcalTodoPrompt(title, dueDate) {
+// 할 일은 날짜(start_date/due_date)만 담는다 → 시각은 라벨로 만들어 메모에 남긴다
+function _gcalSpanLabel(startDate, endDate, startTime, endTime) {
+  const period = startDate === endDate ? startDate : `${startDate} ~ ${endDate}`;
+  const time = startTime ? `${startTime}${endTime ? '~' + endTime : ''}` : '종일';
+  return { period, time };
+}
+
+function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime) {
   document.querySelectorAll('.todo-log-prompt').forEach(el => el.remove());
+  const { period, time } = _gcalSpanLabel(startDate, endDate, startTime, endTime);
   const el = document.createElement('div');
   el.className = 'todo-log-prompt gcal';
   el.innerHTML = `
     <div class="todo-log-prompt-title">📅 일정 추가됨 — 할 일 목록에도 넣을까요?</div>
     <div class="todo-log-prompt-item" title="${esc(title)}">${esc(title)}</div>
-    <div class="todo-log-prompt-sub">마감일 ${esc(dueDate)} · 분류 업무</div>
+    <div class="todo-log-prompt-sub">${esc(period)} · ${esc(time)} · 분류 업무</div>
     <div class="todo-log-prompt-actions">
       <button class="tlp-btn-skip">나중에</button>
       <button class="tlp-btn-add">할 일 추가</button>
     </div>`;
   document.body.appendChild(el);
   el.querySelector('.tlp-btn-skip').onclick = () => el.remove();
-  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, dueDate, el);
+  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, startDate, endDate, startTime, endTime, el);
   // 완료→일지 프롬프트와 같은 방식으로 자동 정리 (조금 더 길게)
   setTimeout(() => {
     if (el.parentNode) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
   }, 12000);
 }
 
-async function confirmGcalToTodo(title, dueDate, el) {
+async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, el) {
+  const { time } = _gcalSpanLabel(startDate, endDate, startTime, endTime);
   const todo = {
+    // 일정 기간을 그대로 옮긴다 — 시작일이 미래면 그날이 돼야 '오늘 할 일'에 뜬다(todayVisible)
     id: uid(), title, category: '업무', priority: 'mid', status: 'todo',
-    startDate: null, dueDate, memo: '', isRecurring: false,
-    recurringDays: [], completedDates: [], completedDate: null,
+    startDate, dueDate: endDate, memo: `📅 캘린더 일정 · ${time}`,
+    isRecurring: false, recurringDays: [], completedDates: [], completedDate: null,
   };
   try {
     await DB.upsertTodo(currentUser.사원번호, todo);
