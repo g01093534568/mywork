@@ -2962,10 +2962,10 @@ function _ownerId(){ return currentUser?.id || '_none'; }
 // DATA CONVERTERS (App <-> Supabase)
 // ═══════════════════════════════════════════════
 function todoToDb(todo, 사원번호) {
-  return { id:todo.id, 사원번호, owner_id:_ownerId(), title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, time_range:todo.time||'', memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
+  return { id:todo.id, 사원번호, owner_id:_ownerId(), title:todo.title, category:todo.category||'업무', priority:todo.priority||'mid', status:todo.status||'todo', start_date:todo.startDate||null, due_date:todo.dueDate||null, time_range:todo.time||'', gcal_event_id:todo.gcalEventId||null, gcal_cal_id:todo.gcalCalId||null, memo:todo.memo||'', is_recurring:!!todo.isRecurring, recurring_days:todo.recurringDays||[], completed_dates:todo.completedDates||[], completed_date:todo.completedDate||null };
 }
 function dbToTodo(r) {
-  return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, time:r.time_range||'', memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
+  return { id:r.id, title:r.title, category:r.category, priority:r.priority, status:r.status, startDate:r.start_date, dueDate:r.due_date, time:r.time_range||'', gcalEventId:r.gcal_event_id||'', gcalCalId:r.gcal_cal_id||'', memo:r.memo||'', isRecurring:r.is_recurring, recurringDays:r.recurring_days||[], completedDates:r.completed_dates||[], completedDate:r.completed_date, createdAt:r.created_at };
 }
 function _normTime(s){ s=s.trim(); if(!s) return s; return s.split('~').map(t=>{ t=t.trim(); if(/^\d{4}$/.test(t)) return t.slice(0,2)+':'+t.slice(2); if(/^\d{3}$/.test(t)) return t[0]+':'+t.slice(1); return t; }).join('~'); }
 function activityToDb(a, 사원번호, date) {
@@ -7203,6 +7203,9 @@ async function saveTodo(){
     if(existing){
       data.completedDates=isRecurring?(existing.completedDates||[]):[];
       data.completedDate=isRecurring?null:existing.completedDate;
+      // 캘린더 연결은 폼에 없는 값이라 편집 때 직접 물려줘야 한다
+      data.gcalEventId=existing.gcalEventId||'';
+      data.gcalCalId=existing.gcalCalId||'';
     }
   } else {
     if(!isRecurring && data.status==='done') data.completedDate=today();
@@ -7213,6 +7216,8 @@ async function saveTodo(){
     if(currentPage==='daily'){ const _d=document.getElementById('daily-date').value||today(); await renderDailyTodos(_d); }
     await renderTodos();
     toast('저장되었습니다');
+    // 캘린더에서 온 할 일이면 일정도 같이 고친다 (실패해도 할 일 저장은 유지)
+    if(data.gcalEventId) syncTodoToGcal(data);
   }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
@@ -7377,7 +7382,6 @@ async function renderDailyTodos(date){
         <div class="daily-swipe-bg"><span class="swipe-hint-done">✓ ${doneToday?'완료 취소':'완료'}</span><span class="swipe-hint-del">삭제 🗑</span></div>
         <div class="daily-todo-item" data-id="${t.id}" data-date="${date}">
         <div class="check-btn ${doneToday?'checked':''}" onclick="toggleTodoDone('${t.id}','${date}')"></div>
-        ${t.time?`<span style="font-size:11px;color:var(--accent);flex-shrink:0;margin-right:6px">${esc(t.time)}</span>`:''}
         <span style="${doneToday?'text-decoration:line-through;color:var(--t3);':''}flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}${t.isRecurring?'<span style="font-size:10px;color:var(--accent);margin-left:4px">🔁</span>':''}</span>
         <span class="tag tag-${t.priority}" style="margin-left:6px;flex-shrink:0">${priLabel[t.priority]||'-'}</span>
         <div class="daily-todo-actions" style="display:flex;gap:2px;margin-left:4px;flex-shrink:0">
@@ -8614,14 +8618,16 @@ async function addGcalEvent() {
   if (endDate < startDate) { toast('종료 날짜가 시작 날짜보다 앞설 수 없습니다.', 'error'); return; }
 
   let start, end;
-  let effEndTime = endTime;   // 종료 시간을 비우면 +1시간 — 할 일 메모에도 같은 값을 쓴다
+  let effEndTime = endTime;   // 종료 시간을 비우면 +1시간 — 할 일 시간 칸에도 같은 값을 쓴다
+  let effEndDate = endDate;
   if (startTime) {
     start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Asia/Seoul' };
     if (!effEndTime) {
       const [h, mm] = startTime.split(':').map(Number);
       effEndTime = `${String((h+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+      if (h + 1 >= 24) effEndDate = gcalEndDateToApi(effEndDate);   // 23시대 → 다음 날
     }
-    end = { dateTime: `${endDate}T${effEndTime}:00`, timeZone: 'Asia/Seoul' };
+    end = { dateTime: `${effEndDate}T${effEndTime}:00`, timeZone: 'Asia/Seoul' };
   } else {
     start = { date: startDate };
     end = { date: gcalEndDateToApi(endDate) }; // 종일: end는 exclusive
@@ -8644,6 +8650,7 @@ async function addGcalEvent() {
       else toast(`오류 ${res.status}: ` + (err.error?.message || '알 수 없는 오류'), 'error');
       return;
     }
+    const created = await res.json().catch(() => ({}));
     closeModal('gcal-modal');
     toast('일정이 추가됐습니다 🎉');
     // 추가한 날짜 달로 이동
@@ -8651,7 +8658,7 @@ async function addGcalEvent() {
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
     // '업무' 캘린더에 넣은 일정은 할 일로도 챙겨야 하는 경우가 많다 — 물어보고 넣는다
-    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate, endDate, startTime, effEndTime);
+    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate, endDate, startTime, effEndTime, created.id, calId);
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
 }
 
@@ -8664,7 +8671,7 @@ function _gcalSpanLabel(startDate, endDate, startTime, endTime) {
   return { period, time };
 }
 
-function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime) {
+function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime, eventId, calId) {
   document.querySelectorAll('.todo-log-prompt').forEach(el => el.remove());
   const { period, time } = _gcalSpanLabel(startDate, endDate, startTime, endTime);
   const el = document.createElement('div');
@@ -8679,19 +8686,76 @@ function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime) {
     </div>`;
   document.body.appendChild(el);
   el.querySelector('.tlp-btn-skip').onclick = () => el.remove();
-  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, startDate, endDate, startTime, endTime, el);
+  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el);
   // 완료→일지 프롬프트와 같은 방식으로 자동 정리 (조금 더 길게)
   setTimeout(() => {
     if (el.parentNode) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
   }, 12000);
 }
 
-async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, el) {
+// 할 일 → 캘린더 되돌려 쓰기. 캘린더가 이해하는 값(제목·기간·시각)만 보낸다.
+// 분류·우선순위·메모는 캘린더에 대응하는 자리가 없어 반영하지 않는다.
+function _todoToGcalTimes(todo) {
+  const startDate = todo.startDate || todo.dueDate;
+  const endDate = todo.dueDate || todo.startDate;
+  if (!startDate || !endDate) return null;          // 반복 할 일 등 날짜가 없으면 기간은 건드리지 않는다
+  const { start: st, end: et } = parseTimeRange(todo.time);
+  if (!st) {
+    return { start: { date: startDate }, end: { date: gcalEndDateToApi(endDate) } };  // 종일
+  }
+  let endT = et, endD = endDate;
+  if (!endT) {                                       // 종료 시각이 없으면 캘린더 추가 때와 같은 +1시간
+    const [h, mm] = st.split(':').map(Number);
+    endT = `${String((h + 1) % 24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    if (h + 1 >= 24) endD = gcalEndDateToApi(endD);  // 23시대 → 다음 날로 넘긴다
+  } else if (endD === startDate && endT <= st) {
+    endD = gcalEndDateToApi(endD);                   // 23:00~01:00 같은 심야 일정
+  }
+  return {
+    start: { dateTime: `${startDate}T${st}:00`, timeZone: 'Asia/Seoul' },
+    end:   { dateTime: `${endD}T${endT}:00`, timeZone: 'Asia/Seoul' },
+  };
+}
+
+async function syncTodoToGcal(todo) {
+  if (!todo.gcalEventId || !todo.gcalCalId) return;
+  if (!gcalToken) { toast('구글 연동이 안 돼 있어 캘린더에는 반영되지 않았습니다', 'error'); return; }
+  const patch = { summary: todo.title };
+  const times = _todoToGcalTimes(todo);
+  if (times) Object.assign(patch, times);
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(todo.gcalCalId)}/events/${encodeURIComponent(todo.gcalEventId)}`,
+      { method: 'PATCH', headers: { 'Authorization': `Bearer ${gcalToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }
+    );
+    if (res.status === 404 || res.status === 410) {
+      // 캘린더에서 이미 지운 일정 — 연결을 끊어 다음 수정부터 헛고생하지 않게 한다
+      await DB.upsertTodo(currentUser.사원번호, { ...todo, gcalEventId: '', gcalCalId: '' });
+      toast('연결된 일정이 캘린더에 없어 연결을 해제했습니다', 'error');
+      return;
+    }
+    if (res.status === 401) {
+      gcalToken = null; sessionStorage.removeItem(_gcalTokenKey()); updateGcalConnectionUI(false, '');
+      toast('구글 인증이 만료돼 캘린더에는 반영되지 않았습니다', 'error');
+      return;
+    }
+    if (!res.ok) { toast('캘린더 반영 실패 (' + res.status + ')', 'error'); return; }
+    toast('캘린더 일정도 수정했습니다 📅');
+    if (currentPage === 'daily' && gcalToken) renderCustomCalendar();
+  } catch(e) {
+    toast('캘린더 반영 중 네트워크 오류', 'error');
+    console.error('[syncTodoToGcal]', e);
+  }
+}
+
+async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el) {
   const todo = {
     // 일정의 기간·시간대를 그대로 옮긴다.
     // 시작일이 미래면 그날이 돼야 '오늘 할 일'에 뜬다(todayVisible)
     id: uid(), title, category: '업무', priority: 'mid', status: 'todo',
     startDate, dueDate: endDate, time: combineTimeRange(startTime, endTime), memo: '',
+    // 어느 일정에서 왔는지 기억해 둔다 — 나중에 할 일을 고치면 캘린더도 같이 고친다
+    gcalEventId: eventId || '', gcalCalId: calId || '',
     isRecurring: false, recurringDays: [], completedDates: [], completedDate: null,
   };
   try {
