@@ -340,6 +340,41 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .tlp-btn-skip{background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
 /* 일정 → 할 일 프롬프트 (완료→일지와 구분되게 강조색) */
 .todo-log-prompt.gcal{border-color:rgba(232,160,32,0.45);}
+/* 사용자 관리 — 피라미드 조직도 */
+.pyr-scroll{overflow-x:auto;padding:18px 8px 8px;}
+.pyr-root{display:flex;justify-content:center;min-width:min-content;}
+.pyr-node{position:relative;display:flex;flex-direction:column;align-items:center;padding:0 8px;}
+/* 부모 → 자식 줄 묶음 */
+.pyr-kids{display:flex;justify-content:center;position:relative;padding-top:20px;min-width:min-content;}
+.pyr-kids::before{content:'';position:absolute;top:0;left:50%;height:20px;border-left:1px solid var(--border);}
+.pyr-kids > .pyr-node{padding-top:20px;}
+/* 형제를 잇는 가로선 */
+.pyr-kids > .pyr-node::before,.pyr-kids > .pyr-node::after{content:'';position:absolute;top:0;width:50%;height:20px;border-top:1px solid var(--border);}
+.pyr-kids > .pyr-node::before{right:50%;}
+.pyr-kids > .pyr-node::after{left:50%;}
+.pyr-kids > .pyr-node:first-child::before,.pyr-kids > .pyr-node:last-child::after{border-top:0;}
+.pyr-kids > .pyr-node:only-child::before,.pyr-kids > .pyr-node:only-child::after{border-top:0;}
+/* 가로선에서 상자로 내려오는 세로선 */
+.pyr-kids > .pyr-node > .pyr-box{position:relative;}
+.pyr-kids > .pyr-node > .pyr-box::before{content:'';position:absolute;top:-20px;left:50%;height:20px;border-left:1px solid var(--border);}
+/* 상자 */
+.pyr-box{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:8px 14px;text-align:center;cursor:pointer;transition:var(--tr);white-space:nowrap;}
+.pyr-box:hover{border-color:var(--accent);background:rgba(232,160,32,0.1);}
+.pyr-name{font-size:12px;font-weight:700;color:var(--t1);}
+.pyr-sub{font-size:10px;color:var(--t3);margin-top:2px;}
+.pyr-box.lv-admin{border-color:rgba(224,85,85,0.5);}
+.pyr-box.lv-fadmin{border-color:rgba(61,142,240,0.5);}
+/* 말단 시설 세로 스택 — 조직도 원본처럼 붙여 쌓는다 */
+.pyr-stack{position:relative;padding-top:20px;display:flex;flex-direction:column;}
+.pyr-stack::before{content:'';position:absolute;top:0;left:50%;height:20px;border-left:1px solid var(--border);}
+.pyr-stack .pyr-box{border-radius:0;margin-top:-1px;}
+.pyr-stack .pyr-box:first-child{border-radius:6px 6px 0 0;margin-top:0;}
+.pyr-stack .pyr-box:last-child{border-radius:0 0 6px 6px;}
+.pyr-stack .pyr-box:only-child{border-radius:6px;}
+.pyr-loose{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);}
+.pyr-loose-title{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;margin-bottom:10px;}
+.pyr-loose-row{display:flex;flex-wrap:wrap;gap:8px;}
+.pyr-hint{font-size:11px;color:var(--t3);margin-bottom:8px;}
 /* 사용자 관리 — 조직도 보기 */
 .org-tree{display:flex;flex-direction:column;gap:4px;}
 .org-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;transition:background 0.12s;min-width:0;}
@@ -1726,11 +1761,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           </label>
           <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 성명,시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
           <div class="gcal-mode-switch" style="margin-left:auto;align-self:center">
-            <button class="gcal-mode-btn active" id="user-view-tree" onclick="setUserView('tree')">🏢 조직도</button>
+            <button class="gcal-mode-btn active" id="user-view-pyramid" onclick="setUserView('pyramid')">🏢 피라미드</button>
+            <button class="gcal-mode-btn" id="user-view-tree" onclick="setUserView('tree')">🌳 목록</button>
             <button class="gcal-mode-btn" id="user-view-table" onclick="setUserView('table')">☰ 표</button>
           </div>
         </div>
-        <div id="user-tree-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;">
+        <div id="user-pyramid-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
+          <div class="pyr-scroll"><div id="user-pyramid"></div></div>
+        </div>
+        <div id="user-tree-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;">
           <div id="user-tree"></div>
         </div>
         <div id="user-table-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
@@ -7858,13 +7897,60 @@ async function _fillParentSelect(selfName, current){
 let _userView = 'tree';
 function _userViewKey(){ return 'wl_user_view_' + (currentUser?.사원번호 || '_g'); }
 function setUserView(v){
-  _userView = (v === 'table') ? 'table' : 'tree';
+  _userView = ['pyramid','tree','table'].includes(v) ? v : 'pyramid';
   try{ localStorage.setItem(_userViewKey(), _userView); }catch(e){}
-  const tw=document.getElementById('user-tree-wrap'), bw=document.getElementById('user-table-wrap');
-  if(tw) tw.style.display = _userView==='tree' ? '' : 'none';
-  if(bw) bw.style.display = _userView==='table' ? '' : 'none';
-  document.getElementById('user-view-tree')?.classList.toggle('active', _userView==='tree');
-  document.getElementById('user-view-table')?.classList.toggle('active', _userView==='table');
+  const wraps={pyramid:'user-pyramid-wrap', tree:'user-tree-wrap', table:'user-table-wrap'};
+  Object.entries(wraps).forEach(([k,id])=>{
+    const el=document.getElementById(id); if(el) el.style.display = (_userView===k) ? '' : 'none';
+    document.getElementById('user-view-'+k)?.classList.toggle('active', _userView===k);
+  });
+}
+
+// 피라미드 조직도 — 조직도 원본처럼 상위는 가로로 펼치고,
+// 아랫조직이 없는 말단 시설끼리는 세로로 붙여 쌓는다(그러지 않으면 폭이 감당이 안 된다).
+function _renderOrgPyramid(users){
+  const names=new Set(users.map(u=>u.시설명));
+  const children={};
+  users.forEach(u=>{
+    const p=(u.parent_facility && names.has(u.parent_facility)) ? u.parent_facility : '';
+    (children[p]=children[p]||[]).push(u);
+  });
+  Object.values(children).forEach(l=>l.sort((a,b)=>a.시설명.localeCompare(b.시설명,'ko')));
+  const kidsOf = n => children[n.시설명] || [];
+
+  const seen=new Set();
+  const box = u => {
+    const cls = u.role==='admin' ? ' lv-admin' : u.role==='facility-admin' ? ' lv-fadmin' : '';
+    const sub = u.성명 ? esc(u.성명) : (u.role==='admin' ? '본사관리자' : u.role==='facility-admin' ? '시설관리자' : '');
+    return `<div class="pyr-box${cls}" onclick="openUserModal('${u.id}')" title="클릭하면 수정합니다">
+      <div class="pyr-name">${esc(u.시설명)}</div>
+      ${sub?`<div class="pyr-sub">${sub}</div>`:''}
+    </div>`;
+  };
+
+  const node = u => {
+    if(seen.has(u.시설명)) return '';     // 순환 방지
+    seen.add(u.시설명);
+    const kids=kidsOf(u);
+    if(!kids.length) return `<div class="pyr-node">${box(u)}</div>`;
+    // 자식이 전부 말단이면 세로로 쌓는다 — 가로로 펼치면 화면을 벗어난다
+    const allLeaf = kids.every(k=>!kidsOf(k).length);
+    const inner = allLeaf
+      ? `<div class="pyr-stack">${kids.map(k=>{ seen.add(k.시설명); return box(k); }).join('')}</div>`
+      : `<div class="pyr-kids">${kids.map(node).join('')}</div>`;
+    return `<div class="pyr-node">${box(u)}${inner}</div>`;
+  };
+
+  const roots=children['']||[];
+  const withKids=roots.filter(r=>kidsOf(r).length);
+  const alone=roots.filter(r=>!kidsOf(r).length);
+  let html='';
+  if(withKids.length) html+=`<div class="pyr-root">${withKids.map(node).join('')}</div>`;
+  if(alone.length){
+    html+=`<div class="pyr-loose"><div class="pyr-loose-title">별개 시설 · 계정</div>
+      <div class="pyr-loose-row">${alone.map(u=>{ seen.add(u.시설명); return box(u); }).join('')}</div></div>`;
+  }
+  return html || '<div style="color:var(--t3);font-size:13px;padding:12px">표시할 사용자가 없습니다</div>';
 }
 
 // 조직도 보기 — 상위-하위를 따라 내려가며 트리 문자로 그린다.
@@ -7956,8 +8042,11 @@ async function renderAdminUsers(){
 
   const treeEl=document.getElementById('user-tree');
   if(treeEl) treeEl.innerHTML=_renderOrgTree(users);
-  try{ const saved=localStorage.getItem(_userViewKey()); setUserView(saved==='table'?'table':'tree'); }
-  catch(e){ setUserView('tree'); }
+  const pyrEl=document.getElementById('user-pyramid');
+  if(pyrEl) pyrEl.innerHTML=
+    '<div class="pyr-hint">상자를 누르면 수정합니다 · 삭제는 목록·표 보기에서</div>'+_renderOrgPyramid(users);
+  try{ setUserView(localStorage.getItem(_userViewKey()) || 'pyramid'); }
+  catch(e){ setUserView('pyramid'); }
 }
 
 async function openUserModal(id){
