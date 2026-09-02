@@ -395,6 +395,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .org-empno{font-size:11px;color:var(--t3);font-family:ui-monospace,Menlo,monospace;flex-shrink:0;}
 .org-spacer{flex:1;min-width:8px;}
 .org-actions{display:flex;gap:4px;flex-shrink:0;}
+.org-grip{color:var(--t3);font-size:13px;cursor:grab;flex-shrink:0;user-select:none;}
+.org-row[draggable="true"]{cursor:default;}
+.org-row.dragging{opacity:0.4;}
+.org-row.drop-into{background:rgba(232,160,32,0.16);outline:1px solid var(--accent);}
+.org-row.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
+.org-row.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
 .org-sep{margin:10px 0 4px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;}
 @media(max-width:600px){
   .org-branch{font-size:11px;}
@@ -3104,7 +3110,12 @@ const DB = {
   async getUsers(){
     const k='users';
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+    const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility,sort_order'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+  },
+  // 조직 이동 전용 — 상위와 순서만 바꾼다(패스워드·성명·권한은 손대지 않는다)
+  async updateUserOrg(id, parent, order){
+    const {error}=await SB.from('users').update({parent_facility:parent||null, sort_order:order}).eq('id',id);
+    if(error) throw error; _cd('users');
   },
   async upsertUser(u){ const row={id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role,parent_facility:u.parent_facility||null}; const hasPw=u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!==''; if(hasPw) row.패스워드=u.패스워드;
     if(u._isEdit&&!hasPw){ // 수정인데 패스워드 미입력 → 기존 패스워드 유지를 위해 update만 수행
@@ -7903,6 +7914,114 @@ async function _fillParentSelect(selfName, current){
   }
 }
 
+// 목록 보기 드래그 앤 드롭.
+// 행의 위/아래 1/4에 놓으면 그 자리 형제로, 가운데에 놓으면 그 조직의 하위로 들어간다.
+// (터치 기기에서는 HTML5 드래그가 동작하지 않으므로 ▲▼ 버튼과 상위 조직 선택이 대체 수단)
+function _bindOrgDnD(root, users){
+  let dragId=null;
+  const clear=()=>root.querySelectorAll('.org-row').forEach(r=>
+    r.classList.remove('drop-into','drop-before','drop-after'));
+
+  root.querySelectorAll('.org-row').forEach(row=>{
+    row.addEventListener('dragstart', e=>{
+      dragId=row.dataset.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      try{ e.dataTransfer.setData('text/plain', dragId); }catch(_){}
+    });
+    row.addEventListener('dragend', ()=>{ row.classList.remove('dragging'); clear(); dragId=null; });
+
+    row.addEventListener('dragover', e=>{
+      if(!dragId || row.dataset.id===dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      const r=row.getBoundingClientRect();
+      const pos=(e.clientY-r.top)/r.height;
+      clear();
+      row.classList.add(pos<0.25 ? 'drop-before' : pos>0.75 ? 'drop-after' : 'drop-into');
+    });
+    row.addEventListener('dragleave', ()=>row.classList.remove('drop-into','drop-before','drop-after'));
+
+    row.addEventListener('drop', async e=>{
+      e.preventDefault();
+      const movedId=dragId; const targetId=row.dataset.id;
+      const mode=row.classList.contains('drop-into') ? 'into'
+               : row.classList.contains('drop-before') ? 'before' : 'after';
+      clear();
+      if(!movedId || movedId===targetId) return;
+      const target=users.find(u=>u.id===targetId);
+      const moved=users.find(u=>u.id===movedId);
+      if(!target||!moved) return;
+      if(mode==='into'){
+        await _applyOrgMove(movedId, target.시설명, null);   // 맨 뒤에 붙인다
+      }else{
+        const parent=target.parent_facility||'';
+        const sibs=users.filter(u=>(u.parent_facility||'')===parent && u.id!==movedId).sort(_orgSort);
+        let idx=sibs.findIndex(u=>u.id===targetId);
+        if(idx<0) idx=sibs.length;
+        await _applyOrgMove(movedId, parent, mode==='before' ? idx : idx+1);
+      }
+    });
+  });
+}
+
+// 형제 정렬 — sort_order가 있으면 그 순서, 없으면 가나다순
+function _orgSort(a,b){
+  const ao=(a.sort_order??9999), bo=(b.sort_order??9999);
+  if(ao!==bo) return ao-bo;
+  return (a.시설명||'').localeCompare(b.시설명||'','ko');
+}
+
+// 옮기려는 곳이 자기 하위인지 — 자기 밑으로 자기를 넣으면 트리가 끊긴다
+function _isDescendant(users, ancestorName, name){
+  const byParent={};
+  users.forEach(u=>{ (byParent[u.parent_facility||'']=byParent[u.parent_facility||'']||[]).push(u.시설명); });
+  const stack=[ancestorName]; const seen=new Set();
+  while(stack.length){
+    const n=stack.pop();
+    if(seen.has(n)) continue; seen.add(n);
+    for(const c of (byParent[n]||[])){ if(c===name) return true; stack.push(c); }
+  }
+  return false;
+}
+
+// 옮긴 뒤 같은 상위끼리 번호를 0부터 다시 매긴다 (옛 상위 그룹도 함께 정리)
+async function _applyOrgMove(movedId, newParent, insertAt){
+  const users=await DB.getUsers();
+  const moved=users.find(u=>u.id===movedId);
+  if(!moved) return;
+  const oldParent=moved.parent_facility||'';
+  newParent=newParent||'';
+  if(newParent && (newParent===moved.시설명 || _isDescendant(users, moved.시설명, newParent))){
+    toast('자기 자신이나 아래 조직으로는 옮길 수 없습니다','error'); return;
+  }
+  const sibs=users.filter(u=>(u.parent_facility||'')===newParent && u.id!==movedId).sort(_orgSort);
+  const at=Math.max(0, Math.min(insertAt==null?sibs.length:insertAt, sibs.length));
+  sibs.splice(at, 0, moved);
+
+  const writes=sibs.map((u,i)=>DB.updateUserOrg(u.id, newParent||null, i));
+  if(oldParent!==newParent){
+    const olds=users.filter(u=>(u.parent_facility||'')===oldParent && u.id!==movedId).sort(_orgSort);
+    olds.forEach((u,i)=>writes.push(DB.updateUserOrg(u.id, oldParent||null, i)));
+  }
+  try{
+    await Promise.all(writes);
+    await renderAdminUsers();
+    toast('조직을 옮겼습니다');
+  }catch(e){ toast('조직 이동에 실패했습니다','error'); console.error('[_applyOrgMove]',e); }
+}
+
+// 위/아래 버튼 — 터치 기기에서는 드래그가 안 되므로 이 경로가 주 수단이 된다
+async function moveOrgSibling(id, dir){
+  const users=await DB.getUsers();
+  const me=users.find(u=>u.id===id); if(!me) return;
+  const sibs=users.filter(u=>(u.parent_facility||'')===(me.parent_facility||'')).sort(_orgSort);
+  const i=sibs.findIndex(u=>u.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=sibs.length) return;
+  await _applyOrgMove(id, me.parent_facility||'', j);
+}
+
 let _userView = 'pyramid';
 // 키에 버전을 붙인다 — 피라미드 이전 빌드가 저장해 둔 'tree'가 남아 있으면
 // 새 기본값(피라미드)이 무시되고 옛 보기로 복원돼 버린다.
@@ -7926,7 +8045,7 @@ function _renderOrgPyramid(users){
     const p=(u.parent_facility && names.has(u.parent_facility)) ? u.parent_facility : '';
     (children[p]=children[p]||[]).push(u);
   });
-  Object.values(children).forEach(l=>l.sort((a,b)=>a.시설명.localeCompare(b.시설명,'ko')));
+  Object.values(children).forEach(l=>l.sort(_orgSort));
   const kidsOf = n => children[n.시설명] || [];
 
   const seen=new Set();
@@ -7977,7 +8096,7 @@ function _renderOrgTree(users){
     const p = (u.parent_facility && names.has(u.parent_facility)) ? u.parent_facility : '';
     (children[p] = children[p] || []).push(u);
   });
-  Object.values(children).forEach(list => list.sort((a,b)=>a.시설명.localeCompare(b.시설명,'ko')));
+  Object.values(children).forEach(list => list.sort(_orgSort));
 
   const seen = new Set();
   const out = [];
@@ -7986,7 +8105,8 @@ function _renderOrgTree(users){
     seen.add(node.시설명);
     const branch = prefix === null ? '' : prefix + (isLast ? '└─ ' : '├─ ');
     const person = node.성명 ? `<span class="org-person">${esc(node.성명)}</span>` : '';
-    out.push(`<div class="org-row" data-id="${node.id}">
+    out.push(`<div class="org-row" data-id="${node.id}" data-name="${esc(node.시설명)}" draggable="true">
+      <span class="org-grip" title="끌어서 옮기기">⠿</span>
       <span class="org-branch">${branch}</span>
       <span class="org-name${node.성명?'':' unit'}">${esc(node.시설명)}</span>
       ${person}
@@ -7994,6 +8114,8 @@ function _renderOrgTree(users){
       <span class="org-empno">${esc(node.사원번호||'')}</span>
       ${roleTag(node.role)}
       <span class="org-actions">
+        <button class="btn btn-ghost btn-sm" onclick="moveOrgSibling('${node.id}',-1)" title="위로">▲</button>
+        <button class="btn btn-ghost btn-sm" onclick="moveOrgSibling('${node.id}',1)" title="아래로">▼</button>
         <button class="btn btn-ghost btn-sm" onclick="openUserModal('${node.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteUser('${node.id}')">🗑</button>
       </span>
@@ -8052,7 +8174,11 @@ async function renderAdminUsers(){
   </tr>`).join('');
 
   const treeEl=document.getElementById('user-tree');
-  if(treeEl) treeEl.innerHTML=_renderOrgTree(users);
+  if(treeEl){
+    treeEl.innerHTML='<div class="pyr-hint">행을 끌어 옮기세요 · 가운데에 놓으면 하위로, 위·아래 가장자리에 놓으면 같은 단계로 · ▲▼로도 순서를 바꿀 수 있습니다</div>'
+      + _renderOrgTree(users);
+    _bindOrgDnD(treeEl, users);
+  }
   const pyrEl=document.getElementById('user-pyramid');
   if(pyrEl) pyrEl.innerHTML=
     '<div class="pyr-hint">상자를 누르면 수정합니다 · 삭제는 목록·표 보기에서</div>'+_renderOrgPyramid(users);
