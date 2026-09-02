@@ -389,8 +389,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .pyr-box.drop-y-before{box-shadow:inset 0 3px 0 0 var(--accent);}
 .pyr-box.drop-y-after{box-shadow:inset 0 -3px 0 0 var(--accent);}
 .pyr-loose{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);}
-.pyr-loose-title{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;margin-bottom:10px;}
-.pyr-loose-row{display:flex;flex-wrap:wrap;gap:8px;}
+.pyr-loose-title{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;margin-bottom:10px;text-align:center;}
+.pyr-loose-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
 .pyr-hint{font-size:11px;color:var(--t3);margin-bottom:8px;}
 /* 사용자 관리 — 조직도 보기 */
 .org-tree{display:flex;flex-direction:column;gap:4px;}
@@ -7939,6 +7939,16 @@ async function _handleOrgDrop(users, movedId, targetId, mode){
 // 피라미드 드래그 앤 드롭.
 // 가로로 늘어선 상자는 좌우로, 세로로 쌓인 상자(.pyr-stack)는 위아래로 앞뒤를 가른다.
 // 어느 쪽이든 가운데에 놓으면 그 조직의 하위로 들어간다.
+// 조직도 폭이 화면보다 넓으면 flex 가운데정렬만으로는 왼쪽부터 보인다.
+// 뿌리(이사장) 상자가 화면 한가운데 오도록 가로 스크롤을 맞춘다.
+function _centerPyramid(){
+  const sc=document.querySelector('#user-pyramid-wrap .pyr-scroll');
+  const box=document.querySelector('#user-pyramid .pyr-root .pyr-box');
+  if(!sc || !box || !sc.clientWidth) return;
+  const sr=sc.getBoundingClientRect(), br=box.getBoundingClientRect();
+  sc.scrollLeft += (br.left + br.width/2) - (sr.left + sr.width/2);
+}
+
 let _orgDragJustEnded=false;
 function orgBoxClick(id){ if(_orgDragJustEnded) return; openUserModal(id); }
 
@@ -8094,6 +8104,8 @@ function setUserView(v){
     const el=document.getElementById(id); if(el) el.style.display = (_userView===k) ? '' : 'none';
     document.getElementById('user-view-'+k)?.classList.toggle('active', _userView===k);
   });
+  // 숨어 있는 동안에는 폭이 0이라 가운데를 못 잡는다 — 보이게 된 뒤에 맞춘다
+  if(_userView==='pyramid') requestAnimationFrame(_centerPyramid);
 }
 
 // 피라미드 조직도 — 조직도 원본처럼 상위는 가로로 펼치고,
@@ -8244,6 +8256,7 @@ async function renderAdminUsers(){
     pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 누르면 수정 · 삭제는 목록·표 보기에서</div>'
       + _renderOrgPyramid(users);
     _bindPyramidDnD(pyrEl, users);
+    requestAnimationFrame(_centerPyramid);   // 배치가 끝난 뒤라야 폭을 잴 수 있다
   }
   try{ setUserView(localStorage.getItem(_userViewKey()) || 'pyramid'); }
   catch(e){ setUserView('pyramid'); }
