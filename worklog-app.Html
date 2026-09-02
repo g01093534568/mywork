@@ -7894,8 +7894,10 @@ async function _fillParentSelect(selfName, current){
   }
 }
 
-let _userView = 'tree';
-function _userViewKey(){ return 'wl_user_view_' + (currentUser?.사원번호 || '_g'); }
+let _userView = 'pyramid';
+// 키에 버전을 붙인다 — 피라미드 이전 빌드가 저장해 둔 'tree'가 남아 있으면
+// 새 기본값(피라미드)이 무시되고 옛 보기로 복원돼 버린다.
+function _userViewKey(){ return 'wl_user_view2_' + (currentUser?.사원번호 || '_g'); }
 function setUserView(v){
   _userView = ['pyramid','tree','table'].includes(v) ? v : 'pyramid';
   try{ localStorage.setItem(_userViewKey(), _userView); }catch(e){}
