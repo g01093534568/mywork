@@ -340,6 +340,22 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .tlp-btn-skip{background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
 /* 일정 → 할 일 프롬프트 (완료→일지와 구분되게 강조색) */
 .todo-log-prompt.gcal{border-color:rgba(232,160,32,0.45);}
+/* 사용자 관리 — 조직도 보기 */
+.org-tree{display:flex;flex-direction:column;gap:4px;}
+.org-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;transition:background 0.12s;min-width:0;}
+.org-row:hover{background:rgba(255,255,255,0.04);}
+.org-branch{color:var(--t3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre;flex-shrink:0;}
+.org-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.org-name.unit{color:var(--t2);font-weight:500;}
+.org-person{font-size:12px;color:var(--accent);flex-shrink:0;}
+.org-empno{font-size:11px;color:var(--t3);font-family:ui-monospace,Menlo,monospace;flex-shrink:0;}
+.org-spacer{flex:1;min-width:8px;}
+.org-actions{display:flex;gap:4px;flex-shrink:0;}
+.org-sep{margin:10px 0 4px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;}
+@media(max-width:600px){
+  .org-branch{font-size:11px;}
+  .org-empno{display:none;}
+}
 /* 할 일 ↔ 캘린더 연결 표시 */
 .tm-gcal-link{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;padding:10px 12px;border:1px solid rgba(232,160,32,0.35);background:rgba(232,160,32,0.08);border-radius:var(--r);font-size:12px;color:var(--t2);}
 .tm-gcal-link button{margin-left:auto;color:var(--accent);}
@@ -1709,8 +1725,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <input type="file" accept=".csv" style="display:none" onchange="importUsersCSV(event)" />
           </label>
           <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 성명,시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
+          <div class="gcal-mode-switch" style="margin-left:auto;align-self:center">
+            <button class="gcal-mode-btn active" id="user-view-tree" onclick="setUserView('tree')">🏢 조직도</button>
+            <button class="gcal-mode-btn" id="user-view-table" onclick="setUserView('table')">☰ 표</button>
+          </div>
         </div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+        <div id="user-tree-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;">
+          <div id="user-tree"></div>
+        </div>
+        <div id="user-table-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <table class="user-table">
             <thead>
               <tr>
@@ -7832,6 +7855,69 @@ async function _fillParentSelect(selfName, current){
   }
 }
 
+let _userView = 'tree';
+function _userViewKey(){ return 'wl_user_view_' + (currentUser?.사원번호 || '_g'); }
+function setUserView(v){
+  _userView = (v === 'table') ? 'table' : 'tree';
+  try{ localStorage.setItem(_userViewKey(), _userView); }catch(e){}
+  const tw=document.getElementById('user-tree-wrap'), bw=document.getElementById('user-table-wrap');
+  if(tw) tw.style.display = _userView==='tree' ? '' : 'none';
+  if(bw) bw.style.display = _userView==='table' ? '' : 'none';
+  document.getElementById('user-view-tree')?.classList.toggle('active', _userView==='tree');
+  document.getElementById('user-view-table')?.classList.toggle('active', _userView==='table');
+}
+
+// 조직도 보기 — 상위-하위를 따라 내려가며 트리 문자로 그린다.
+// 순환이 있어도(잘못 지정된 상위) 무한히 돌지 않게 방문 표시를 남긴다.
+function _renderOrgTree(users){
+  const roleTag = r => r==='admin' ? '<span class="tag tag-high">본사관리자</span>'
+                    : r==='facility-admin' ? '<span class="tag tag-mid">시설관리자</span>'
+                    : '<span class="tag tag-todo">사용자</span>';
+  const names = new Set(users.map(u=>u.시설명));
+  const children = {};
+  users.forEach(u=>{
+    // 상위가 비었거나 존재하지 않는 이름이면 최상위로 취급한다
+    const p = (u.parent_facility && names.has(u.parent_facility)) ? u.parent_facility : '';
+    (children[p] = children[p] || []).push(u);
+  });
+  Object.values(children).forEach(list => list.sort((a,b)=>a.시설명.localeCompare(b.시설명,'ko')));
+
+  const seen = new Set();
+  const out = [];
+  const walk = (node, prefix, isLast) => {
+    if(seen.has(node.시설명)) return;   // 순환 방지
+    seen.add(node.시설명);
+    const branch = prefix === null ? '' : prefix + (isLast ? '└─ ' : '├─ ');
+    const person = node.성명 ? `<span class="org-person">${esc(node.성명)}</span>` : '';
+    out.push(`<div class="org-row" data-id="${node.id}">
+      <span class="org-branch">${branch}</span>
+      <span class="org-name${node.성명?'':' unit'}">${esc(node.시설명)}</span>
+      ${person}
+      <span class="org-spacer"></span>
+      <span class="org-empno">${esc(node.사원번호||'')}</span>
+      ${roleTag(node.role)}
+      <span class="org-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openUserModal('${node.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteUser('${node.id}')">🗑</button>
+      </span>
+    </div>`);
+    const kids = children[node.시설명] || [];
+    const nextPrefix = prefix === null ? '' : prefix + (isLast ? '   ' : '│  ');
+    kids.forEach((k,i)=>walk(k, nextPrefix, i===kids.length-1));
+  };
+
+  const roots = children[''] || [];
+  // 아랫조직을 거느린 뿌리(조직도)를 먼저, 홀로 선 시설을 뒤에
+  const withKids = roots.filter(r=>(children[r.시설명]||[]).length);
+  const alone    = roots.filter(r=>!(children[r.시설명]||[]).length);
+  withKids.forEach(r=>walk(r, null, true));
+  if(alone.length){
+    out.push('<div class="org-sep">별개 시설 · 계정</div>');
+    alone.forEach(r=>walk(r, null, true));
+  }
+  return out.join('') || '<div style="color:var(--t3);font-size:13px;padding:12px">표시할 사용자가 없습니다</div>';
+}
+
 async function renderAdminUsers(){
   let users=await DB.getUsers();
   if(currentUser.role === 'facility-admin') {
@@ -7867,6 +7953,11 @@ async function renderAdminUsers(){
       <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">🗑</button>
     </div></td>
   </tr>`).join('');
+
+  const treeEl=document.getElementById('user-tree');
+  if(treeEl) treeEl.innerHTML=_renderOrgTree(users);
+  try{ const saved=localStorage.getItem(_userViewKey()); setUserView(saved==='table'?'table':'tree'); }
+  catch(e){ setUserView('tree'); }
 }
 
 async function openUserModal(id){
