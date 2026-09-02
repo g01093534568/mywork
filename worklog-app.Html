@@ -380,6 +380,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .pyr-stack .pyr-box:first-child{border-radius:6px 6px 0 0;margin-top:0;}
 .pyr-stack .pyr-box:last-child{border-radius:0 0 6px 6px;}
 .pyr-stack .pyr-box:only-child{border-radius:6px;}
+/* 끌어 옮기는 중 표시 — 가로줄은 좌우 선, 세로 스택은 위아래 선 */
+.pyr-box{cursor:grab;}
+.pyr-box.dragging{opacity:0.4;}
+.pyr-box.drop-into{background:rgba(232,160,32,0.18);border-color:var(--accent);}
+.pyr-box.drop-x-before{box-shadow:inset 3px 0 0 0 var(--accent);}
+.pyr-box.drop-x-after{box-shadow:inset -3px 0 0 0 var(--accent);}
+.pyr-box.drop-y-before{box-shadow:inset 0 3px 0 0 var(--accent);}
+.pyr-box.drop-y-after{box-shadow:inset 0 -3px 0 0 var(--accent);}
 .pyr-loose{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);}
 .pyr-loose-title{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;margin-bottom:10px;}
 .pyr-loose-row{display:flex;flex-wrap:wrap;gap:8px;}
@@ -7914,6 +7922,70 @@ async function _fillParentSelect(selfName, current){
   }
 }
 
+// 놓았을 때 실제로 옮기는 부분 — 목록·피라미드가 같은 규칙을 쓴다
+async function _handleOrgDrop(users, movedId, targetId, mode){
+  if(!movedId || movedId===targetId) return;
+  const target=users.find(u=>u.id===targetId);
+  const moved=users.find(u=>u.id===movedId);
+  if(!target||!moved) return;
+  if(mode==='into'){ await _applyOrgMove(movedId, target.시설명, null); return; }  // 맨 뒤에 붙인다
+  const parent=target.parent_facility||'';
+  const sibs=users.filter(u=>(u.parent_facility||'')===parent && u.id!==movedId).sort(_orgSort);
+  let idx=sibs.findIndex(u=>u.id===targetId);
+  if(idx<0) idx=sibs.length;
+  await _applyOrgMove(movedId, parent, mode==='before' ? idx : idx+1);
+}
+
+// 피라미드 드래그 앤 드롭.
+// 가로로 늘어선 상자는 좌우로, 세로로 쌓인 상자(.pyr-stack)는 위아래로 앞뒤를 가른다.
+// 어느 쪽이든 가운데에 놓으면 그 조직의 하위로 들어간다.
+let _orgDragJustEnded=false;
+function orgBoxClick(id){ if(_orgDragJustEnded) return; openUserModal(id); }
+
+function _bindPyramidDnD(root, users){
+  let dragId=null;
+  const MARKS=['drop-into','drop-x-before','drop-x-after','drop-y-before','drop-y-after'];
+  const clear=()=>root.querySelectorAll('.pyr-box').forEach(b=>b.classList.remove(...MARKS));
+
+  root.querySelectorAll('.pyr-box').forEach(box=>{
+    box.addEventListener('dragstart', e=>{
+      dragId=box.dataset.id;
+      box.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      try{ e.dataTransfer.setData('text/plain', dragId); }catch(_){}
+    });
+    box.addEventListener('dragend', ()=>{
+      box.classList.remove('dragging'); clear(); dragId=null;
+      _orgDragJustEnded=true; setTimeout(()=>{ _orgDragJustEnded=false; }, 150);
+    });
+
+    box.addEventListener('dragover', e=>{
+      if(!dragId || box.dataset.id===dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      const r=box.getBoundingClientRect();
+      const vertical=!!box.closest('.pyr-stack');   // 세로 스택이면 위아래로 판정
+      const pos=vertical ? (e.clientY-r.top)/r.height : (e.clientX-r.left)/r.width;
+      clear();
+      if(pos<0.25)      box.classList.add(vertical?'drop-y-before':'drop-x-before');
+      else if(pos>0.75) box.classList.add(vertical?'drop-y-after':'drop-x-after');
+      else              box.classList.add('drop-into');
+    });
+    box.addEventListener('dragleave', ()=>box.classList.remove(...MARKS));
+
+    box.addEventListener('drop', async e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const movedId=dragId, targetId=box.dataset.id;
+      const mode=box.classList.contains('drop-into') ? 'into'
+               : (box.classList.contains('drop-x-before')||box.classList.contains('drop-y-before')) ? 'before'
+               : 'after';
+      clear();
+      await _handleOrgDrop(users, movedId, targetId, mode);
+    });
+  });
+}
+
 // 목록 보기 드래그 앤 드롭.
 // 행의 위/아래 1/4에 놓으면 그 자리 형제로, 가운데에 놓으면 그 조직의 하위로 들어간다.
 // (터치 기기에서는 HTML5 드래그가 동작하지 않으므로 ▲▼ 버튼과 상위 조직 선택이 대체 수단)
@@ -7948,19 +8020,7 @@ function _bindOrgDnD(root, users){
       const mode=row.classList.contains('drop-into') ? 'into'
                : row.classList.contains('drop-before') ? 'before' : 'after';
       clear();
-      if(!movedId || movedId===targetId) return;
-      const target=users.find(u=>u.id===targetId);
-      const moved=users.find(u=>u.id===movedId);
-      if(!target||!moved) return;
-      if(mode==='into'){
-        await _applyOrgMove(movedId, target.시설명, null);   // 맨 뒤에 붙인다
-      }else{
-        const parent=target.parent_facility||'';
-        const sibs=users.filter(u=>(u.parent_facility||'')===parent && u.id!==movedId).sort(_orgSort);
-        let idx=sibs.findIndex(u=>u.id===targetId);
-        if(idx<0) idx=sibs.length;
-        await _applyOrgMove(movedId, parent, mode==='before' ? idx : idx+1);
-      }
+      await _handleOrgDrop(users, movedId, targetId, mode);
     });
   });
 }
@@ -8052,7 +8112,7 @@ function _renderOrgPyramid(users){
   const box = u => {
     const cls = u.role==='admin' ? ' lv-admin' : u.role==='facility-admin' ? ' lv-fadmin' : '';
     const sub = u.성명 ? esc(u.성명) : (u.role==='admin' ? '본사관리자' : u.role==='facility-admin' ? '시설관리자' : '');
-    return `<div class="pyr-box${cls}" onclick="openUserModal('${u.id}')" title="${esc(u.시설명)}${u.성명?' · '+esc(u.성명):''} — 클릭하면 수정합니다">
+    return `<div class="pyr-box${cls}" data-id="${u.id}" draggable="true" onclick="orgBoxClick('${u.id}')" title="${esc(u.시설명)}${u.성명?' · '+esc(u.성명):''} — 클릭하면 수정, 끌어서 옮기기">
       <div class="pyr-name">${esc(u.시설명)}</div>
       ${sub?`<div class="pyr-sub">${sub}</div>`:''}
     </div>`;
@@ -8180,8 +8240,11 @@ async function renderAdminUsers(){
     _bindOrgDnD(treeEl, users);
   }
   const pyrEl=document.getElementById('user-pyramid');
-  if(pyrEl) pyrEl.innerHTML=
-    '<div class="pyr-hint">상자를 누르면 수정합니다 · 삭제는 목록·표 보기에서</div>'+_renderOrgPyramid(users);
+  if(pyrEl){
+    pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 누르면 수정 · 삭제는 목록·표 보기에서</div>'
+      + _renderOrgPyramid(users);
+    _bindPyramidDnD(pyrEl, users);
+  }
   try{ setUserView(localStorage.getItem(_userViewKey()) || 'pyramid'); }
   catch(e){ setUserView('pyramid'); }
 }
