@@ -1715,6 +1715,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <thead>
               <tr>
                 <th>시설명</th>
+                <th>상위 조직</th>
                 <th>성명</th>
                 <th>사원번호</th>
                 <th>권한</th>
@@ -2852,6 +2853,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <label>패스워드 *</label>
       <input type="text" id="um-pw" placeholder="패스워드 설정" />
     </div>
+    <div class="form-group">
+      <label>상위 조직 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">조직개편 시 여기서 소속을 옮깁니다</span></label>
+      <select id="um-parent"></select>
+      <div id="um-parent-hint" style="font-size:11px;color:var(--t3);margin-top:6px"></div>
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeModal('user-modal')">취소</button>
       <button class="btn btn-primary" onclick="saveUser()">저장</button>
@@ -3029,7 +3035,7 @@ const DB = {
     if(_cg(k)) return _cg(k);
     const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility'); if(error){console.error(error);return[];} return _cs(k,data||[]);
   },
-  async upsertUser(u){ const row={id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role}; const hasPw=u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!==''; if(hasPw) row.패스워드=u.패스워드;
+  async upsertUser(u){ const row={id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role,parent_facility:u.parent_facility||null}; const hasPw=u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!==''; if(hasPw) row.패스워드=u.패스워드;
     if(u._isEdit&&!hasPw){ // 수정인데 패스워드 미입력 → 기존 패스워드 유지를 위해 update만 수행
       const {error}=await SB.from('users').update(row).eq('id',u.id); if(error)throw error;
     } else {
@@ -7785,6 +7791,47 @@ async function deleteFacilityGoal(id){
 // ═══════════════════════════════════════════════
 // ADMIN - USERS
 // ═══════════════════════════════════════════════
+// 정렬용 경로 문자열 — '본부장 > 시설관리팀 > 수변공원'
+function _orgPath(u,byName){
+  const parts=[u.시설명]; let cur=u, guard=0;
+  while(cur && cur.parent_facility && byName[cur.parent_facility] && guard++<10){
+    cur=byName[cur.parent_facility]; parts.unshift(cur.시설명);
+  }
+  return parts.join(' > ');
+}
+
+// 상위 조직 후보 — 자기 자신과 자기 하위는 제외한다(순환 방지)
+function _parentCandidates(users, selfName){
+  const children={};
+  users.forEach(u=>{ (children[u.parent_facility||'']=children[u.parent_facility||'']||[]).push(u.시설명); });
+  const banned=new Set();
+  if(selfName){
+    banned.add(selfName);
+    const stack=[selfName];
+    while(stack.length){
+      const n=stack.pop();
+      (children[n]||[]).forEach(c=>{ if(!banned.has(c)){ banned.add(c); stack.push(c); } });
+    }
+  }
+  return [...new Set(users.map(u=>u.시설명))].filter(n=>!banned.has(n)).sort((a,b)=>a.localeCompare(b,'ko'));
+}
+
+async function _fillParentSelect(selfName, current){
+  const sel=document.getElementById('um-parent');
+  const hint=document.getElementById('um-parent-hint');
+  if(!sel) return;
+  const users=await DB.getUsers();
+  const opts=_parentCandidates(users, selfName);
+  sel.innerHTML='<option value="">— 최상위 (상위 조직 없음)</option>'+
+    opts.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value = current && opts.includes(current) ? current : '';
+  if(hint){
+    const byName={}; users.forEach(u=>{ byName[u.시설명]=u; });
+    const me=byName[selfName];
+    hint.textContent = me ? '현재 경로: '+_orgPath(me,byName) : '';
+  }
+}
+
 async function renderAdminUsers(){
   let users=await DB.getUsers();
   if(currentUser.role === 'facility-admin') {
@@ -7795,8 +7842,23 @@ async function renderAdminUsers(){
   const roleMap = {admin:'본사관리자', 'facility-admin':'시설관리자', user:'사용자'};
 
   // Render users
+  // 상위 조직 기준으로 깊이를 계산해 들여쓰기 — 조직도가 눈에 보이게
+  const _byName={}; users.forEach(u=>{ _byName[u.시설명]=u; });
+  const _depth=(u,seen=new Set())=>{
+    let d=0, cur=u;
+    while(cur && cur.parent_facility && _byName[cur.parent_facility] && !seen.has(cur.시설명)){
+      seen.add(cur.시설명); cur=_byName[cur.parent_facility]; d++;
+      if(d>10) break;   // 순환이 생겨도 멈춘다
+    }
+    return d;
+  };
+  users=[...users].sort((a,b)=>{
+    const pa=_orgPath(a,_byName), pb=_orgPath(b,_byName);
+    return pa.localeCompare(pb,'ko');
+  });
   tbody.innerHTML=users.map(u=>`<tr data-id="${u.id}">
-    <td>${esc(u.시설명)}</td>
+    <td>${'&nbsp;'.repeat(_depth(u)*4)}${esc(u.시설명)}</td>
+    <td style="color:var(--t3);font-size:12px">${esc(u.parent_facility||'—')}</td>
     <td>${esc(u.성명||'')}</td>
     <td><span style="font-family:monospace;background:var(--bg);padding:2px 8px;border-radius:4px;font-size:12px">${u.사원번호}</span></td>
     <td><span class="tag ${u.role==='admin'?'tag-high':(u.role==='facility-admin'?'tag-mid':'tag-todo')}">${roleMap[u.role]||'사용자'}</span></td>
@@ -7821,6 +7883,7 @@ async function openUserModal(id){
     document.getElementById('um-pw').value='';
     document.getElementById('um-pw').placeholder='변경 시에만 입력 (비우면 기존 유지)';
     document.getElementById('um-role').value=u.role;
+    await _fillParentSelect(u.시설명, u.parent_facility||'');
   } else {
     document.getElementById('user-modal-title').textContent='사용자 추가';
     document.getElementById('um-edit-id').value='';
@@ -7831,6 +7894,7 @@ async function openUserModal(id){
     document.getElementById('um-pw').value='';
     document.getElementById('um-pw').placeholder='패스워드 설정';
     document.getElementById('um-role').value='user';
+    await _fillParentSelect('', '');
   }
   openModal('user-modal');
 }
@@ -7844,7 +7908,7 @@ async function saveUser(){
   if(!성명||!시설명||!사원번호){ toast('성명·시설명·사원번호를 입력하세요','error'); return; }
   if(!editId&&!패스워드){ toast('패스워드를 입력하세요','error'); return; }
   if(사원번호.length!==6||!/^\d+$/.test(사원번호)){ toast('사원번호는 6자리 숫자여야 합니다','error'); return; }
-  const data={id:editId||uid(), 성명, 시설명, 사원번호, role:document.getElementById('um-role').value, _isEdit:!!editId};
+  const data={id:editId||uid(), 성명, 시설명, 사원번호, role:document.getElementById('um-role').value, parent_facility:document.getElementById('um-parent')?.value||null, _isEdit:!!editId};
   // 패스워드는 새로 입력했을 때만 해싱해 갱신 (비우면 기존 유지)
   if(패스워드){ data.패스워드=isHashed(패스워드)?패스워드:await hashPassword(패스워드); }
   try{
@@ -9950,12 +10014,22 @@ function _wlUserToFacility(u) {
 }
 
 // 시설관리자가 관리하는 시설명 목록 (자신 + parent_facility로 연결된 하위 시설)
+// 자신 + 모든 하위(손자 이하 포함). 조직도가 4~5단계라 직계 1단계만 보면 아래가 통째로 빠진다.
 async function _getManagedFacilityNames(facilityName) {
-  const [{ data: own }, { data: child }] = await Promise.all([
-    SB.from('users').select('시설명').eq('시설명', facilityName),
-    SB.from('users').select('시설명').eq('parent_facility', facilityName)
-  ]);
-  return [...new Set([...(own || []), ...(child || [])].map(u => u.시설명).filter(Boolean))];
+  const { data } = await SB.from('users').select('시설명,parent_facility');
+  const all = data || [];
+  const out = new Set([facilityName]);
+  // 더 붙을 게 없을 때까지 훑는다 — 순환이 있어도 멈춘다
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const u of all) {
+      if (u.시설명 && u.parent_facility && out.has(u.parent_facility) && !out.has(u.시설명)) {
+        out.add(u.시설명); grew = true;
+      }
+    }
+  }
+  return [...out].filter(Boolean);
 }
 
 // 에너지 레코드 쿼리 (역할 기반 필터 포함)
