@@ -380,6 +380,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .pyr-stack .pyr-box:first-child{border-radius:6px 6px 0 0;margin-top:0;}
 .pyr-stack .pyr-box:last-child{border-radius:0 0 6px 6px;}
 .pyr-stack .pyr-box:only-child{border-radius:6px;}
+/* 주계통을 가운데로 밀기 위한 빈칸 — 곁가지와 같은 폭만 차지하고 아무것도 안 그린다 */
+.pyr-ghost{flex-shrink:0;}
+.pyr-ghost + .pyr-node::before{border-top:0;}   /* 빈칸 쪽으로 뻗는 가로선은 지운다 */
 /* 끌어 옮기는 중 표시 — 가로줄은 좌우 선, 세로 스택은 위아래 선 */
 .pyr-box{cursor:grab;}
 .pyr-box.dragging{opacity:0.4;}
@@ -8130,16 +8133,33 @@ function _renderOrgPyramid(users){
     </div>`;
   };
 
-  const node = u => {
+  // onSpine: 최상위 계통(이사장 → 본부장)인지. 이 구간에서는 안전감사팀 같은
+  // 곁가지를 오른쪽으로 빼고 왼쪽에 같은 폭의 빈칸을 넣어, 주계통이 조직도
+  // 한가운데 오도록 균형을 맞춘다. 아래 단계는 원래대로 그린다.
+  const NODE_W = 166;   // 상자 150px + .pyr-node 좌우 여백 8px씩
+  const node = (u, onSpine) => {
     if(seen.has(u.시설명)) return '';     // 순환 방지
     seen.add(u.시설명);
     const kids=kidsOf(u);
     if(!kids.length) return `<div class="pyr-node">${box(u)}</div>`;
     // 자식이 전부 말단이면 세로로 쌓는다 — 가로로 펼치면 화면을 벗어난다
     const allLeaf = kids.every(k=>!kidsOf(k).length);
-    const inner = allLeaf
-      ? `<div class="pyr-stack">${kids.map(k=>{ seen.add(k.시설명); return box(k); }).join('')}</div>`
-      : `<div class="pyr-kids">${kids.map(node).join('')}</div>`;
+    let inner;
+    if(allLeaf){
+      inner = `<div class="pyr-stack">${kids.map(k=>{ seen.add(k.시설명); return box(k); }).join('')}</div>`;
+    } else {
+      const heavy = kids.filter(k=>kidsOf(k).length);
+      const leaves = kids.filter(k=>!kidsOf(k).length);
+      if(onSpine && heavy.length===1 && leaves.length){
+        inner = `<div class="pyr-kids">
+          <div class="pyr-ghost" style="width:${leaves.length*NODE_W}px"></div>
+          ${node(heavy[0], true)}
+          ${leaves.map(l=>node(l,false)).join('')}
+        </div>`;
+      } else {
+        inner = `<div class="pyr-kids">${kids.map(k=>node(k,false)).join('')}</div>`;
+      }
+    }
     return `<div class="pyr-node">${box(u)}${inner}</div>`;
   };
 
@@ -8147,7 +8167,7 @@ function _renderOrgPyramid(users){
   const withKids=roots.filter(r=>kidsOf(r).length);
   const alone=roots.filter(r=>!kidsOf(r).length);
   let html='';
-  if(withKids.length) html+=`<div class="pyr-root">${withKids.map(node).join('')}</div>`;
+  if(withKids.length) html+=`<div class="pyr-root">${withKids.map(r=>node(r,true)).join('')}</div>`;
   if(alone.length){
     html+=`<div class="pyr-loose"><div class="pyr-loose-title">별개 시설 · 계정</div>
       <div class="pyr-loose-row">${alone.map(u=>{ seen.add(u.시설명); return box(u); }).join('')}</div></div>`;
