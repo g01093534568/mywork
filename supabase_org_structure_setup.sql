@@ -16,9 +16,10 @@
 -- 안전장치:
 --   · 이미 있는 시설명은 새로 만들지 않고 parent_facility만 맞춘다
 --   · 여러 번 실행해도 결과가 같다
---   · 기존 계정의 성명·패스워드·권한은 건드리지 않는다
+--   · 기존 계정의 성명·패스워드는 건드리지 않는다
+--   · 권한(role)은 맨 아래 규칙에 따라 바뀔 수 있다 — 아랫조직을 거느린 곳만 올라간다
 --
--- 되돌리려면: 아래 DELETE 한 줄 (맨 아래 주석 참고)
+-- 되돌리려면: 맨 아래 주석 참고 (권한은 자동 복구되지 않으니 아래 표를 먼저 저장해 둘 것)
 -- ============================================================
 
 DO $$
@@ -59,6 +60,9 @@ BEGIN
       ('공중화장실',                '주차관리팀'),
       ('종량제봉투',                '주차관리팀'),
 
+      -- 에너지 기록 59건이 있으나 계정이 없던 시설. 조직도 밖 별개 시설로 둔다.
+      ('서부노인복지관',            NULL),
+
       -- 울주군립야영장 하부 (이미 있는 계정들 — 관계만 재확인)
       ('울주군립야영장(달빛)',          '울주군립야영장'),
       ('울주군립야영장(등억)',          '울주군립야영장'),
@@ -83,9 +87,25 @@ END $$;
 
 -- 별개 시설(테스트 계정 포함)은 조직도 밖 — 상위를 비워 최상위로 둔다
 UPDATE users SET parent_facility = NULL
- WHERE 시설명 IN ('성북구시설관리공단', '영월군시설관리공단', 'test', '관리자');
+ WHERE 시설명 IN ('성북구시설관리공단', '영월군시설관리공단', 'test', '관리자', '서부노인복지관');
 
--- ── 확인: 계층 구조 ──
+-- ============================================================
+-- 권한: 조직도 위치에 따라 보이는 범위를 정한다
+--   이사장·본부장            → admin          (전 시설)
+--   하위 조직을 거느린 팀·시설 → facility-admin (자기 + 전체 하위, 재귀)
+--   하위가 없는 곳            → 지금 권한 그대로 (건드리지 않는다)
+-- 하위가 없으면 시설관리자로 올려도 보이는 범위는 자기 자신뿐이면서
+-- 시설목표·에너지·지식자료 탭만 열리므로, 실제로 아랫조직이 생길 때 올린다.
+-- ============================================================
+
+UPDATE users SET role = 'admin' WHERE 시설명 IN ('이사장', '본부장');
+
+UPDATE users u SET role = 'facility-admin'
+ WHERE u.시설명 NOT IN ('이사장', '본부장')
+   AND u.role <> 'admin'                                  -- 본사관리자(강기호)는 그대로
+   AND EXISTS (SELECT 1 FROM users c WHERE c.parent_facility = u.시설명);
+
+-- ── 확인: 계층 구조 + 권한 + 로그인 가능 여부 ──
 WITH RECURSIVE tree AS (
   SELECT 시설명, parent_facility, 0 AS depth, 시설명::text AS path
     FROM users WHERE parent_facility IS NULL OR parent_facility = ''
@@ -93,8 +113,17 @@ WITH RECURSIVE tree AS (
   SELECT u.시설명, u.parent_facility, t.depth + 1, t.path || ' > ' || u.시설명
     FROM users u JOIN tree t ON u.parent_facility = t.시설명
 )
-SELECT repeat('    ', depth) || 시설명 AS 조직도, depth AS 단계
-  FROM tree ORDER BY path;
+SELECT repeat('    ', t.depth) || t.시설명            AS 조직도,
+       COALESCE(NULLIF(u.성명, ''), '—')              AS 성명,
+       CASE u.role WHEN 'admin' THEN '본사관리자(전 시설)'
+                   WHEN 'facility-admin' THEN '시설관리자(자기+하위)'
+                   ELSE '사용자(자기만)' END           AS 권한,
+       CASE WHEN u.패스워드 = repeat('x', 64) THEN '조직 항목(로그인 불가)'
+            ELSE '로그인 계정' END                     AS 구분
+  FROM tree t JOIN users u ON u.시설명 = t.시설명
+ ORDER BY t.path;
 
 -- ── 되돌리기 ──
--- DELETE FROM users WHERE 패스워드 = repeat('x', 64);
+-- 조직 항목 제거:  DELETE FROM users WHERE 패스워드 = repeat('x', 64);
+-- 상위 관계 해제:  UPDATE users SET parent_facility = NULL;
+-- 권한은 위 확인 표를 보고 수동으로 되돌려야 한다 (원래 값을 따로 보관하지 않는다)
