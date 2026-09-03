@@ -149,6 +149,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .strategy-col-title{font-size:12px;font-weight:700;color:var(--green);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:10px;}
 .strategy-task{font-size:12px;color:var(--t2);padding:5px 0;display:flex;align-items:flex-start;gap:6px;word-break:keep-all;}
 .strategy-task::before{content:'•';color:var(--accent);flex-shrink:0;margin-top:1px;}
+.mgoal-chip{font-size:11px;color:var(--t2);background:rgba(232,160,32,0.08);border:1px solid rgba(232,160,32,0.22);border-radius:6px;padding:4px 8px;margin:3px 0 3px 14px;word-break:keep-all;line-height:1.45;}
 .facility-goals-section{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
 .facility-goals-header{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .facility-goals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
@@ -262,6 +263,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .strategy-tasks-label{font-size:11px;font-weight:700;color:var(--t3);margin:10px 0 6px;}
 .strategy-task-edit{display:flex;gap:6px;margin-bottom:6px;}
 .strategy-task-edit input{font-size:12px;}
+/* 전략과제 아래 경영목표 — 한 과제에 딸린 것임이 보이도록 왼쪽 선으로 묶어 들여쓴다 */
+.strategy-task-block{border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:8px;}
+.strategy-task-block:last-of-type{border-bottom:none;}
+.strategy-mgoals{margin:0 0 0 14px;padding-left:10px;border-left:2px solid rgba(232,160,32,0.35);}
+.strategy-mgoals-label{font-size:10px;font-weight:700;color:var(--t3);margin:2px 0 4px;letter-spacing:0.3px;}
+.strategy-mgoal-edit{display:flex;gap:6px;margin-bottom:4px;}
+.strategy-mgoal-edit input{font-size:11px;padding:6px 8px;}
+.strategy-mgoal-add{width:100%;font-size:11px;color:var(--t3);}
 .user-table{width:100%;border-collapse:collapse;}
 .user-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
 .user-table td{padding:11px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);}
@@ -3855,14 +3864,17 @@ async function renderOrgGoals(){
     <div class="goal-level"><div class="goal-card vision"><div class="goal-card-label">Vision</div><div class="goal-card-text">${esc(org.vision)}</div></div></div>
     <div class="goal-arrow">↓</div>
     <div style="width:100%">
-      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">전략목표 · 전략과제</div>
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">전략목표 · 전략과제 · 경영목표</div>
       <div class="strategy-grid">`;
   const _canEdit=currentUser.role==='facility-admin'||currentUser.role==='admin';
   const _allTaskNames=(org.전략과제||[]).map(t=>t.과제);
   (org.전략목표||[]).forEach((목표,i)=>{
     const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
     html+=`<div class="strategy-col"><div class="strategy-col-title">전략목표 ${i+1}: ${esc(목표)}</div>`;
-    tasks.forEach(t=>{ html+=`<div class="strategy-task">${esc(t.과제)}</div>`; });
+    tasks.forEach(t=>{
+      html+=`<div class="strategy-task">${esc(t.과제)}</div>`;
+      (t.경영목표||[]).forEach(m=>{ html+=`<div class="mgoal-chip">🎯 ${esc(m)}</div>`; });
+    });
     html+=`</div>`;
   });
   html+=`</div></div>`;
@@ -7669,14 +7681,21 @@ async function loadAdminGoalsForm(){
   document.getElementById('a-vision').value=org.vision||'';
   const goals=org.전략목표||[];
   const allTasks=org.전략과제||[];
-  strategyDraft=goals.map((g,i)=>({goal:g, tasks:allTasks.filter(t=>t.목표idx===i).map(t=>t.과제)}));
+  strategyDraft=goals.map((g,i)=>({
+    goal:g,
+    tasks:allTasks.filter(t=>t.목표idx===i).map(t=>({name:t.과제, mgoals:Array.isArray(t.경영목표)?[...t.경영목표]:[]}))
+  }));
   renderStrategyEditor();
 }
 
 function collectStrategyDraft(){
+  const val=(sel,fallback)=>document.querySelector(sel)?.value??fallback;
   strategyDraft=strategyDraft.map((item,i)=>({
-    goal:(document.querySelector(`.s-goal-input[data-idx="${i}"]`)?.value??item.goal),
-    tasks:item.tasks.map((_,j)=>document.querySelector(`.s-task-input[data-goal="${i}"][data-task="${j}"]`)?.value??_)
+    goal:val(`.s-goal-input[data-idx="${i}"]`, item.goal),
+    tasks:item.tasks.map((task,j)=>({
+      name:val(`.s-task-input[data-goal="${i}"][data-task="${j}"]`, task.name),
+      mgoals:(task.mgoals||[]).map((m,k)=>val(`.s-mgoal-input[data-goal="${i}"][data-task="${j}"][data-mgoal="${k}"]`, m))
+    }))
   }));
 }
 
@@ -7693,9 +7712,20 @@ function renderStrategyEditor(){
         <input type="text" class="s-goal-input" data-idx="${i}" value="${esc(item.goal)}" placeholder="전략목표 ${i+1} 입력" />
         <div class="strategy-tasks-label">전략과제</div>
         ${item.tasks.map((task,j)=>`
-          <div class="strategy-task-edit">
-            <input type="text" class="s-task-input" data-goal="${i}" data-task="${j}" value="${esc(task)}" placeholder="전략과제 ${j+1}" />
-            <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="deleteStrategyTask(${i},${j})">✕</button>
+          <div class="strategy-task-block">
+            <div class="strategy-task-edit">
+              <input type="text" class="s-task-input" data-goal="${i}" data-task="${j}" value="${esc(task.name)}" placeholder="전략과제 ${j+1}" />
+              <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="deleteStrategyTask(${i},${j})">✕</button>
+            </div>
+            <div class="strategy-mgoals">
+              <div class="strategy-mgoals-label">경영목표</div>
+              ${(task.mgoals||[]).map((m,k)=>`
+                <div class="strategy-mgoal-edit">
+                  <input type="text" class="s-mgoal-input" data-goal="${i}" data-task="${j}" data-mgoal="${k}" value="${esc(m)}" placeholder="경영목표 ${k+1}" />
+                  <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="deleteMgmtGoal(${i},${j},${k})">✕</button>
+                </div>`).join('')}
+              <button class="btn btn-ghost btn-sm strategy-mgoal-add" onclick="addMgmtGoal(${i},${j})">+ 경영목표 추가</button>
+            </div>
           </div>`).join('')}
         <button class="btn btn-secondary btn-sm" onclick="addStrategyTask(${i})" style="width:100%;margin-top:6px">+ 전략과제 추가</button>
       </div>`).join('');
@@ -7710,7 +7740,7 @@ function renderStrategyEditor(){
 
 function addStrategyGoal(){
   collectStrategyDraft();
-  strategyDraft.push({goal:'',tasks:['']});
+  strategyDraft.push({goal:'',tasks:[{name:'',mgoals:['']}]});
   renderStrategyEditor();
 }
 
@@ -7723,7 +7753,19 @@ async function deleteStrategyGoal(i){
 
 function addStrategyTask(goalIdx){
   collectStrategyDraft();
-  strategyDraft[goalIdx].tasks.push('');
+  strategyDraft[goalIdx].tasks.push({name:'',mgoals:['']});
+  renderStrategyEditor();
+}
+
+function addMgmtGoal(goalIdx,taskIdx){
+  collectStrategyDraft();
+  strategyDraft[goalIdx].tasks[taskIdx].mgoals.push('');
+  renderStrategyEditor();
+}
+
+function deleteMgmtGoal(goalIdx,taskIdx,mIdx){
+  collectStrategyDraft();
+  strategyDraft[goalIdx].tasks[taskIdx].mgoals.splice(mIdx,1);
   renderStrategyEditor();
 }
 
@@ -7741,7 +7783,12 @@ async function saveOrgGoals(){
   const 전략목표=[], 전략과제=[];
   strategyDraft.forEach((item,i)=>{
     전략목표.push(item.goal.trim());
-    item.tasks.forEach(task=>{ const t=task.trim(); if(t) 전략과제.push({목표idx:i,과제:t}); });
+    item.tasks.forEach(task=>{
+      const t=(task.name||'').trim();
+      if(!t) return;   // 과제 이름이 비면 그 아래 경영목표도 갈 곳이 없다
+      const mgoals=(task.mgoals||[]).map(m=>(m||'').trim()).filter(Boolean);
+      전략과제.push({목표idx:i, 과제:t, 경영목표:mgoals});
+    });
   });
   try{
     await DB.setOrg({mission,vision,전략목표,전략과제});
