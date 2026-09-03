@@ -116,6 +116,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .nav-item .nav-icon{width:18px;text-align:center;font-size:15px;}
 .nav-label{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:10px 12px 4px;}
 .nav-item[style*="display:none"] { display: none !important; }
+.app-build{font-size:10px;color:var(--t3);padding:8px 4px 0;letter-spacing:0.2px;}
+/* 새 배포 알림 — 열어둔 탭이 옛 코드를 계속 도는 것을 알려준다 */
+.update-bar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;
+  display:flex;align-items:center;gap:12px;padding:11px 14px 11px 18px;border-radius:999px;
+  background:var(--card);border:1px solid var(--accent);color:var(--t1);font-size:13px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.35);max-width:calc(100vw - 32px);}
+.update-bar button{background:var(--accent);color:#1a1000;font-weight:700;font-size:12px;
+  padding:7px 14px;border-radius:999px;white-space:nowrap;}
+.update-bar .dismiss{background:transparent;color:var(--t3);font-weight:400;padding:7px 4px;}
 .sidebar-user{padding:14px 16px;border-top:1px solid var(--border);}
 .user-info{display:flex;align-items:center;gap:10px;}
 .user-avatar{width:34px;height:34px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#1a1000;flex-shrink:0;}
@@ -517,7 +526,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 @media(max-width:1200px){.stock-grid{grid-template-columns:repeat(3,1fr)!important;}}
 @media(max-width:900px){
   .sidebar{width:64px;}
-  .sidebar-logo span,.nav-item span:last-child,.user-detail,.nav-label{display:none;}
+  .sidebar-logo span,.nav-item span:last-child,.user-detail,.nav-label,.app-build{display:none;}
   .main-content{margin-left:64px;padding:20px 16px;}
   .strategy-grid,.personal-goals-grid,.form-row,.facility-goals-grid{grid-template-columns:1fr;}
   .strategy-goals-grid{grid-template-columns:repeat(2,1fr)!important;}
@@ -553,7 +562,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   }
   .sidebar.open{transform:translateX(0);box-shadow:0 0 48px rgba(0,0,0,0.7);}
   /* restore full labels inside drawer (override 900px collapse) */
-  .sidebar-logo span,.user-detail,.nav-label{display:block!important;}
+  .sidebar-logo span,.user-detail,.nav-label,.app-build{display:block!important;}
   .nav-item span:last-child{display:inline!important;}
   .drawer-backdrop{
     position:fixed;inset:0;background:rgba(0,0,0,0.55);
@@ -1275,6 +1284,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <button class="logout-btn" onclick="doLogout()" title="로그아웃">⏻</button>
       </div>
+      <div class="app-build" id="app-build"></div>
     </div>
   </div>
 
@@ -3192,6 +3202,42 @@ const DB = {
     }
     _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
+  async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
+
+  // 새 시설은 같은 상위의 맨 뒤에 붙인다. sort_order가 비면 정렬이 9999로 보아
+  // 항상 끝으로 가고, 드래그로 고치기 전까지 조직도 순서가 어긋난다.
+  async nextSortOrder(parent, users){
+    const list = users || await this.getUsers();
+    return list.filter(u=>(u.parent_facility||null)===(parent||null))
+               .reduce((m,u)=>Math.max(m, Number.isFinite(u.sort_order)?u.sort_order:-1), -1) + 1;
+  },
+  // 시설(계정) 저장 — 에너지관리 시설 폼 전용.
+  // 성명은 이 폼에 없다. row에 넣지 않아야 조직도에서 넣어둔 담당자 이름이 지워지지 않는다.
+  async upsertFacilityUser(u){
+    const row={시설명:u.시설명, 사원번호:u.사원번호, role:u.role, parent_facility:u.parent_facility||null};
+    if(u.패스워드) row.패스워드=u.패스워드;
+    if(u.id){
+      const {error}=await SB.from('users').update(row).eq('id',u.id); if(error)throw error;
+    } else {
+      row.sort_order = await this.nextSortOrder(row.parent_facility);
+      const {error}=await SB.from('users').insert(row); if(error)throw error;
+    }
+    _cd('users');
+  },
+  // 엑셀 일괄 등록 — 상위별로 뒤에 차례로 붙인다
+  async insertFacilityUsers(rows){
+    if(!rows||!rows.length) return;
+    const users=await this.getUsers();
+    const next=new Map();
+    const withOrder=[];
+    for(const r of rows){
+      const parent=r.parent_facility||null;
+      if(!next.has(parent)) next.set(parent, await this.nextSortOrder(parent, users));
+      const n=next.get(parent); next.set(parent, n+1);
+      withOrder.push({...r, parent_facility:parent, sort_order:n});
+    }
+    const {error}=await SB.from('users').insert(withOrder); if(error)throw error; _cd('users');
+  },
 
   async getOrg(){
     const k='org';
@@ -10758,6 +10804,50 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+
+// ── 새 배포 감지 ────────────────────────────────────────────────
+// 배포가 끝나도 열어둔 탭은 옛 코드를 계속 돈다. 서비스워커가 HTML을 네트워크
+// 우선으로 가져오므로 새로고침 한 번이면 되는데, 그걸 화면이 알려주지 않아
+// "고쳤는데 안 고쳐졌다"로 오해하게 된다.
+//
+// 빌드 단계가 없어 심어둘 버전 문자열이 없다. 대신 서버가 파일 내용으로 만들어
+// 주는 ETag를 쓴다 — 파일이 바뀔 때만 값이 달라지므로 따로 올릴 것이 없다.
+let _buildTag = null;
+async function _fetchBuild(){
+  try{
+    const res = await fetch(location.pathname + '?v=' + Date.now(), { method:'HEAD', cache:'no-store' });
+    if(!res.ok) return null;
+    return { tag: res.headers.get('etag') || res.headers.get('last-modified'),
+             at: res.headers.get('last-modified') };
+  }catch(e){ return null; }   // 오프라인이면 조용히 넘어간다
+}
+function _showUpdateBar(){
+  if(document.getElementById('update-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'update-bar'; bar.id = 'update-bar';
+  bar.innerHTML = `<span>새 버전이 배포됐습니다</span>
+    <button onclick="location.reload()">새로고침</button>
+    <button class="dismiss" onclick="this.parentNode.remove()">나중에</button>`;
+  document.body.appendChild(bar);
+}
+async function _initBuildWatch(){
+  const b = await _fetchBuild();
+  if(!b) return;
+  _buildTag = b.tag;
+  const el = document.getElementById('app-build');
+  if(el && b.at){
+    const d = new Date(b.at);
+    el.textContent = `배포 ${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  const check = async () => {
+    if(document.hidden) return;
+    const now = await _fetchBuild();
+    if(now && _buildTag && now.tag && now.tag !== _buildTag) _showUpdateBar();
+  };
+  setInterval(check, 10 * 60 * 1000);            // 10분마다
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) check(); });
+}
+window.addEventListener('load', _initBuildWatch);
 </script>
 
 <!-- AI 어시스턴트 (음성+텍스트 통합) -->
@@ -11178,17 +11268,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // 비밀번호가 입력된 경우 항상 해시 처리
             const hashedPw = passwordRaw ? (isHashed(passwordRaw) ? passwordRaw : await hashPassword(passwordRaw)) : null;
 
-            let sbError;
-            if (currentEditIndex !== null) {
-                const updateData = { '시설명': facilityName, '사원번호': id, role, parent_facility: parentFacility };
-                if (hashedPw) updateData['패스워드'] = hashedPw;
-                const { error } = await SB.from('users').update(updateData).eq('id', currentEditIndex);
-                sbError = error;
-            } else {
-                const { error } = await SB.from('users').insert({ '시설명': facilityName, '사원번호': id, '패스워드': hashedPw, role, parent_facility: parentFacility });
-                sbError = error;
-            }
-            if (sbError) { alert('저장 실패: ' + sbError.message); return; }
+            // DB 계층 경유 — users 캐시 무효화와 신규 시설의 sort_order 부여가 여기 딸려 있다.
+            // 직접 SB.from('users')를 쓰면 조직도·드롭다운이 옛 목록을 계속 보여준다.
+            await DB.upsertFacilityUser({
+                id: currentEditIndex || null,
+                시설명: facilityName, 사원번호: id, 패스워드: hashedPw,
+                role, parent_facility: parentFacility
+            });
             alert(currentEditIndex !== null ? '시설 정보가 수정되었습니다.' : '시설이 추가되었습니다.');
             closeFacilityModal();
             loadFacilities();
@@ -11775,8 +11861,7 @@ window.editFacility = function(index) {
 window.deleteFacility = async function(dbId) {
     if (!confirm('정말 이 시설을 삭제하시겠습니까?')) return;
     try {
-        const { error } = await SB.from('users').delete().eq('id', dbId);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        await DB.deleteUser(dbId);
         alert('시설이 삭제되었습니다.');
         loadFacilities();
     } catch (error) {
@@ -13936,8 +14021,7 @@ async function deleteSelectedFacilities() {
     const ids = Array.from(checkboxes).map(cb => cb.dataset.originalIndex);
 
     try {
-        const { error } = await SB.from('users').delete().in('id', ids);
-        if (error) throw error;
+        await DB.deleteUsers(ids);
         alert(`${ids.length}개 시설이 삭제되었습니다.`);
 
         const selectAllCheckbox = document.getElementById('selectAllFacilitiesCheckbox');
@@ -14057,8 +14141,7 @@ async function uploadFacilitiesExcel(event) {
             role: f.role || 'user',
             parent_facility: f.parentFacility || ''
         })));
-        const { error: insErr } = await SB.from('users').insert(insertRows);
-        if (insErr) throw insErr;
+        await DB.insertFacilityUsers(insertRows);
         alert(`시설 추가 완료!\n${facilities.length}개 추가되었습니다.`);
         if (typeof loadFacilities === 'function') loadFacilities();
     } catch (error) {
