@@ -369,11 +369,14 @@ async function runTool(name, input, ctx) {
           : '[개인 성과목표] 등록된 목표가 없습니다');
       }
       if (scope === 'all' || scope === 'facility') {
+        // 시설목표 KPI는 예전 문자열과 지금의 {name,target,actual,unit} 객체가 섞여 있다
+        const kpiText = k => typeof k === 'string' ? k
+          : `${k?.name || ''}${k?.target != null || k?.actual != null ? ` (목표 ${k?.target ?? '-'} / 실적 ${k?.actual ?? '-'}${k?.unit ? ' ' + k.unit : ''})` : ''}`;
         const rows = (await sb(`facility_goals?시설명=eq.${q(user.시설명)}&select=*`)) || [];
         out.push(rows.length
           ? '[시설 경영목표]\n' + rows.map(g =>
               `• ${g.goal} — ${g.progress || 0}%` +
-              ((g.kpis || []).length ? `\n    KPI: ${(g.kpis || []).join(', ')}` : '')).join('\n')
+              ((g.kpis || []).length ? `\n    KPI: ${(g.kpis || []).map(kpiText).join(', ')}` : '')).join('\n')
           : '[시설 경영목표] 등록된 목표가 없습니다');
       }
       return out.join('\n\n');

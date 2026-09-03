@@ -308,6 +308,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-inline-card{background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
 .fg-inline-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:5px;word-break:keep-all;line-height:1.4;}
 .fg-inline-kpi{font-size:11px;color:var(--t2);padding:2px 0;word-break:keep-all;}
+/* 시설목표 KPI 입력 — 지표명 한 줄, 목표/실적/단위/방향 한 줄 */
+.fg-kpi-row{border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;margin-bottom:8px;background:var(--bg);}
+.fg-kpi-line{display:flex;gap:6px;align-items:center;}
+.fg-kpi-line+.fg-kpi-line{margin-top:6px;}
+.fg-kpi-row input,.fg-kpi-row select{font-size:12px;padding:6px 8px;}
+.fg-kpi-row .fg-kpi-name{flex:1;min-width:0;}
+.fg-kpi-num{width:72px;flex-shrink:0;}
+.fg-kpi-unit{width:56px;flex-shrink:0;}
+.fg-kpi-dir{width:120px;flex-shrink:0;}
+.fg-kpi-cap{font-size:10px;color:var(--t3);flex-shrink:0;}
+.fg-kpi-rate{margin-left:auto;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:44px;text-align:right;}
+.fg-progress-view{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;font-size:13px;color:var(--t2);}
+.fg-progress-view b{font-size:18px;color:var(--accent);margin-right:8px;}
+@media(max-width:600px){.fg-kpi-line{flex-wrap:wrap;}.fg-kpi-dir{width:100%;}}
 /* 섹션 뱃지 헤더 */
 .section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
 .section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
@@ -2525,14 +2539,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     </div>
     <div class="form-group">
       <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span>KPI (핵심성과지표)</span>
+        <span>KPI (핵심성과지표) · 목표값과 실적</span>
         <button type="button" class="btn btn-secondary btn-sm" onclick="addFgKpi()">+ KPI 추가</button>
       </label>
       <div id="fg-kpi-list"></div>
     </div>
     <div class="form-group">
-      <label>달성률 (%)</label>
-      <input type="number" id="fg-progress" min="0" max="100" value="0" />
+      <label>달성률 (실적으로 자동 계산)</label>
+      <div id="fg-progress-view" class="fg-progress-view">—</div>
+      <input type="hidden" id="fg-progress" value="0" />
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeModal('fg-modal')">취소</button>
@@ -3903,11 +3918,12 @@ async function renderOrgGoals(){
       html+=`<div class="strategy-task" style="font-size:10px;opacity:0.7;margin-top:4px">↳ ${esc(t.과제)}</div>`;
       linked.forEach(g=>{
         const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
+        const prog=fgProgress(g);
         html+=`<div class="fg-inline-card">
           <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
-          ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-          <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-          <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+          ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(fgKpiLabel(k))}</div>`).join('')}
+          <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,prog)}%"></div></div></div>
+          <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${prog}%</div>
           ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
             <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
             <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
@@ -3922,11 +3938,12 @@ async function renderOrgGoals(){
     html+=`<div class="strategy-col" style="opacity:0.8"><div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>`;
     _unlinked.forEach(g=>{
       const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);
+      const prog=fgProgress(g);
       html+=`<div class="fg-inline-card">
         <div class="fg-inline-title">🏢 ${esc(g.goal)}</div>
-        ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-        <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-        <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+        ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(fgKpiLabel(k))}</div>`).join('')}
+        <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,prog)}%"></div></div></div>
+        <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${prog}%</div>
         ${_canEdit?`<div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
@@ -7817,12 +7834,13 @@ async function renderAdminFacilityGoals(){
   let seq = 0;
   const card = (g, showLink) => {
     const kpis = Array.isArray(g.kpis)&&g.kpis.length ? g.kpis : (g.kpi?[g.kpi]:[]);
+    const prog = fgProgress(g);
     return `<div class="fg-inline-card" data-id="${g.id}">
       <div class="fg-inline-title">🏢 <span style="opacity:0.55">${++seq}.</span> ${esc(g.goal)}</div>
       ${showLink&&(g.linkedStrategyTask||g.linkedStrategyGoal)?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">↗ ${esc(g.linkedStrategyTask||g.linkedStrategyGoal)} (지금 전략체계에 없는 이름)</div>`:''}
-      ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
-      <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
-      <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+      ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(fgKpiLabel(k))}</div>`).join('')}
+      <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,prog)}%"></div></div></div>
+      <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${prog}%</div>
       <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
         <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
@@ -7884,29 +7902,119 @@ async function renderAdminFacilityGoals(){
   cont.innerHTML = `<div class="fg-strategy-grid">${cols}</div>`;
 }
 
+// ── 시설목표 KPI: 예전에는 문자열 한 줄이었고, 지금은 목표값·실적을 담은 객체다 ──
+// 두 형태가 DB에 섞여 있으므로 읽는 쪽은 항상 이 함수를 거친다.
+function _fgNum(v){ if(v===''||v===null||v===undefined) return null; const n=Number(v); return Number.isFinite(n)?n:null; }
+function _fgKpi(k){
+  if(typeof k==='string') return {name:k, target:null, actual:null, unit:'', dir:'up'};
+  return {name:k?.name||'', target:_fgNum(k?.target), actual:_fgNum(k?.actual), unit:k?.unit||'', dir:k?.dir==='down'?'down':'up'};
+}
+
+// 지표 하나의 달성률. 목표값이나 실적이 비면 계산하지 않는다(null).
+// 낮을수록 좋은 지표는 (2 - 실적/목표)로 뒤집는다 — 목표대로면 100%, 절반이면 150%,
+// 두 배면 0%. 목표가 0인 지표(사고 0건 등)는 나눌 수 없어 달성/미달로만 가른다.
+function fgKpiRate(k){
+  const {target,actual,dir}=_fgKpi(k);
+  if(target===null||actual===null) return null;
+  if(dir==='down'){
+    if(target===0) return actual<=0?100:0;
+    return Math.max(0, Math.round((2-actual/target)*100));
+  }
+  if(target===0) return actual>=0?100:0;
+  return Math.max(0, Math.round(actual/target*100));
+}
+// 시설목표의 달성률 = 계산 가능한 KPI들의 평균. 하나도 없으면 null.
+function fgProgressOf(g){
+  const rates=(Array.isArray(g?.kpis)?g.kpis:[]).map(fgKpiRate).filter(r=>r!==null);
+  if(!rates.length) return null;
+  return Math.round(rates.reduce((a,b)=>a+b,0)/rates.length);
+}
+// 화면에 쓸 달성률 — 실적으로 계산되면 그 값, 아니면 예전에 손으로 넣어둔 값
+function fgProgress(g){ const c=fgProgressOf(g); return c!==null?c:(g?.progress||0); }
+function fgKpiLabel(k){
+  const {name,target,actual,unit,dir}=_fgKpi(k);
+  if(target===null&&actual===null) return name;
+  const u=unit?' '+unit:'';
+  const rate=fgKpiRate(k);
+  return `${name} — 목표 ${target??'-'}${u} / 실적 ${actual??'-'}${u}`
+       + (rate!==null?` (${rate}%)`:'') + (dir==='down'?' ↓':'');
+}
+
 function renderFgKpis(){
   const list=document.getElementById('fg-kpi-list');
   if(!fgKpiDraft.length){
     list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:6px 0">KPI가 없습니다. 위 버튼으로 추가하세요.</div>';
+    updateFgProgress();
     return;
   }
-  list.innerHTML=fgKpiDraft.map((kpi,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px">
-      <input type="text" class="fg-kpi-input" data-idx="${i}" value="${esc(kpi)}" placeholder="KPI ${i+1} 입력 (예: 이용객 만족도 90점 이상)" style="font-size:13px" />
-      <button type="button" class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="deleteFgKpi(${i})">✕</button>
-    </div>`).join('');
+  list.innerHTML=fgKpiDraft.map((raw,i)=>{
+    const k=_fgKpi(raw), rate=fgKpiRate(raw);
+    return `
+    <div class="fg-kpi-row">
+      <div class="fg-kpi-line">
+        <input type="text" class="fg-kpi-name" data-idx="${i}" value="${esc(k.name)}" placeholder="지표 ${i+1} 이름 (예: 이용객 만족도)" />
+        <button type="button" class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="deleteFgKpi(${i})">✕</button>
+      </div>
+      <div class="fg-kpi-line">
+        <span class="fg-kpi-cap">목표</span>
+        <input type="number" step="any" class="fg-kpi-num fg-kpi-target" data-idx="${i}" value="${k.target??''}" oninput="updateFgProgress()" />
+        <span class="fg-kpi-cap">실적</span>
+        <input type="number" step="any" class="fg-kpi-num fg-kpi-actual" data-idx="${i}" value="${k.actual??''}" oninput="updateFgProgress()" />
+        <input type="text" class="fg-kpi-unit" data-idx="${i}" value="${esc(k.unit)}" placeholder="단위" />
+        <select class="fg-kpi-dir" data-idx="${i}" onchange="updateFgProgress()">
+          <option value="up"${k.dir==='up'?' selected':''}>높을수록 좋음</option>
+          <option value="down"${k.dir==='down'?' selected':''}>낮을수록 좋음</option>
+        </select>
+        <span class="fg-kpi-rate" data-idx="${i}">${rate===null?'—':rate+'%'}</span>
+      </div>
+    </div>`;}).join('');
+  updateFgProgress();
+}
+
+// 실적을 칠 때마다 지표별 달성률과 시설목표 달성률을 다시 계산한다.
+// 입력칸이 다시 그려지면 커서가 튀므로 숫자만 갈아 끼운다.
+function updateFgProgress(){
+  collectFgKpis();
+  fgKpiDraft.forEach((k,i)=>{
+    const el=document.querySelector(`.fg-kpi-rate[data-idx="${i}"]`);
+    if(el){ const r=fgKpiRate(k); el.textContent = r===null?'—':r+'%'; }
+  });
+  const view=document.getElementById('fg-progress-view');
+  const hidden=document.getElementById('fg-progress');
+  if(!view||!hidden) return;
+  const computed=fgProgressOf({kpis:fgKpiDraft});
+  if(computed!==null){
+    hidden.value=computed;
+    const n=fgKpiDraft.map(fgKpiRate).filter(r=>r!==null).length;
+    view.innerHTML=`<b>${computed}%</b>KPI ${n}개 평균`;
+  } else {
+    const kept=parseInt(hidden.value)||0;
+    view.innerHTML=`<b>${kept}%</b>${kept?'목표값·실적을 넣은 KPI가 없어 기존 값을 그대로 둡니다':'KPI에 목표값과 실적을 넣으면 달성률이 계산됩니다'}`;
+  }
 }
 
 function collectFgKpis(){
-  fgKpiDraft=fgKpiDraft.map((_,i)=>document.querySelector(`.fg-kpi-input[data-idx="${i}"]`)?.value??_);
+  const v=(cls,i)=>document.querySelector(`.${cls}[data-idx="${i}"]`)?.value;
+  fgKpiDraft=fgKpiDraft.map((raw,i)=>{
+    const k=_fgKpi(raw);
+    const name=v('fg-kpi-name',i), unit=v('fg-kpi-unit',i), dir=v('fg-kpi-dir',i);
+    const t=v('fg-kpi-target',i), a=v('fg-kpi-actual',i);
+    return {
+      name:name??k.name,
+      target:t===undefined?k.target:_fgNum(t),
+      actual:a===undefined?k.actual:_fgNum(a),
+      unit:unit??k.unit,
+      dir:(dir??k.dir)==='down'?'down':'up'
+    };
+  });
 }
 
 function addFgKpi(){
   collectFgKpis();
-  fgKpiDraft.push('');
+  fgKpiDraft.push({name:'',target:null,actual:null,unit:'',dir:'up'});
   renderFgKpis();
   // Focus the new input
-  setTimeout(()=>{ const inputs=document.querySelectorAll('.fg-kpi-input'); if(inputs.length) inputs[inputs.length-1].focus(); },50);
+  setTimeout(()=>{ const inputs=document.querySelectorAll('.fg-kpi-name'); if(inputs.length) inputs[inputs.length-1].focus(); },50);
 }
 
 function deleteFgKpi(i){
@@ -7936,7 +8044,7 @@ async function openFacilityGoalModal(id, preset){
     await updateFgTaskOptions(org);
     document.getElementById('fg-strategy-task').value=g.linkedStrategyTask||'';
     // KPI: support both old (string) and new (array) format
-    fgKpiDraft = Array.isArray(g.kpis) ? [...g.kpis] : (g.kpi ? [g.kpi] : []);
+    fgKpiDraft = (Array.isArray(g.kpis) ? g.kpis : (g.kpi ? [g.kpi] : [])).map(_fgKpi);
   } else {
     document.getElementById('fg-modal-title').textContent='시설목표 추가';
     document.getElementById('fg-edit-id').value='';
@@ -7964,14 +8072,16 @@ async function saveFacilityGoal(){
   const goal=document.getElementById('fg-goal').value.trim();
   if(!goal){ toast('시설목표 제목을 입력하세요','error'); return; }
   collectFgKpis();
-  const kpis=fgKpiDraft.map(k=>k.trim()).filter(k=>k);
+  const kpis=fgKpiDraft.map(_fgKpi).filter(k=>k.name.trim()).map(k=>({...k, name:k.name.trim(), unit:(k.unit||'').trim()}));
+  // 달성률은 실적에서 나온다. 목표값·실적이 아직 없는 목표(예전 데이터)는 갖고 있던 값을 지킨다.
+  const computed=fgProgressOf({kpis});
   const data={
     id:document.getElementById('fg-edit-id').value||uid(),
     goal,
     linkedStrategyGoal:document.getElementById('fg-strategy-goal').value,
     linkedStrategyTask:document.getElementById('fg-strategy-task').value,
-    kpis, kpi:kpis[0]||'',
-    progress:parseInt(document.getElementById('fg-progress').value)||0
+    kpis, kpi:kpis[0]?.name||'',
+    progress:computed!==null?computed:(parseInt(document.getElementById('fg-progress').value)||0)
   };
   try{
     await DB.upsertFacilityGoal(currentUser.시설명,data);
