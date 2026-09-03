@@ -11488,9 +11488,12 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadFacilities() {
     try {
         const facilities = await _emFacilitiesQuery();
+        await _getFacilityOrderMap();
         const sortedFacilities = facilities.sort((a, b) => {
             const nameA = a.facilityName || a.username || '';
             const nameB = b.facilityName || b.username || '';
+            const oa = _facOrder(nameA), ob = _facOrder(nameB);
+            if (oa !== ob) return oa - ob;
             return nameA.localeCompare(nameB, 'ko-KR');
         });
         renderFacilities(sortedFacilities);
@@ -11531,7 +11534,7 @@ function renderFacilities(facilities, page = 1) {
         const dbId = facility.id; // 데이터베이스 고유 ID
         row.innerHTML = `
             <td><input type="checkbox" class="facility-checkbox" data-index="${index}" data-original-index="${dbId}"></td>
-            <td>${facility.facilityName || facility.username}</td>
+            <td>${_facIndent(facility.facilityName)}${facility.facilityName || facility.username}</td>
             <td>${facility.username}</td>
             <td>${facility.password}</td>
             <td>${_emRoleDisplay(facility.role)}</td>
@@ -11822,12 +11825,29 @@ async function getOrgFacilityTree() {
     return out;
 }
 
-// 시설명 → 조직도 순번. 에너지·차량 관리 목록 정렬에 재사용한다.
+// 시설명 → {순번, 깊이}. 에너지·차량·시설 목록이 조직도와 같은 순서로 서고
+// 하위 시설은 오른쪽으로 들여쓰도록, 정렬과 표시가 같은 자료를 쓴다.
+let _facOrderMap = new Map();
 async function _getFacilityOrderMap() {
     const tree = await getOrgFacilityTree();
     const map = new Map();
-    tree.forEach((n, i) => { if (!map.has(n.name)) map.set(n.name, i); });
+    tree.forEach((n, i) => { if (!map.has(n.name)) map.set(n.name, { order: i, depth: n.depth }); });
+    _facOrderMap = map;   // 표를 다시 그릴 때(페이지 이동 등) 다시 조회하지 않게 들고 있는다
     return map;
+}
+// 조직도에 없는 이름은 맨 뒤로 — 이름이 바뀌었거나 지워진 시설이다
+function _facOrder(name) { const v = _facOrderMap.get(name); return v ? v.order : Infinity; }
+// 목록에 일부 시설만 나오면(에너지·차량 정보) 조직도 깊이를 그대로 쓰면 전부
+// 한참 오른쪽에 몰려 상위가 안 보인다. 그 목록에서 가장 얕은 곳을 0으로 당긴다.
+function _facBaseDepth(names) {
+    let base = Infinity;
+    (names || []).forEach(n => { const v = _facOrderMap.get(n); if (v && v.depth < base) base = v.depth; });
+    return base === Infinity ? 0 : base;
+}
+function _facIndent(name, base = 0) {
+    const v = _facOrderMap.get(name);
+    const d = v ? Math.max(0, v.depth - base) : 0;
+    return d ? '\u00A0'.repeat(d * 3) + '└ ' : '';
 }
 
 // 볼 수 있는 시설만 남긴 조직도 순서 목록. 상위가 목록에서 빠지면 들여쓰기도 그만큼
@@ -12725,10 +12745,9 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadEnergyInfos() {
     try {
         const infos = await _emInfoQuery();
-        const orderMap = await _getFacilityOrderMap();
+        await _getFacilityOrderMap();
         const sortedInfos = infos.sort((a, b) => {
-            const oa = orderMap.has(a.facilityName) ? orderMap.get(a.facilityName) : Infinity;
-            const ob = orderMap.has(b.facilityName) ? orderMap.get(b.facilityName) : Infinity;
+            const oa = _facOrder(a.facilityName), ob = _facOrder(b.facilityName);
             if (oa !== ob) return oa - ob;
             return a.energyType.localeCompare(b.energyType, 'ko-KR');
         });
@@ -12757,6 +12776,9 @@ function renderEnergyInfos(infos, page = 1) {
         return;
     }
 
+    // 들여쓰기 기준은 페이지가 아니라 전체 목록에서 잡는다(페이지마다 밀리면 안 된다)
+    const indentBase = _facBaseDepth(infos.map(i => i.facilityName));
+
     // 페이지네이션 계산
     const totalPages = Math.ceil(infos.length / energyInfoItemsPerPage);
     const startIndex = (page - 1) * energyInfoItemsPerPage;
@@ -12768,7 +12790,7 @@ function renderEnergyInfos(infos, page = 1) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><input type="checkbox" class="energy-info-checkbox" data-index="${index}"></td>
-            <td>${info.facilityName || '-'}</td>
+            <td>${_facIndent(info.facilityName, indentBase)}${info.facilityName || '-'}</td>
             <td>${info.energyType || '-'}</td>
             <td>${info.customerNumber || '-'}</td>
             <td>${info.bankName || '-'}</td>
@@ -12919,10 +12941,9 @@ window.deleteEnergyInfo = async function(index) {
 async function loadVehicleInfos() {
     try {
         const infos = await _emVehicleQuery();
-        const orderMap = await _getFacilityOrderMap();
+        await _getFacilityOrderMap();
         const sortedInfos = infos.sort((a, b) => {
-            const oa = orderMap.has(a.facilityName) ? orderMap.get(a.facilityName) : Infinity;
-            const ob = orderMap.has(b.facilityName) ? orderMap.get(b.facilityName) : Infinity;
+            const oa = _facOrder(a.facilityName), ob = _facOrder(b.facilityName);
             if (oa !== ob) return oa - ob;
             return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '', 'ko-KR');
         });
@@ -12950,6 +12971,7 @@ function renderVehicleInfos(infos, page = 1) {
         return;
     }
 
+    const indentBase = _facBaseDepth(infos.map(i => i.facilityName));
     const totalPages = Math.ceil(infos.length / vehicleInfoItemsPerPage);
     const startIndex = (page - 1) * vehicleInfoItemsPerPage;
     const endIndex = Math.min(startIndex + vehicleInfoItemsPerPage, infos.length);
@@ -12960,7 +12982,7 @@ function renderVehicleInfos(infos, page = 1) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><input type="checkbox" class="vehicle-info-checkbox" data-index="${index}"></td>
-            <td>${info.facilityName || '-'}</td>
+            <td>${_facIndent(info.facilityName, indentBase)}${info.facilityName || '-'}</td>
             <td>${info.vehicleNumber || '-'}</td>
             <td>${info.fuel || '-'}</td>
             <td>${info.modelYear || '-'}</td>
