@@ -4606,14 +4606,10 @@ async function saveGolfPractice(btnEl){
   const editId=(document.getElementById('golf-prac-edit-id')||{}).value||'';
   const data={id:editId||uid(),type:'golf',date:_golfDate,location,score:null,distance:null,duration:1,memo};
   try{
-    const {error}=await SB.from('exercises').upsert({
-      id:data.id, 사원번호:currentUser.사원번호, type:'golf',
-      date:data.date, location:data.location, score:null,
-      distance:null, duration:1, memo:data.memo,
-      updated_at:new Date().toISOString()
-    });
-    if(error) throw error;
-    _cd(`ex:${_ownerId()}:golf`);
+    // 여기서만 SB.upsert를 직접 불러 owner_id를 빠뜨렸었다. 읽기(getExercises)는
+    // owner_id로 거르기 때문에 저장은 됐지만 목록에 다시 나타나지 않았다.
+    // 다른 운동 기록과 같이 DB 계층을 쓴다(owner_id·updated_at·캐시 무효화까지 처리).
+    await DB.upsertExercise(currentUser.사원번호, data);
     if(document.getElementById('golf-prac-memo')) document.getElementById('golf-prac-memo').value='';
     if(document.getElementById('golf-prac-location')) document.getElementById('golf-prac-location').value='';
     if(document.getElementById('golf-prac-edit-id')) document.getElementById('golf-prac-edit-id').value='';
