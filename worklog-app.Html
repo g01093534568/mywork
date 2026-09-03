@@ -322,6 +322,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-progress-view{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;font-size:13px;color:var(--t2);}
 .fg-progress-view b{font-size:18px;color:var(--accent);margin-right:8px;}
 @media(max-width:600px){.fg-kpi-line{flex-wrap:wrap;}.fg-kpi-dir{width:100%;}}
+/* 경영실적 입력 */
+.perf-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start;}
+.perf-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;}
+.perf-card-head{display:flex;align-items:center;gap:10px;}
+.perf-goal{font-size:13px;font-weight:700;color:var(--blue);flex:1;min-width:0;word-break:keep-all;}
+.perf-goal-rate{font-size:15px;font-weight:800;color:var(--accent);flex-shrink:0;}
+.perf-ctx{font-size:11px;color:var(--t3);margin:4px 0 10px;word-break:keep-all;}
+.perf-kpi{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);}
+.perf-kpi-name{font-size:12px;color:var(--t1);flex:1;min-width:0;word-break:keep-all;}
+.perf-kpi-target{font-size:11px;color:var(--t3);flex-shrink:0;white-space:nowrap;}
+.perf-actual{width:88px;flex-shrink:0;font-size:12px;padding:6px 8px;}
+.perf-kpi-rate{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:44px;text-align:right;}
+@media(max-width:600px){.perf-kpi{flex-wrap:wrap;}.perf-kpi-name{flex:1 1 100%;}}
 /* 섹션 뱃지 헤더 */
 .section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
 .section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
@@ -1358,7 +1372,18 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <div class="personal-tabs" style="margin-bottom:18px">
         <div class="personal-tab active" id="daily-subtab-work" onclick="switchDailyTab('work')">📔 일일업무</div>
+        <div class="personal-tab" id="daily-subtab-perf" onclick="switchDailyTab('perf')">📈 경영실적 입력</div>
         <div class="personal-tab" id="daily-subtab-energy" onclick="switchDailyTab('energy')">⚡ 에너지관리</div>
+      </div>
+      <div id="daily-sub-perf" style="display:none">
+        <div class="perf-head">
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px" id="perf-subtitle"></div>
+          </div>
+          <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
+        </div>
+        <div id="perf-list"></div>
       </div>
       <div id="daily-sub-work">
       <div class="daily-date-bar">
@@ -2539,7 +2564,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     </div>
     <div class="form-group">
       <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span>KPI (핵심성과지표) · 목표값과 실적</span>
+        <span>KPI (핵심성과지표) · 목표값</span>
         <button type="button" class="btn btn-secondary btn-sm" onclick="addFgKpi()">+ KPI 추가</button>
       </label>
       <div id="fg-kpi-list"></div>
@@ -2547,6 +2572,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group">
       <label>달성률 (실적으로 자동 계산)</label>
       <div id="fg-progress-view" class="fg-progress-view">—</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:6px">실적은 업무 → 📈 경영실적 입력 탭에서 넣습니다</div>
       <input type="hidden" id="fg-progress" value="0" />
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
@@ -3757,23 +3783,124 @@ function navigate(page){
 
 // 업무 세션 하위 탭: 일일업무 / 에너지관리
 function switchDailyTab(tab){
-  if(tab!=='work' && tab!=='energy') tab='work';
+  if(!['work','perf','energy'].includes(tab)) tab='work';
   _sessionSubTab.daily = tab;
-  const wt=document.getElementById('daily-subtab-work'), et=document.getElementById('daily-subtab-energy');
-  if(wt) wt.classList.toggle('active', tab==='work');
-  if(et) et.classList.toggle('active', tab==='energy');
+  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy']].forEach(([t,id])=>{
+    const el=document.getElementById(id); if(el) el.classList.toggle('active', tab===t);
+  });
   const work=document.getElementById('daily-sub-work');
+  const perf=document.getElementById('daily-sub-perf');
   const energy=document.getElementById('page-energy');
   if(work)   work.style.display   = tab==='work'   ? '' : 'none';
+  if(perf)   perf.style.display   = tab==='perf'   ? '' : 'none';
   if(energy) energy.style.display = tab==='energy' ? 'block' : 'none';
   if(tab==='work'){
     renderDailyPage();
     startGcalAutoRefresh();
     if(gcalToken) renderCustomCalendar(); else restoreGcalToken();
+  } else if(tab==='perf'){
+    stopGcalAutoRefresh();
+    renderPerfPage();
   } else {
     stopGcalAutoRefresh();
     initEnergyMgmt();
   }
+}
+
+// ═══════════════════════════════════════════════
+// 경영실적 입력 (업무 세션 하위 탭)
+// 목표값은 설정에서 정하고, 여기서는 실적만 채운다.
+// ═══════════════════════════════════════════════
+let _perfGoals = [];
+
+// 시설목표를 전략목표 → 전략과제 순서로 늘어놓는다(연계가 끊긴 것은 맨 뒤).
+// 설정 화면과 같은 순서로 보여야 어느 목표를 채우는지 헷갈리지 않는다.
+function _fgOrdered(org, goals){
+  const 목표s=org?.전략목표||[], 과제s=org?.전략과제||[];
+  const 과제이름=new Set(과제s.map(t=>t.과제));
+  const out=[], placed=new Set();
+  목표s.forEach((목표,i)=>{
+    과제s.filter(t=>t.목표idx===i).forEach(t=>{
+      goals.filter(g=>g.linkedStrategyTask===t.과제).forEach(g=>{ placed.add(g.id); out.push({g, ctx:`전략목표 ${i+1}: ${목표} · ${t.과제}`}); });
+    });
+    goals.filter(g=>!placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal===목표)
+      .forEach(g=>{ placed.add(g.id); out.push({g, ctx:`전략목표 ${i+1}: ${목표}`}); });
+  });
+  goals.filter(g=>!placed.has(g.id)).forEach(g=>out.push({g, ctx:'미연계'}));
+  return out;
+}
+
+async function renderPerfPage(){
+  const cont=document.getElementById('perf-list');
+  if(!cont) return;
+  const sub=document.getElementById('perf-subtitle');
+  if(sub) sub.textContent=`${currentUser.시설명} · 실적을 넣으면 달성률이 계산됩니다. 목표값은 설정 → 시설목표 관리에서 정합니다`;
+  cont.innerHTML='<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
+  const [org, goals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명)]);
+  _perfGoals=goals;
+  if(!goals.length){
+    cont.innerHTML='<div class="empty-state"><div class="icon">📈</div><p>등록된 시설목표가 없습니다. 설정 → 시설목표 관리에서 먼저 목표를 세우세요.</p></div>';
+    return;
+  }
+  // data-goal 은 _perfGoals 의 인덱스 — 저장할 때 원본을 그대로 찾아가야 한다
+  const idxOf=new Map(goals.map((g,i)=>[g.id,i]));
+  cont.innerHTML=`<div class="perf-grid">${_fgOrdered(org, goals).map(({g,ctx})=>{
+    const gi=idxOf.get(g.id);
+    const kpis=(Array.isArray(g.kpis)?g.kpis:[]).map(_fgKpi);
+    const prog=fgProgress(g);
+    return `<div class="perf-card">
+      <div class="perf-card-head">
+        <div class="perf-goal">🏢 ${esc(g.goal)}</div>
+        <div class="perf-goal-rate" data-goal="${gi}">${prog}%</div>
+      </div>
+      <div class="perf-ctx">${esc(ctx)}</div>
+      ${kpis.length?kpis.map((k,ki)=>`
+        <div class="perf-kpi">
+          <span class="perf-kpi-name">${esc(k.name)}${k.dir==='down'?' <span style="color:var(--t3)">↓</span>':''}</span>
+          <span class="perf-kpi-target">${k.target===null?'목표 미정':`목표 ${k.target}${k.unit?' '+esc(k.unit):''}`}</span>
+          <input type="number" step="any" class="perf-actual" data-goal="${gi}" data-kpi="${ki}" value="${k.actual??''}" placeholder="실적" oninput="onPerfInput(${gi})" />
+          <span class="perf-kpi-rate" data-goal="${gi}" data-kpi="${ki}">${fgKpiRate(k)===null?'—':fgKpiRate(k)+'%'}</span>
+        </div>`).join(''):'<div class="fg-task-empty">KPI가 없습니다. 설정 → 시설목표 관리에서 지표와 목표값을 먼저 정하세요.</div>'}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// 실적을 칠 때마다 그 시설목표의 지표별·전체 달성률을 다시 계산해 보여준다(저장은 별도).
+function onPerfInput(gi){
+  const g=_perfGoals[gi];
+  if(!g) return;
+  const kpis=(Array.isArray(g.kpis)?g.kpis:[]).map(_fgKpi);
+  kpis.forEach((k,ki)=>{
+    const input=document.querySelector(`.perf-actual[data-goal="${gi}"][data-kpi="${ki}"]`);
+    if(input) k.actual=_fgNum(input.value);
+    const cell=document.querySelector(`.perf-kpi-rate[data-goal="${gi}"][data-kpi="${ki}"]`);
+    if(cell){ const r=fgKpiRate(k); cell.textContent=r===null?'—':r+'%'; }
+  });
+  const head=document.querySelector(`.perf-goal-rate[data-goal="${gi}"]`);
+  if(head){ const c=fgProgressOf({kpis}); head.textContent=(c!==null?c:(g.progress||0))+'%'; }
+}
+
+async function savePerfActuals(){
+  const jobs=[];
+  _perfGoals.forEach((g,gi)=>{
+    const kpis=(Array.isArray(g.kpis)?g.kpis:[]).map(_fgKpi);
+    let dirty=false;
+    kpis.forEach((k,ki)=>{
+      const el=document.querySelector(`.perf-actual[data-goal="${gi}"][data-kpi="${ki}"]`);
+      if(!el) return;
+      const v=_fgNum(el.value);
+      if(v!==k.actual){ k.actual=v; dirty=true; }
+    });
+    if(!dirty) return;
+    const computed=fgProgressOf({kpis});
+    jobs.push(DB.upsertFacilityGoal(currentUser.시설명,{...g, kpis, progress:computed!==null?computed:(g.progress||0)}));
+  });
+  if(!jobs.length){ toast('바뀐 실적이 없습니다'); return; }
+  try{
+    await Promise.all(jobs);
+    toast(`${jobs.length}개 시설목표의 실적을 저장했습니다`);
+    await renderPerfPage();
+  }catch(e){ toast('저장에 실패했습니다','error'); console.error(e); }
 }
 
 // ═══════════════════════════════════════════════
@@ -7958,13 +8085,12 @@ function renderFgKpis(){
       <div class="fg-kpi-line">
         <span class="fg-kpi-cap">목표</span>
         <input type="number" step="any" class="fg-kpi-num fg-kpi-target" data-idx="${i}" value="${k.target??''}" oninput="updateFgProgress()" />
-        <span class="fg-kpi-cap">실적</span>
-        <input type="number" step="any" class="fg-kpi-num fg-kpi-actual" data-idx="${i}" value="${k.actual??''}" oninput="updateFgProgress()" />
         <input type="text" class="fg-kpi-unit" data-idx="${i}" value="${esc(k.unit)}" placeholder="단위" />
         <select class="fg-kpi-dir" data-idx="${i}" onchange="updateFgProgress()">
           <option value="up"${k.dir==='up'?' selected':''}>높을수록 좋음</option>
           <option value="down"${k.dir==='down'?' selected':''}>낮을수록 좋음</option>
         </select>
+        <span class="fg-kpi-cap">실적 ${k.actual??'—'}</span>
         <span class="fg-kpi-rate" data-idx="${i}">${rate===null?'—':rate+'%'}</span>
       </div>
     </div>`;}).join('');
