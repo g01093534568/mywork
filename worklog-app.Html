@@ -1366,7 +1366,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <!-- ── DAILY LOG PAGE ── -->
     <div id="page-daily" class="page-section">
       <div class="page-header">
-        <h2>업무 세션</h2>
+        <h2>업무</h2>
         <p>오늘의 업무 활동을 기록하고 성찰하세요</p>
       </div>
       <div class="personal-tabs" style="margin-bottom:18px">
@@ -3747,7 +3747,7 @@ function closeDrawer(){
 
 function navigate(page){
   closeDrawer();
-  // 에너지관리는 '업무 세션'의 하위 탭으로 통합됨 → daily로 라우팅
+  // 에너지관리는 '업무' 페이지의 하위 탭으로 통합됨 → daily로 라우팅
   if(page==='energy'){ _sessionSubTab.daily='energy'; page='daily'; }
   // 운동은 개인 세션의 탭 — 별도 page가 없으므로 personal로 라우팅
   if(page==='exercise'){ if(currentUser.role==='admin') _sessionSubTab.personal='exercise'; page='personal'; }
@@ -3780,7 +3780,7 @@ function navigate(page){
 
 }
 
-// 업무 세션 하위 탭: 일일업무 / 에너지관리
+// 업무 하위 탭: 일일업무 / 에너지관리
 function switchDailyTab(tab){
   if(!['work','perf','energy'].includes(tab)) tab='work';
   _sessionSubTab.daily = tab;
@@ -3807,7 +3807,7 @@ function switchDailyTab(tab){
 }
 
 // ═══════════════════════════════════════════════
-// 경영실적 입력 (업무 세션 하위 탭)
+// 경영실적 입력 (업무 하위 탭)
 // 목표값은 설정에서 정하고, 여기서는 실적만 채운다.
 // ═══════════════════════════════════════════════
 let _perfGoals = [];
@@ -7242,7 +7242,7 @@ function isRecurringOnDate(todo, date){
 function todayVisible(todo, date){
   const d=date||today();
   if(todo.isRecurring) return isRecurringOnDate(todo, d);
-  // 업무세션 규칙과 통일: 시작했으면(시작일 없거나 ≤오늘) 마감일이 미래여도 오늘 할 일로 표시
+  // 업무 페이지 규칙과 통일: 시작했으면(시작일 없거나 ≤오늘) 마감일이 미래여도 오늘 할 일로 표시
   if(todo.status==='todo') return !todo.startDate || todo.startDate <= d;
   return todo.completedDate===d; // 완료는 완료일에만
 }
@@ -7572,14 +7572,14 @@ function initTodoSwipe(){
     c=>swipeDeleteTodo(c.dataset.id));
 }
 
-// 업무 세션 — 오늘의 할 일 리스트 스와이프 (오른쪽=완료, 왼쪽=삭제)
+// 업무 — 오늘의 할 일 리스트 스와이프 (오른쪽=완료, 왼쪽=삭제)
 function initDailyTodoSwipe(){
   attachSwipe(document.getElementById('daily-todo-list-content'), '.daily-todo-item',
     c=>toggleTodoDone(c.dataset.id, c.dataset.date),
     c=>swipeDeleteTodo(c.dataset.id));
 }
 
-// 업무 세션 — 업무일지 스와이프 (왼쪽=삭제, 오른쪽=복원)
+// 업무 — 업무일지 스와이프 (왼쪽=삭제, 오른쪽=복원)
 function initDailyActivitySwipe(){
   attachSwipe(document.getElementById('daily-activities-content'), '.activity-item',
     null,                                  // 오른쪽 스와이프 → 동작 없음(제자리 복귀)
@@ -7678,7 +7678,7 @@ async function renderDailyPage(){
 async function renderDailyTodos(date){
   date=date||document.getElementById('daily-date').value||today();
   const todos=await DB.getTodos(currentUser.사원번호);
-  // 단일 기준(todayVisible)으로 통일 — 홈·업무세션·AI리포트가 같은 모수를 쓰도록
+  // 단일 기준(todayVisible)으로 통일 — 홈·업무·AI리포트가 같은 모수를 쓰도록
   const relevant=todos.filter(t=>todayVisible(t, date));
   const cont=document.getElementById('daily-todo-list-content');
   const total=relevant.length;
@@ -10551,7 +10551,7 @@ async function executeAITool(toolName,input){
     case 'add_todo':{ const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null}; await DB.upsertTodo(currentUser.사원번호,todo); if(currentPage==='todo') await renderTodos(); return `"${todo.title}" 할 일 추가됨 (마감 ${todo.dueDate||'없음'})`; }
     case 'complete_todo':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done'); if(!t) return `"${input.keyword}" 일치하는 미완료 할 일을 찾지 못함`; await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()}); if(currentPage==='todo') await renderTodos(); return `"${t.title}" 완료 처리됨`; }
     case 'add_daily_log':{ const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''}; await DB.upsertActivity(currentUser.사원번호,today(),act); if(currentPage==='daily') await renderDailyPage(); return `업무 일지 "${act.title}" 기록됨`; }
-    case 'navigate_page':{ navigate(input.page); const names={home:'홈',todo:'할 일',daily:'업무 세션',personal:'개인',exercise:'운동',admin:'관리'}; return `${names[input.page]||input.page} 페이지로 이동`; }
+    case 'navigate_page':{ navigate(input.page); const names={home:'홈',todo:'할 일',daily:'업무',personal:'개인',exercise:'운동',admin:'관리'}; return `${names[input.page]||input.page} 페이지로 이동`; }
     case 'search_todos':{ navigate('todo'); const el=document.getElementById('todo-search'); if(el){ el.value=input.keyword; await renderTodos(); } return `"${input.keyword}" 검색 결과 표시`; }
     case 'show_today_summary':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); const list=todos.filter(td=>todayVisible(td,t)); const done=list.filter(td=>isDoneOnDate(td,t)).length; return `오늘 할 일 ${list.length}개 — 완료 ${done}개, 미완료 ${list.length-done}개`; }
     case 'list_todos':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); let list=todos; if(input.onlyToday==='yes') list=list.filter(td=>todayVisible(td,t)); if(input.status==='todo') list=list.filter(td=>td.status!=='done'); else if(input.status==='done') list=list.filter(td=>td.status==='done'); if(!list.length) return '해당하는 할 일이 없습니다'; return list.slice(0,30).map(td=>`• ${td.title} [${td.status==='done'?'완료':'미완료'}, 마감 ${td.dueDate||'없음'}]`).join('\n'); }
