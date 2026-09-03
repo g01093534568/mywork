@@ -297,6 +297,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-task-empty{font-size:11px;color:var(--t3);padding:6px 0;font-style:italic;}
 /* 시설목표 관리 — 전략목표를 계통도처럼 가로로 한 칸씩 */
 .fg-strategy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start;}
+.fg-task-head{font-size:11px;opacity:0.75;margin-top:6px;justify-content:space-between;align-items:center;gap:8px;}
+.fg-task-head>span{flex:1;min-width:0;}
+.fg-add-btn{flex-shrink:0;padding:1px 8px;font-size:13px;line-height:1.4;color:var(--t3);}
+.fg-add-btn:hover{color:var(--blue);}
+.fg-col-add{width:100%;margin-top:12px;font-size:11px;color:var(--t3);border:1px dashed var(--border);}
+.fg-col-add:hover{color:var(--blue);border-color:rgba(61,142,240,0.4);}
 @media(max-width:700px){.fg-task-row{flex-direction:column;}.fg-task-label{width:100%;padding-top:0;}.fg-goal-card{max-width:100%;}}
 /* 시설목표 인라인 카드 (전략과제 안) */
 .fg-inline-card{background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
@@ -1831,9 +1837,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
             <div style="font-size:14px;font-weight:700;color:var(--blue);flex-shrink:0">🏢 시설목표 관리</div>
             <div style="font-size:11px;color:var(--t3)" id="facility-goal-subtitle"></div>
-            <span style="font-size:11px;color:var(--t3);background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:4px;padding:2px 8px;white-space:nowrap">💡 전략목표·전략과제와 연계하여 설정</span>
+            <span style="font-size:11px;color:var(--t3);background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:4px;padding:2px 8px;white-space:nowrap">💡 전략과제 옆 + 를 눌러 그 과제에 시설목표를 답니다</span>
           </div>
-          <button class="btn btn-primary" onclick="openFacilityGoalModal()" style="flex-shrink:0">+ 시설목표 추가</button>
         </div>
         <div id="admin-facility-list"></div>
       </div>
@@ -7806,10 +7811,6 @@ async function renderAdminFacilityGoals(){
   document.getElementById('facility-goal-subtitle').textContent = `${facilityName} 시설의 목표를 관리합니다`;
   const [org, goals] = await Promise.all([DB.getOrg(), DB.getFacilityGoals(facilityName)]);
   const cont = document.getElementById('admin-facility-list');
-  if(!goals.length){
-    cont.innerHTML='<div class="empty-state"><div class="icon">🏢</div><p>시설목표가 없습니다. 위 버튼으로 추가해 보세요.</p></div>';
-    return;
-  }
 
   // 계통도의 시설 경영목표와 같은 모양의 카드 — 좁은 칸에 들어가야 해서 조밀하다.
   // showLink: 미연계 칸에서만 원래 연계 이름을 같이 보여준다(오타·이름 변경을 찾아 고치라고)
@@ -7836,6 +7837,12 @@ async function renderAdminFacilityGoals(){
   const 과제이름 = new Set(과제s.map(t=>t.과제));
   const placed = new Set();
   let cols = '';
+  _fgAddPresets = [];
+  const addBtn = (목표, 과제, cls, label) => {
+    const i = _fgAddPresets.push({goal:목표, task:과제}) - 1;
+    const 대상 = 과제 || 목표;
+    return `<button class="btn btn-ghost btn-sm ${cls}" onclick="openFacilityGoalAdd(${i})" title="${대상?esc(대상)+'에 시설목표 추가':'연계 없이 시설목표 추가'}">${label}</button>`;
+  };
 
   목표s.forEach((목표, i) => {
     const tasks = 과제s.filter(t => t.목표idx === i);
@@ -7843,19 +7850,20 @@ async function renderAdminFacilityGoals(){
     tasks.forEach(t => {
       const linked = goals.filter(g => g.linkedStrategyTask === t.과제);
       linked.forEach(g => placed.add(g.id));
-      inner += `<div class="strategy-task" style="font-size:11px;opacity:0.75;margin-top:6px">${esc(t.과제)}</div>`;
+      inner += `<div class="strategy-task fg-task-head"><span>${esc(t.과제)}</span>${addBtn(목표, t.과제, 'fg-add-btn', '+')}</div>`;
       inner += linked.length ? linked.map(g=>card(g)).join('') : `<div class="fg-task-empty">등록된 시설목표 없음</div>`;
     });
     // 전략과제 없이 전략목표에만 연계해 둔 것들 — 빠뜨리지 않고 해당 전략목표 칸에 둔다
     const goalOnly = goals.filter(g => !placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal === 목표);
     if(goalOnly.length){
       goalOnly.forEach(g => placed.add(g.id));
-      inner += `<div class="strategy-task" style="font-size:11px;opacity:0.75;margin-top:6px;color:var(--t3)">전략과제 미지정</div>`;
+      inner += `<div class="strategy-task fg-task-head" style="color:var(--t3)"><span>전략과제 미지정</span></div>`;
       inner += goalOnly.map(g=>card(g)).join('');
     }
     cols += `<div class="strategy-col">
       <div class="strategy-col-title" style="color:var(--blue)">전략목표 ${i+1}: ${esc(목표)}</div>
       ${inner || '<div class="fg-task-empty">전략과제가 없습니다</div>'}
+      ${addBtn(목표, '', 'fg-col-add', '+ 시설목표 추가')}
     </div>`;
   });
 
@@ -7867,6 +7875,12 @@ async function renderAdminFacilityGoals(){
     </div>`;
   }
 
+  if(!cols){
+    cont.innerHTML = `<div class="empty-state"><div class="icon">🏢</div>
+      <p>전략목표가 없습니다. 설정 → 조직목표에서 먼저 전략목표를 세우면 여기에 칸이 생깁니다.</p>
+      ${addBtn('', '', 'fg-col-add', '+ 연계 없이 시설목표 추가')}</div>`;
+    return;
+  }
   cont.innerHTML = `<div class="fg-strategy-grid">${cols}</div>`;
 }
 
@@ -7901,7 +7915,12 @@ function deleteFgKpi(i){
   renderFgKpis();
 }
 
-async function openFacilityGoalModal(id){
+// 전략목표 박스 안 '+' 가 넘길 연계 정보. 시설명·과제명에 따옴표가 섞여도 안전하도록
+// onclick 에 이름을 직접 박지 않고 인덱스로 넘긴다.
+let _fgAddPresets = [];
+function openFacilityGoalAdd(i){ return openFacilityGoalModal(null, _fgAddPresets[i] || null); }
+
+async function openFacilityGoalModal(id, preset){
   const org=await DB.getOrg();
   const goalSel=document.getElementById('fg-strategy-goal');
   goalSel.innerHTML='<option value="">전략목표 연계 없음</option>'+(org.전략목표||[]).map((g,i)=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
@@ -7923,8 +7942,9 @@ async function openFacilityGoalModal(id){
     document.getElementById('fg-edit-id').value='';
     document.getElementById('fg-goal').value='';
     document.getElementById('fg-progress').value=0;
-    goalSel.value='';
+    goalSel.value=preset?.goal||'';
     await updateFgTaskOptions(org);
+    if(preset?.task) document.getElementById('fg-strategy-task').value=preset.task;
     fgKpiDraft=[];
   }
   renderFgKpis();
