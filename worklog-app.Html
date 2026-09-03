@@ -2091,9 +2091,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                   <div class="em-form-group" style="flex:1;">
                     <label>조회 기간 (월분)</label>
                     <div style="display:flex;gap:10px;align-items:center;">
-                      <input type="month" id="filterStartMonth" placeholder="시작 월">
+                      <input type="text" id="filterStartMonth" placeholder="시작 월" readonly>
                       <span>~</span>
-                      <input type="month" id="filterEndMonth" placeholder="종료 월">
+                      <input type="text" id="filterEndMonth" placeholder="종료 월" readonly>
                     </div>
                   </div>
                 </div>
@@ -11049,6 +11049,30 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        // 데이터 조회 - 조회 기간(월분)
+        // 네이티브 <input type="month">는 오른쪽 끝 작은 달력 아이콘을 정확히 눌러야
+        // 열리고, 열려도 월 고르는 자리가 멀다. 사용량 입력의 월 선택과 같은
+        // monthSelect 달력을 붙여 칸 아무 데나 누르면 바로 아래 월 그리드가 뜨게 한다.
+        const filterStartMonthInput = document.getElementById('filterStartMonth');
+        const filterEndMonthInput = document.getElementById('filterEndMonth');
+
+        if (filterStartMonthInput && filterEndMonthInput && typeof monthSelectPlugin !== 'undefined') {
+            const monthOpts = (extra) => Object.assign({
+                locale: "ko",
+                plugins: [new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "Y년 m월" })]
+            }, extra || {});
+
+            // 시작이 정해지면 종료는 그 이후만, 종료가 정해지면 시작은 그 이전만 —
+            // 거꾸로 고르면 조회 결과가 조용히 비어버린다
+            let endFp = null;
+            const startFp = flatpickr(filterStartMonthInput, monthOpts({
+                onChange: (dates) => { if (endFp) endFp.set('minDate', dates[0] || null); }
+            }));
+            endFp = flatpickr(filterEndMonthInput, monthOpts({
+                onChange: (dates) => { startFp.set('maxDate', dates[0] || null); }
+            }));
+        }
+
         // 연도 셀렉트 박스 초기화 (전체 + 현재 연도 기준 5년 전까지)
         const filterYear = document.getElementById('filterYear');
         if (filterYear) {
@@ -12066,8 +12090,13 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('filterEnergyType').value = '';
             const fy = document.getElementById('filterYear');
             if (fy) fy.value = '';
-            document.getElementById('filterStartMonth').value = '';
-            document.getElementById('filterEndMonth').value = '';
+            // 달력이 붙은 칸은 value만 지우면 내부 선택이 남아 다음에 열 때 그대로 뜬다
+            ['filterStartMonth', 'filterEndMonth'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (el._flatpickr) { el._flatpickr.clear(); el._flatpickr.set('minDate', null); el._flatpickr.set('maxDate', null); }
+                else el.value = '';
+            });
             searchData();
         });
     }
