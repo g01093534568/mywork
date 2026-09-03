@@ -324,12 +324,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 @media(max-width:600px){.fg-kpi-line{flex-wrap:wrap;}.fg-kpi-dir{width:100%;}}
 /* 경영실적 입력 */
 .perf-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
-.perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start;}
-.perf-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;}
+.perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start;}
+.perf-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;margin-top:8px;}
 .perf-card-head{display:flex;align-items:center;gap:10px;}
 .perf-goal{font-size:13px;font-weight:700;color:var(--blue);flex:1;min-width:0;word-break:keep-all;}
 .perf-goal-rate{font-size:15px;font-weight:800;color:var(--accent);flex-shrink:0;}
-.perf-ctx{font-size:11px;color:var(--t3);margin:4px 0 10px;word-break:keep-all;}
 .perf-kpi{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);}
 .perf-kpi-name{font-size:12px;color:var(--t1);flex:1;min-width:0;word-break:keep-all;}
 .perf-kpi-target{font-size:11px;color:var(--t3);flex-shrink:0;white-space:nowrap;}
@@ -3813,23 +3812,6 @@ function switchDailyTab(tab){
 // ═══════════════════════════════════════════════
 let _perfGoals = [];
 
-// 시설목표를 전략목표 → 전략과제 순서로 늘어놓는다(연계가 끊긴 것은 맨 뒤).
-// 설정 화면과 같은 순서로 보여야 어느 목표를 채우는지 헷갈리지 않는다.
-function _fgOrdered(org, goals){
-  const 목표s=org?.전략목표||[], 과제s=org?.전략과제||[];
-  const 과제이름=new Set(과제s.map(t=>t.과제));
-  const out=[], placed=new Set();
-  목표s.forEach((목표,i)=>{
-    과제s.filter(t=>t.목표idx===i).forEach(t=>{
-      goals.filter(g=>g.linkedStrategyTask===t.과제).forEach(g=>{ placed.add(g.id); out.push({g, ctx:`전략목표 ${i+1}: ${목표} · ${t.과제}`}); });
-    });
-    goals.filter(g=>!placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal===목표)
-      .forEach(g=>{ placed.add(g.id); out.push({g, ctx:`전략목표 ${i+1}: ${목표}`}); });
-  });
-  goals.filter(g=>!placed.has(g.id)).forEach(g=>out.push({g, ctx:'미연계'}));
-  return out;
-}
-
 async function renderPerfPage(){
   const cont=document.getElementById('perf-list');
   if(!cont) return;
@@ -3842,18 +3824,17 @@ async function renderPerfPage(){
     cont.innerHTML='<div class="empty-state"><div class="icon">📈</div><p>등록된 시설목표가 없습니다. 설정 → 시설목표 관리에서 먼저 목표를 세우세요.</p></div>';
     return;
   }
-  // data-goal 은 _perfGoals 의 인덱스 — 저장할 때 원본을 그대로 찾아가야 한다
+  // data-goal 은 _perfGoals 의 인덱스 — 화면은 전략목표 순서로 재배열되지만
+  // 저장은 원본 배열을 그대로 찾아가야 한다
   const idxOf=new Map(goals.map((g,i)=>[g.id,i]));
-  cont.innerHTML=`<div class="perf-grid">${_fgOrdered(org, goals).map(({g,ctx})=>{
+  const card = g => {
     const gi=idxOf.get(g.id);
     const kpis=(Array.isArray(g.kpis)?g.kpis:[]).map(_fgKpi);
-    const prog=fgProgress(g);
     return `<div class="perf-card">
       <div class="perf-card-head">
         <div class="perf-goal">🏢 ${esc(g.goal)}</div>
-        <div class="perf-goal-rate" data-goal="${gi}">${prog}%</div>
+        <div class="perf-goal-rate" data-goal="${gi}">${fgProgress(g)}%</div>
       </div>
-      <div class="perf-ctx">${esc(ctx)}</div>
       ${kpis.length?kpis.map((k,ki)=>`
         <div class="perf-kpi">
           <span class="perf-kpi-name">${esc(k.name)}${k.dir==='down'?' <span style="color:var(--t3)">↓</span>':''}</span>
@@ -3862,7 +3843,33 @@ async function renderPerfPage(){
           <span class="perf-kpi-rate" data-goal="${gi}" data-kpi="${ki}">${fgKpiRate(k)===null?'—':fgKpiRate(k)+'%'}</span>
         </div>`).join(''):'<div class="fg-task-empty">KPI가 없습니다. 설정 → 시설목표 관리에서 지표와 목표값을 먼저 정하세요.</div>'}
     </div>`;
-  }).join('')}</div>`;
+  };
+
+  // 설정 화면과 같은 묶음 — 전략목표를 가로로 놓고 그 안에서 전략과제별로 내려간다
+  const {cols:groups, unlinked}=_fgGroupByStrategy(org, goals);
+  let cols=groups.map(c=>{
+    let inner='';
+    c.tasks.forEach(t=>{
+      inner+=`<div class="strategy-task fg-task-head"><span>${esc(t.과제)}</span></div>`;
+      inner+=t.goals.length?t.goals.map(card).join(''):`<div class="fg-task-empty">등록된 시설목표 없음</div>`;
+    });
+    if(c.goalOnly.length){
+      inner+=`<div class="strategy-task fg-task-head" style="color:var(--t3)"><span>전략과제 미지정</span></div>`;
+      inner+=c.goalOnly.map(card).join('');
+    }
+    return `<div class="strategy-col">
+      <div class="strategy-col-title" style="color:var(--blue)">전략목표 ${c.i+1}: ${esc(c.목표)}</div>
+      ${inner || '<div class="fg-task-empty">전략과제가 없습니다</div>'}
+    </div>`;
+  }).join('');
+  if(unlinked.length){
+    cols+=`<div class="strategy-col" style="opacity:0.85">
+      <div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>
+      ${unlinked.map(card).join('')}
+    </div>`;
+  }
+  cont.innerHTML=cols?`<div class="perf-grid">${cols}</div>`
+    :'<div class="empty-state"><div class="icon">📈</div><p>전략목표가 없습니다. 설정 → 조직목표에서 먼저 전략목표를 세우세요.</p></div>';
 }
 
 // 실적을 칠 때마다 그 시설목표의 지표별·전체 달성률을 다시 계산해 보여준다(저장은 별도).
@@ -7950,6 +7957,30 @@ async function saveOrgGoals(){
 // ═══════════════════════════════════════════════
 // ADMIN - FACILITY GOALS
 // ═══════════════════════════════════════════════
+// 시설목표를 전략목표 → 전략과제로 묶는다. 설정 화면과 경영실적 입력이 같은 순서·
+// 같은 묶음을 쓰도록 한 곳에서만 계산한다(두 화면이 따로 놀면 어느 목표를 채우는지 헷갈린다).
+// 전략과제 이름으로 연결돼 있어, 이름이 바뀌어 매칭이 끊긴 것은 unlinked 로 빠진다.
+function _fgGroupByStrategy(org, goals){
+  const 목표s=org?.전략목표||[], 과제s=org?.전략과제||[];
+  const 과제이름=new Set(과제s.map(t=>t.과제));
+  const placed=new Set();
+  const cols=목표s.map((목표,i)=>({
+    목표, i,
+    tasks:과제s.filter(t=>t.목표idx===i).map(t=>{
+      const list=goals.filter(g=>g.linkedStrategyTask===t.과제);
+      list.forEach(g=>placed.add(g.id));
+      return {과제:t.과제, goals:list};
+    }),
+    goalOnly:[]
+  }));
+  // 전략과제 없이 전략목표에만 연계해 둔 것들 — 빠뜨리지 않고 해당 전략목표 칸에 둔다
+  cols.forEach(c=>{
+    c.goalOnly=goals.filter(g=>!placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal===c.목표);
+    c.goalOnly.forEach(g=>placed.add(g.id));
+  });
+  return {cols, unlinked:goals.filter(g=>!placed.has(g.id))};
+}
+
 async function renderAdminFacilityGoals(){
   const facilityName = currentUser.시설명;
   document.getElementById('facility-goal-subtitle').textContent = `${facilityName} 시설의 목표를 관리합니다`;
@@ -7977,11 +8008,6 @@ async function renderAdminFacilityGoals(){
 
   // 전략목표를 가로로 한 칸씩 놓고(계통도와 같은 배열), 칸 안에서 전략과제 순서대로 내려간다.
   // 연계 정보는 이름으로 들고 있어서, 이름이 안 맞는 목표는 마지막 '미연계' 칸에 모은다.
-  const 목표s = org?.전략목표 || [];
-  const 과제s = org?.전략과제 || [];
-  const 과제이름 = new Set(과제s.map(t=>t.과제));
-  const placed = new Set();
-  let cols = '';
   _fgAddPresets = [];
   const addBtn = (목표, 과제, cls, label) => {
     const i = _fgAddPresets.push({goal:목표, task:과제}) - 1;
@@ -7989,34 +8015,28 @@ async function renderAdminFacilityGoals(){
     return `<button class="btn btn-ghost btn-sm ${cls}" onclick="openFacilityGoalAdd(${i})" title="${대상?esc(대상)+'에 시설목표 추가':'연계 없이 시설목표 추가'}">${label}</button>`;
   };
 
-  목표s.forEach((목표, i) => {
-    const tasks = 과제s.filter(t => t.목표idx === i);
+  const {cols:groups, unlinked} = _fgGroupByStrategy(org, goals);
+  let cols = groups.map(c => {
     let inner = '';
-    tasks.forEach(t => {
-      const linked = goals.filter(g => g.linkedStrategyTask === t.과제);
-      linked.forEach(g => placed.add(g.id));
-      inner += `<div class="strategy-task fg-task-head"><span>${esc(t.과제)}</span>${addBtn(목표, t.과제, 'fg-add-btn', '+')}</div>`;
-      inner += linked.length ? linked.map(g=>card(g)).join('') : `<div class="fg-task-empty">등록된 시설목표 없음</div>`;
+    c.tasks.forEach(t => {
+      inner += `<div class="strategy-task fg-task-head"><span>${esc(t.과제)}</span>${addBtn(c.목표, t.과제, 'fg-add-btn', '+')}</div>`;
+      inner += t.goals.length ? t.goals.map(g=>card(g)).join('') : `<div class="fg-task-empty">등록된 시설목표 없음</div>`;
     });
-    // 전략과제 없이 전략목표에만 연계해 둔 것들 — 빠뜨리지 않고 해당 전략목표 칸에 둔다
-    const goalOnly = goals.filter(g => !placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal === 목표);
-    if(goalOnly.length){
-      goalOnly.forEach(g => placed.add(g.id));
+    if(c.goalOnly.length){
       inner += `<div class="strategy-task fg-task-head" style="color:var(--t3)"><span>전략과제 미지정</span></div>`;
-      inner += goalOnly.map(g=>card(g)).join('');
+      inner += c.goalOnly.map(g=>card(g)).join('');
     }
-    cols += `<div class="strategy-col">
-      <div class="strategy-col-title" style="color:var(--blue)">전략목표 ${i+1}: ${esc(목표)}</div>
+    return `<div class="strategy-col">
+      <div class="strategy-col-title" style="color:var(--blue)">전략목표 ${c.i+1}: ${esc(c.목표)}</div>
       ${inner || '<div class="fg-task-empty">전략과제가 없습니다</div>'}
-      ${addBtn(목표, '', 'fg-col-add', '+ 시설목표 추가')}
+      ${addBtn(c.목표, '', 'fg-col-add', '+ 시설목표 추가')}
     </div>`;
-  });
+  }).join('');
 
-  const 미연계 = goals.filter(g => !placed.has(g.id));
-  if(미연계.length){
+  if(unlinked.length){
     cols += `<div class="strategy-col" style="opacity:0.85">
       <div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>
-      ${미연계.map(g=>card(g,true)).join('')}
+      ${unlinked.map(g=>card(g,true)).join('')}
     </div>`;
   }
 
