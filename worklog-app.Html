@@ -314,7 +314,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-kpi-line+.fg-kpi-line{margin-top:6px;}
 .fg-kpi-row input,.fg-kpi-row select{font-size:12px;padding:6px 8px;}
 .fg-kpi-row .fg-kpi-name{flex:1;min-width:0;}
-.fg-kpi-num{width:72px;flex-shrink:0;}
+.fg-kpi-num{width:84px;flex-shrink:0;text-align:right;}
 .fg-kpi-unit{width:56px;flex-shrink:0;}
 .fg-kpi-dir{width:120px;flex-shrink:0;}
 .fg-kpi-cap{font-size:10px;color:var(--t3);flex-shrink:0;}
@@ -332,7 +332,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .perf-kpi{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);}
 .perf-kpi-name{font-size:12px;color:var(--t1);flex:1;min-width:0;word-break:keep-all;}
 .perf-kpi-target{font-size:11px;color:var(--t3);flex-shrink:0;white-space:nowrap;}
-.perf-actual{width:88px;flex-shrink:0;font-size:12px;padding:6px 8px;}
+.perf-actual{width:96px;flex-shrink:0;font-size:12px;padding:6px 8px;text-align:right;}
 .perf-kpi-rate{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:44px;text-align:right;}
 @media(max-width:600px){.perf-kpi{flex-wrap:wrap;}.perf-kpi-name{flex:1 1 100%;}}
 /* 섹션 뱃지 헤더 */
@@ -3838,8 +3838,8 @@ async function renderPerfPage(){
       ${kpis.length?kpis.map((k,ki)=>`
         <div class="perf-kpi">
           <span class="perf-kpi-name">${esc(k.name)}${k.dir==='down'?' <span style="color:var(--t3)">↓</span>':''}</span>
-          <span class="perf-kpi-target">${k.target===null?'목표 미정':`목표 ${k.target}${k.unit?' '+esc(k.unit):''}`}</span>
-          <input type="number" step="any" class="perf-actual" data-goal="${gi}" data-kpi="${ki}" value="${k.actual??''}" placeholder="실적" oninput="onPerfInput(${gi})" />
+          <span class="perf-kpi-target">${k.target===null?'목표 미정':`목표 ${fgComma(k.target)}${k.unit?' '+esc(k.unit):''}`}</span>
+          <input type="text" inputmode="decimal" class="perf-actual" data-goal="${gi}" data-kpi="${ki}" value="${fgComma(k.actual)}" placeholder="실적" oninput="fgNumInput(this);onPerfInput(${gi})" />
           <span class="perf-kpi-rate" data-goal="${gi}" data-kpi="${ki}">${fgKpiRate(k)===null?'—':fgKpiRate(k)+'%'}</span>
         </div>`).join(''):'<div class="fg-task-empty">KPI가 없습니다. 설정 → 시설목표 관리에서 지표와 목표값을 먼저 정하세요.</div>'}
     </div>`;
@@ -8051,7 +8051,27 @@ async function renderAdminFacilityGoals(){
 
 // ── 시설목표 KPI: 예전에는 문자열 한 줄이었고, 지금은 목표값·실적을 담은 객체다 ──
 // 두 형태가 DB에 섞여 있으므로 읽는 쪽은 항상 이 함수를 거친다.
-function _fgNum(v){ if(v===''||v===null||v===undefined) return null; const n=Number(v); return Number.isFinite(n)?n:null; }
+// 목표·실적은 금액인 경우가 많아 천단위로 끊어 보여준다.
+// 정수부에만 콤마를 넣는다 — 소수부까지 끊으면 1,234.5,678 이 된다.
+function fgComma(v){
+  if(v===null||v===undefined||v==='') return '';
+  const s=String(v).replace(/,/g,'');
+  const neg=s.startsWith('-'), body=neg?s.slice(1):s;
+  const [int,dec]=body.split('.');
+  return (neg?'-':'')+int.replace(/\B(?=(\d{3})+(?!\d))/g,',')+(dec!==undefined?'.'+dec:'');
+}
+function _fgNum(v){
+  if(v===''||v===null||v===undefined) return null;
+  const n=Number(String(v).replace(/,/g,''));   // 화면에서 온 값에는 콤마가 섞여 있다
+  return Number.isFinite(n)?n:null;
+}
+// 천단위 콤마를 유지하며 타이핑 — 콤마가 늘어난 만큼 커서를 밀어 준다
+function fgNumInput(el){
+  const before=el.value.length, pos=el.selectionStart??before;
+  el.value=fgComma(el.value.replace(/[^\d.-]/g,''));
+  const p=Math.max(0,pos+(el.value.length-before));
+  try{ el.setSelectionRange(p,p); }catch(e){}
+}
 function _fgKpi(k){
   if(typeof k==='string') return {name:k, target:null, actual:null, unit:'', dir:'up'};
   return {name:k?.name||'', target:_fgNum(k?.target), actual:_fgNum(k?.actual), unit:k?.unit||'', dir:k?.dir==='down'?'down':'up'};
@@ -8083,7 +8103,7 @@ function fgKpiLabel(k){
   if(target===null&&actual===null) return name;
   const u=unit?' '+unit:'';
   const rate=fgKpiRate(k);
-  return `${name} — 목표 ${target??'-'}${u} / 실적 ${actual??'-'}${u}`
+  return `${name} — 목표 ${target===null?'-':fgComma(target)}${u} / 실적 ${actual===null?'-':fgComma(actual)}${u}`
        + (rate!==null?` (${rate}%)`:'') + (dir==='down'?' ↓':'');
 }
 
@@ -8104,13 +8124,13 @@ function renderFgKpis(){
       </div>
       <div class="fg-kpi-line">
         <span class="fg-kpi-cap">목표</span>
-        <input type="number" step="any" class="fg-kpi-num fg-kpi-target" data-idx="${i}" value="${k.target??''}" oninput="updateFgProgress()" />
+        <input type="text" inputmode="decimal" class="fg-kpi-num fg-kpi-target" data-idx="${i}" value="${fgComma(k.target)}" oninput="fgNumInput(this);updateFgProgress()" />
         <input type="text" class="fg-kpi-unit" data-idx="${i}" value="${esc(k.unit)}" placeholder="단위" />
         <select class="fg-kpi-dir" data-idx="${i}" onchange="updateFgProgress()">
           <option value="up"${k.dir==='up'?' selected':''}>높을수록 좋음</option>
           <option value="down"${k.dir==='down'?' selected':''}>낮을수록 좋음</option>
         </select>
-        <span class="fg-kpi-cap">실적 ${k.actual??'—'}</span>
+        <span class="fg-kpi-cap">실적 ${k.actual===null?'—':fgComma(k.actual)}</span>
         <span class="fg-kpi-rate" data-idx="${i}">${rate===null?'—':rate+'%'}</span>
       </div>
     </div>`;}).join('');
