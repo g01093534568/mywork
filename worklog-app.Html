@@ -11822,6 +11822,14 @@ async function getOrgFacilityTree() {
     return out;
 }
 
+// 시설명 → 조직도 순번. 에너지·차량 관리 목록 정렬에 재사용한다.
+async function _getFacilityOrderMap() {
+    const tree = await getOrgFacilityTree();
+    const map = new Map();
+    tree.forEach((n, i) => { if (!map.has(n.name)) map.set(n.name, i); });
+    return map;
+}
+
 // 볼 수 있는 시설만 남긴 조직도 순서 목록. 상위가 목록에서 빠지면 들여쓰기도 그만큼
 // 당겨야(예: 하위만 보이는 시설관리자) 혼자 밀려 보이지 않는다.
 async function getOrgFacilityOptions(allowedNames) {
@@ -12717,9 +12725,11 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadEnergyInfos() {
     try {
         const infos = await _emInfoQuery();
+        const orderMap = await _getFacilityOrderMap();
         const sortedInfos = infos.sort((a, b) => {
-            const facilityCompare = a.facilityName.localeCompare(b.facilityName, 'ko-KR');
-            if (facilityCompare !== 0) return facilityCompare;
+            const oa = orderMap.has(a.facilityName) ? orderMap.get(a.facilityName) : Infinity;
+            const ob = orderMap.has(b.facilityName) ? orderMap.get(b.facilityName) : Infinity;
+            if (oa !== ob) return oa - ob;
             return a.energyType.localeCompare(b.energyType, 'ko-KR');
         });
         renderEnergyInfos(sortedInfos);
@@ -12909,9 +12919,11 @@ window.deleteEnergyInfo = async function(index) {
 async function loadVehicleInfos() {
     try {
         const infos = await _emVehicleQuery();
+        const orderMap = await _getFacilityOrderMap();
         const sortedInfos = infos.sort((a, b) => {
-            const facilityCompare = a.facilityName.localeCompare(b.facilityName, 'ko-KR');
-            if (facilityCompare !== 0) return facilityCompare;
+            const oa = orderMap.has(a.facilityName) ? orderMap.get(a.facilityName) : Infinity;
+            const ob = orderMap.has(b.facilityName) ? orderMap.get(b.facilityName) : Infinity;
+            if (oa !== ob) return oa - ob;
             return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '', 'ko-KR');
         });
         renderVehicleInfos(sortedInfos);
