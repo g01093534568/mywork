@@ -295,7 +295,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-goal-card-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px;word-break:keep-all;line-height:1.4;}
 .fg-goal-card-kpi{font-size:11px;color:var(--t3);padding:2px 0;word-break:keep-all;}
 .fg-task-empty{font-size:11px;color:var(--t3);padding:6px 0;font-style:italic;}
-.fg-task-cards .fg-item{flex:1 1 260px;min-width:240px;max-width:380px;margin-bottom:0;}
+/* 시설목표 관리 — 전략목표를 계통도처럼 가로로 한 칸씩 */
+.fg-strategy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start;}
 @media(max-width:700px){.fg-task-row{flex-direction:column;}.fg-task-label{width:100%;padding-top:0;}.fg-goal-card{max-width:100%;}}
 /* 시설목표 인라인 카드 (전략과제 안) */
 .fg-inline-card{background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);border-radius:var(--r);padding:10px 12px;margin-top:8px;}
@@ -7810,68 +7811,63 @@ async function renderAdminFacilityGoals(){
     return;
   }
 
-  // 한 장의 시설목표 카드 — 번호는 전략목표 순서대로 죽 이어 붙인다
+  // 계통도의 시설 경영목표와 같은 모양의 카드 — 좁은 칸에 들어가야 해서 조밀하다.
+  // showLink: 미연계 칸에서만 원래 연계 이름을 같이 보여준다(오타·이름 변경을 찾아 고치라고)
   let seq = 0;
-  // showLink: 미연계 묶음에서만 원래 연계 이름을 같이 보여준다(오타·이름 변경을 찾아 고치라고)
-  const card = (g, showLink) => `
-    <div class="fg-item" data-id="${g.id}">
-      <div class="fg-header">
-        <span class="fg-num">시설목표 ${++seq}</span>
-        <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️ 수정</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑 삭제</button>
-      </div>
-      <div style="font-size:15px;font-weight:600;margin-bottom:8px">${esc(g.goal)}</div>
-      ${showLink&&(g.linkedStrategyGoal||g.linkedStrategyTask)?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">↗ 연계: ${esc(g.linkedStrategyTask||g.linkedStrategyGoal)} (지금 전략체계에 없는 이름)</div>`:''}
-      ${(()=>{const kpis=Array.isArray(g.kpis)&&g.kpis.length?g.kpis:(g.kpi?[g.kpi]:[]);return kpis.length?`<div style="margin-bottom:10px">${kpis.map((k,ki)=>`<div style="font-size:12px;color:var(--t2);margin-bottom:3px">📊 KPI ${kpis.length>1?ki+1+': ':''}${esc(k)}</div>`).join('')}</div>`:'';})()}
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="progress-bar" style="flex:1"><div class="progress-fill" style="width:${g.progress||0}%"></div></div>
-        <span style="font-size:13px;color:var(--accent);font-weight:700;flex-shrink:0;min-width:36px;text-align:right">${g.progress||0}%</span>
+  const card = (g, showLink) => {
+    const kpis = Array.isArray(g.kpis)&&g.kpis.length ? g.kpis : (g.kpi?[g.kpi]:[]);
+    return `<div class="fg-inline-card" data-id="${g.id}">
+      <div class="fg-inline-title">🏢 <span style="opacity:0.55">${++seq}.</span> ${esc(g.goal)}</div>
+      ${showLink&&(g.linkedStrategyTask||g.linkedStrategyGoal)?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">↗ ${esc(g.linkedStrategyTask||g.linkedStrategyGoal)} (지금 전략체계에 없는 이름)</div>`:''}
+      ${kpis.map(k=>`<div class="fg-inline-kpi">📊 ${esc(k)}</div>`).join('')}
+      <div class="progress-bar-wrap" style="margin-top:6px"><div class="progress-bar"><div class="progress-fill" style="width:${g.progress||0}%"></div></div></div>
+      <div style="font-size:10px;color:var(--accent);text-align:right;margin-top:3px;font-weight:700">${g.progress||0}%</div>
+      <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="openFacilityGoalModal('${g.id}')">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteFacilityGoal('${g.id}')">🗑️</button>
       </div>
     </div>`;
+  };
 
-  // 전략목표 → 전략과제 순서를 그대로 따라 내려간다.
-  // 연계 정보는 이름으로 들고 있어서, 이름이 안 맞는 목표는 아래 '미연계'로 모은다.
+  // 전략목표를 가로로 한 칸씩 놓고(계통도와 같은 배열), 칸 안에서 전략과제 순서대로 내려간다.
+  // 연계 정보는 이름으로 들고 있어서, 이름이 안 맞는 목표는 마지막 '미연계' 칸에 모은다.
   const 목표s = org?.전략목표 || [];
   const 과제s = org?.전략과제 || [];
   const 과제이름 = new Set(과제s.map(t=>t.과제));
   const placed = new Set();
-  let html = '';
+  let cols = '';
 
   목표s.forEach((목표, i) => {
     const tasks = 과제s.filter(t => t.목표idx === i);
-    let rows = '';
+    let inner = '';
     tasks.forEach(t => {
       const linked = goals.filter(g => g.linkedStrategyTask === t.과제);
       linked.forEach(g => placed.add(g.id));
-      rows += `<div class="fg-task-row">
-        <div class="fg-task-label">${esc(t.과제)}</div>
-        <div class="fg-task-cards">${linked.length ? linked.map(g=>card(g)).join('') : '<div class="fg-task-empty">등록된 시설목표 없음</div>'}</div>
-      </div>`;
+      inner += `<div class="strategy-task" style="font-size:11px;opacity:0.75;margin-top:6px">${esc(t.과제)}</div>`;
+      inner += linked.length ? linked.map(g=>card(g)).join('') : `<div class="fg-task-empty">등록된 시설목표 없음</div>`;
     });
-    // 전략과제 없이 전략목표에만 연계해 둔 것들 — 빠뜨리지 않고 해당 전략목표 안에 둔다
+    // 전략과제 없이 전략목표에만 연계해 둔 것들 — 빠뜨리지 않고 해당 전략목표 칸에 둔다
     const goalOnly = goals.filter(g => !placed.has(g.id) && !과제이름.has(g.linkedStrategyTask) && g.linkedStrategyGoal === 목표);
     if(goalOnly.length){
       goalOnly.forEach(g => placed.add(g.id));
-      rows += `<div class="fg-task-row">
-        <div class="fg-task-label" style="color:var(--t3)">전략과제 미지정</div>
-        <div class="fg-task-cards">${goalOnly.map(g=>card(g)).join('')}</div>
-      </div>`;
+      inner += `<div class="strategy-task" style="font-size:11px;opacity:0.75;margin-top:6px;color:var(--t3)">전략과제 미지정</div>`;
+      inner += goalOnly.map(g=>card(g)).join('');
     }
-    html += `<div class="fg-strategy-section">
-      <div class="fg-strategy-title">전략목표 ${i+1}: ${esc(목표)}</div>
-      ${rows || '<div class="fg-task-row"><div class="fg-task-empty">전략과제가 없습니다</div></div>'}
+    cols += `<div class="strategy-col">
+      <div class="strategy-col-title" style="color:var(--blue)">전략목표 ${i+1}: ${esc(목표)}</div>
+      ${inner || '<div class="fg-task-empty">전략과제가 없습니다</div>'}
     </div>`;
   });
 
   const 미연계 = goals.filter(g => !placed.has(g.id));
   if(미연계.length){
-    html += `<div class="fg-strategy-section">
-      <div class="fg-strategy-title" style="color:var(--t3);background:rgba(255,255,255,0.03)">미연계 시설목표</div>
-      <div class="fg-task-row"><div class="fg-task-cards">${미연계.map(g=>card(g,true)).join('')}</div></div>
+    cols += `<div class="strategy-col" style="opacity:0.85">
+      <div class="strategy-col-title" style="color:var(--t3)">미연계 시설목표</div>
+      ${미연계.map(g=>card(g,true)).join('')}
     </div>`;
   }
 
-  cont.innerHTML = html;
+  cont.innerHTML = `<div class="fg-strategy-grid">${cols}</div>`;
 }
 
 function renderFgKpis(){
@@ -7967,7 +7963,8 @@ async function saveFacilityGoal(){
 
 async function deleteFacilityGoal(id){
   if(!await confirmDialog('시설목표를 삭제하시겠습니까?')) return;
-  await fadeOutEl(document.querySelector(`.fg-item[data-id="${id}"]`));
+  // 관리 화면은 .fg-inline-card, 예전 목록은 .fg-item — 어느 쪽이 떠 있어도 사라지는 게 보이게
+  await fadeOutEl(document.querySelector(`.fg-item[data-id="${id}"], .fg-inline-card[data-id="${id}"]`));
   try{
     await DB.deleteFacilityGoal(id);
     await renderAdminFacilityGoals();
