@@ -10527,12 +10527,43 @@ function startVoiceInput(){
 function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); window.speechSynthesis?.cancel(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } }
 
 let _ttsVoice=null;
-function _pickKoVoice(){ try{ const vs=window.speechSynthesis.getVoices()||[]; _ttsVoice=vs.find(v=>/ko/i.test(v.lang)&&/(male|남)/i.test(v.name))||vs.find(v=>/ko/i.test(v.lang))||null; }catch(e){} }
+// ── 한국어 음성 고르기 ────────────────────────────────────────
+// 브라우저에는 한국어 음성이 여러 개 깔려 있고 품질 차이가 크다.
+// 기기에 내장된 로컬 음성(localService)은 오프라인에서 돌아 빠르지만 딱딱하고,
+// 구글·마이크로소프트의 네트워크 음성은 사람 말에 훨씬 가깝다.
+// 예전에는 "아무 한국어 음성"을 집어서 기계음이 걸리는 일이 많았다.
+function _voiceScore(v){
+  let s=0;
+  if(!v.localService) s+=50;                                   // 네트워크 음성이 품질 차이가 가장 크다
+  if(/natural|neural|wavenet|online/i.test(v.name)) s+=30;     // 최신 합성 엔진 표기
+  if(/google/i.test(v.name)) s+=15;
+  else if(/microsoft/i.test(v.name)) s+=10;
+  if(/(female|여성|여자|SunHi|Heami|Yuna|Ji-?Min|Seo-?Hyeon)/i.test(v.name)) s+=5;  // 아바타와 결을 맞춘다
+  return s;
+}
+function _pickKoVoice(){
+  try{
+    const ko=(window.speechSynthesis.getVoices()||[]).filter(v=>/^ko/i.test(v.lang));
+    if(!ko.length){ _ttsVoice=null; return; }
+    _ttsVoice=ko.slice().sort((a,b)=>_voiceScore(b)-_voiceScore(a))[0];
+  }catch(e){}
+}
+// 음성 목록은 비동기로 채워진다 — 첫 호출이 비어 있어도 voiceschanged 로 다시 고른다
 if(window.speechSynthesis){ _pickKoVoice(); window.speechSynthesis.onvoiceschanged=_pickKoVoice; }
+
+// 이 브라우저에 어떤 한국어 음성이 있고 무엇이 뽑혔는지 확인용 (콘솔에서 listKoVoices())
+window.listKoVoices=function(){
+  const ko=(window.speechSynthesis.getVoices()||[]).filter(v=>/^ko/i.test(v.lang));
+  console.table(ko.map(v=>({이름:v.name, 네트워크음성:!v.localService, 점수:_voiceScore(v), 선택:_ttsVoice&&v.name===_ttsVoice.name})));
+  return ko.length+'개';
+};
 function speakAI(text,onEnd){
   if(!window.speechSynthesis){ onEnd&&onEnd(); return; }
   window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=1.05; if(_ttsVoice) u.voice=_ttsVoice;
+  // 1.05는 살짝 빨라 또박또박 읽는 느낌이 강해진다. 조금 늦추면 말투에 가까워진다.
+  const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=0.98; u.pitch=1.0;
+  if(!_ttsVoice) _pickKoVoice();   // 첫 발화가 목록 로딩보다 빨랐을 수 있다
+  if(_ttsVoice) u.voice=_ttsVoice;
   // 자비스 대기 중이면 TTS 동안 마이크를 멈춰 자기 목소리를 명령으로 오인하지 않게 한다
   if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }
   u.onend=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
