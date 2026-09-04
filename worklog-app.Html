@@ -331,6 +331,24 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .fg-progress-view{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;font-size:13px;color:var(--t2);}
 .fg-progress-view b{font-size:18px;color:var(--accent);margin-right:8px;}
 @media(max-width:600px){.fg-kpi-line{flex-wrap:wrap;}.fg-kpi-dir{width:100%;}}
+/* 인사관리 */
+.hr-warn{margin-top:12px;padding:11px 14px;border-radius:var(--r2);font-size:12px;line-height:1.6;
+  color:var(--t2);background:rgba(232,160,32,0.08);border:1px solid rgba(232,160,32,0.28);}
+.hr-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.hr-table th{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;
+  padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg2);white-space:nowrap;}
+.hr-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;}
+.hr-table tr:last-child td{border-bottom:none;}
+.hr-table tr:hover td{background:rgba(255,255,255,0.02);}
+.hr-scroll{overflow-x:auto;}
+.hr-chip{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:var(--bg2);color:var(--t2);margin:1px 3px 1px 0;white-space:nowrap;}
+.hr-num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.hr-over{color:var(--red);font-weight:700;}
+.hr-under{color:var(--blue);font-weight:700;}
+.hr-fit{color:var(--green);font-weight:700;}
+.hr-sub{border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;margin-bottom:6px;background:var(--bg);}
+.hr-sub-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.hr-sub-row input{font-size:12px;padding:6px 8px;}
 /* 경영실적 입력 */
 .perf-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
 .perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start;}
@@ -1387,6 +1405,44 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="personal-tab active" id="daily-subtab-work" onclick="switchDailyTab('work')">📔 일일업무</div>
         <div class="personal-tab" id="daily-subtab-perf" onclick="switchDailyTab('perf')">📈 경영실적 입력</div>
         <div class="personal-tab" id="daily-subtab-energy" onclick="switchDailyTab('energy')">⚡ 에너지관리</div>
+        <div class="personal-tab" id="daily-subtab-hr" onclick="switchDailyTab('hr')" style="display:none">👥 인사관리</div>
+      </div>
+      <div id="daily-sub-hr" style="display:none">
+        <div class="perf-head">
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">👥 인사관리</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px">직원 인사정보와 시설·직렬·직급별 정원. 인사배치 시뮬레이션의 밑자료입니다.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="openEmpModal()">+ 직원 추가</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadHrTemplate()">📥 엑셀 양식</button>
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer">📤 엑셀 업로드
+              <input type="file" id="hrExcelInput" accept=".xlsx,.xls" style="display:none" onchange="uploadHrExcel(event)" />
+            </label>
+          </div>
+        </div>
+        <div class="hr-warn">
+          ⚠️ 생년월일·주소는 민감한 개인정보입니다. 지금은 로그인 없이도 데이터베이스를 읽을 수 있는 상태라
+          (설정 → 보안 과제 S-1 미완료), 실제 직원 정보는 그 작업을 마친 뒤 채우시길 권합니다.
+        </div>
+        <div class="em-tab-bar" style="margin-top:14px">
+          <button class="em-tab active" id="hr-tab-emp" onclick="switchHrTab('emp')">직원 명부</button>
+          <button class="em-tab" id="hr-tab-quota" onclick="switchHrTab('quota')">정원 · 현원</button>
+        </div>
+        <div id="hr-panel-emp">
+          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
+            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 시설로 검색" oninput="renderEmployees()" style="max-width:320px" />
+            <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
+          </div>
+          <div id="hr-emp-list"></div>
+        </div>
+        <div id="hr-panel-quota" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="openQuotaModal()">+ 정원 추가</button>
+            <span style="font-size:11px;color:var(--t3)">현원은 직원 명부를 세어 자동으로 나옵니다</span>
+          </div>
+          <div id="hr-quota-list"></div>
+        </div>
       </div>
       <div id="daily-sub-perf" style="display:none">
         <div class="perf-head">
@@ -2578,6 +2634,70 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- 인사관리 — 직원 -->
+<div class="modal-overlay" id="hr-emp-modal">
+  <div class="modal">
+    <h3 id="hr-emp-title">직원 추가</h3>
+    <input type="hidden" id="hr-emp-id" />
+    <div class="form-row">
+      <div class="form-group"><label>성명 *</label><input type="text" id="hr-f-name" placeholder="홍길동" /></div>
+      <div class="form-group"><label>사원번호</label><input type="text" id="hr-f-empno" placeholder="선택" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
+      <div class="form-group"><label>입사일</label><input type="date" id="hr-f-hired" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" /><datalist id="hr-rank-list"></datalist></div>
+      <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist></div>
+    </div>
+    <div class="form-group"><label>배치 시설</label><select id="hr-f-facility"></select></div>
+    <div class="form-group"><label>거주지 주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
+    <div class="form-group">
+      <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span>근무성적평정</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addEvalRow()">+ 평정 추가</button>
+      </label>
+      <div id="hr-eval-list"></div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span>수상경력</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addAwardRow()">+ 수상 추가</button>
+      </label>
+      <div id="hr-award-list"></div>
+    </div>
+    <div class="form-group"><label>메모</label><input type="text" id="hr-f-memo" placeholder="선택" /></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-danger" id="hr-emp-del" style="display:none" onclick="deleteEmployee()">삭제</button>
+      <button class="btn btn-secondary" onclick="closeModal('hr-emp-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 인사관리 — 정원 -->
+<div class="modal-overlay" id="hr-quota-modal">
+  <div class="modal">
+    <h3 id="hr-quota-title">정원 추가</h3>
+    <input type="hidden" id="hr-q-id" />
+    <div class="form-group"><label>시설 *</label><select id="hr-q-facility"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>직렬 *</label><input type="text" id="hr-q-series" list="hr-series-list" placeholder="예: 행정" /></div>
+      <div class="form-group"><label>직급 *</label><input type="text" id="hr-q-rank" list="hr-rank-list" placeholder="예: 6급" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>정원 *</label><input type="number" id="hr-q-count" min="0" value="1" /></div>
+      <div class="form-group"><label>비고</label><input type="text" id="hr-q-memo" placeholder="선택" /></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-danger" id="hr-q-del" style="display:none" onclick="deleteQuota()">삭제</button>
+      <button class="btn btn-secondary" onclick="closeModal('hr-quota-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveQuota()">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- Facility Goal Modal -->
 <div class="modal-overlay" id="fg-modal">
   <div class="modal">
@@ -3172,6 +3292,33 @@ function pgToDb(g, 사원번호) {
 function dbToPg(r) {
   return { id:r.id, goal:r.goal, kpis:r.kpis||[], kpi:(r.kpis||[])[0]||'', progress:r.progress||0, linked:r.linked||'' };
 }
+// ── 인사정보 변환 ──
+// 평정·수상은 여러 건이라 jsonb 배열로 담는다. 배열이 아닌 값이 들어오면 빈 배열로
+// 되돌린다 — 엑셀 업로드처럼 바깥에서 들어오는 경로가 있어서다.
+function _arr(v){ return Array.isArray(v) ? v : []; }
+function empToDb(e){
+  const o={ 성명:(e.성명||'').trim(), 생년월일:e.생년월일||null, 주소:e.주소||'',
+    직급:e.직급||'', 직렬:e.직렬||'', 시설명:e.시설명||'', 사원번호:e.사원번호||'',
+    입사일:e.입사일||null, 평정:_arr(e.평정), 수상:_arr(e.수상), 메모:e.메모||'',
+    updated_at:new Date().toISOString() };
+  if(e.id) o.id=e.id;
+  return o;
+}
+function dbToEmp(r){
+  return { id:r.id, 성명:r.성명||'', 생년월일:r.생년월일||'', 주소:r.주소||'',
+    직급:r.직급||'', 직렬:r.직렬||'', 시설명:r.시설명||'', 사원번호:r.사원번호||'',
+    입사일:r.입사일||'', 평정:_arr(r.평정), 수상:_arr(r.수상), 메모:r.메모||'' };
+}
+function quotaToDb(q){
+  const o={ 시설명:(q.시설명||'').trim(), 직렬:(q.직렬||'').trim(), 직급:(q.직급||'').trim(),
+    정원:parseInt(q.정원)||0, 비고:q.비고||'', updated_at:new Date().toISOString() };
+  if(q.id) o.id=q.id;
+  return o;
+}
+function dbToQuota(r){
+  return { id:r.id, 시설명:r.시설명||'', 직렬:r.직렬||'', 직급:r.직급||'', 정원:r.정원||0, 비고:r.비고||'' };
+}
+
 function fgToDb(g, 시설명) {
   return { id:g.id, 시설명, goal:g.goal, kpis:g.kpis||[], progress:g.progress||0, linked_strategy_goal:g.linkedStrategyGoal||'', linked_strategy_task:g.linkedStrategyTask||'' };
 }
@@ -3227,6 +3374,31 @@ const DB = {
     _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
   async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
+
+  // ── 인사관리 ──
+  // 민감정보(생년월일·주소)가 들어간다. 캐시는 두되 로그아웃 시 함께 비워진다.
+  async getEmployees(){
+    const k='hr:emp';
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('hr_employees').select('*').order('성명');
+    if(error){ console.error('[hr]',error); return []; }
+    return _cs(k,(data||[]).map(dbToEmp));
+  },
+  async upsertEmployee(e){ const {error}=await SB.from('hr_employees').upsert(empToDb(e)); if(error)throw error; _cd('hr:emp'); },
+  async deleteEmployee(id){ const {error}=await SB.from('hr_employees').delete().eq('id',id); if(error)throw error; _cd('hr:emp'); },
+  async insertEmployees(rows){ if(!rows.length)return; const {error}=await SB.from('hr_employees').insert(rows.map(empToDb)); if(error)throw error; _cd('hr:emp'); },
+
+  async getQuota(){
+    const k='hr:quota';
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('hr_quota').select('*');
+    if(error){ console.error('[hr]',error); return []; }
+    return _cs(k,(data||[]).map(dbToQuota));
+  },
+  // 시설·직렬·직급 조합이 유일키라 같은 조합을 다시 넣으면 정원만 갱신된다
+  async upsertQuota(q){ const {error}=await SB.from('hr_quota').upsert(quotaToDb(q),{onConflict:'시설명,직렬,직급'}); if(error)throw error; _cd('hr:quota'); },
+  async deleteQuota(id){ const {error}=await SB.from('hr_quota').delete().eq('id',id); if(error)throw error; _cd('hr:quota'); },
+  async insertQuotas(rows){ if(!rows.length)return; const {error}=await SB.from('hr_quota').upsert(rows.map(quotaToDb),{onConflict:'시설명,직렬,직급'}); if(error)throw error; _cd('hr:quota'); },
 
   // 웹푸시 구독 — 서버 크론이 이 표를 읽어 알림을 보낸다.
   // 표를 직접 만지지 않고 함수를 부른다: 푸시 주소는 남이 볼 이유가 없는데,
@@ -3874,17 +4046,26 @@ function navigate(page){
 
 // 업무 하위 탭: 일일업무 / 에너지관리
 function switchDailyTab(tab){
-  if(!['work','perf','energy'].includes(tab)) tab='work';
+  // 인사관리는 개인정보를 다뤄 관리자에게만 연다. 권한이 없는 사람이 옛 세션값으로
+  // 그 탭에 들어와 있지 않도록 여기서도 막는다.
+  const hrOK = currentUser?.role==='admin';
+  const hrTabBtn=document.getElementById('daily-subtab-hr');
+  if(hrTabBtn) hrTabBtn.style.display = hrOK ? '' : 'none';
+  if(tab==='hr' && !hrOK) tab='work';
+  if(!['work','perf','energy','hr'].includes(tab)) tab='work';
   _sessionSubTab.daily = tab;
-  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy']].forEach(([t,id])=>{
+  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy'],['hr','daily-subtab-hr']].forEach(([t,id])=>{
     const el=document.getElementById(id); if(el) el.classList.toggle('active', tab===t);
   });
   const work=document.getElementById('daily-sub-work');
   const perf=document.getElementById('daily-sub-perf');
   const energy=document.getElementById('page-energy');
+  const hr=document.getElementById('daily-sub-hr');
   if(work)   work.style.display   = tab==='work'   ? '' : 'none';
   if(perf)   perf.style.display   = tab==='perf'   ? '' : 'none';
   if(energy) energy.style.display = tab==='energy' ? 'block' : 'none';
+  if(hr)     hr.style.display     = tab==='hr'     ? '' : 'none';
+  if(tab==='hr'){ stopGcalAutoRefresh(); renderHrPage(); return; }
   if(tab==='work'){
     renderDailyPage();
     startGcalAutoRefresh();
@@ -3896,6 +4077,311 @@ function switchDailyTab(tab){
     stopGcalAutoRefresh();
     initEnergyMgmt();
   }
+}
+
+// ═══════════════════════════════════════════════
+// 인사관리 (업무 하위 탭 · 관리자 전용)
+// 인사배치 시뮬레이션의 밑자료 — 사람(직원)과 자리(정원)를 각각 담는다.
+// ═══════════════════════════════════════════════
+let _hrEmps=[], _hrQuota=[], _hrTab='emp', _evalDraft=[], _awardDraft=[];
+
+function switchHrTab(t){
+  _hrTab=t;
+  document.getElementById('hr-tab-emp').classList.toggle('active',t==='emp');
+  document.getElementById('hr-tab-quota').classList.toggle('active',t==='quota');
+  document.getElementById('hr-panel-emp').style.display=t==='emp'?'':'none';
+  document.getElementById('hr-panel-quota').style.display=t==='quota'?'':'none';
+  if(t==='emp') renderEmployees(); else renderQuota();
+}
+
+async function renderHrPage(){
+  const [emps,quota]=await Promise.all([DB.getEmployees(),DB.getQuota()]);
+  _hrEmps=emps; _hrQuota=quota;
+  // 직급·직렬은 쓰는 말이 기관마다 달라 고정 목록을 두지 않는다. 이미 입력한 값을
+  // 모아 자동완성으로 제안하면 표기가 저절로 통일된다.
+  const ranks=[...new Set([..._hrEmps.map(e=>e.직급),..._hrQuota.map(q=>q.직급)].filter(Boolean))].sort();
+  const series=[...new Set([..._hrEmps.map(e=>e.직렬),..._hrQuota.map(q=>q.직렬)].filter(Boolean))].sort();
+  const fill=(id,list)=>{ const el=document.getElementById(id); if(el) el.innerHTML=list.map(v=>`<option value="${esc(v)}"></option>`).join(''); };
+  fill('hr-rank-list',ranks); fill('hr-series-list',series);
+  switchHrTab(_hrTab);
+}
+
+function _empAge(birth){
+  if(!birth) return '';
+  const b=new Date(birth), n=new Date();
+  let a=n.getFullYear()-b.getFullYear();
+  if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) a--;
+  return a>=0&&a<130 ? a+'세' : '';
+}
+// 최근 평정 한 건 — 연도가 가장 큰 것. 목록에서는 이것만 보여주고 나머지는 수정창에서 본다.
+function _latestEval(list){
+  const v=(list||[]).filter(x=>x&&x.연도).sort((a,b)=>String(b.연도).localeCompare(String(a.연도)));
+  return v[0]||null;
+}
+
+function renderEmployees(){
+  const cont=document.getElementById('hr-emp-list'); if(!cont) return;
+  const q=(document.getElementById('hr-search')?.value||'').trim().toLowerCase();
+  const list=_hrEmps.filter(e=>!q||[e.성명,e.직급,e.직렬,e.시설명,e.사원번호].some(v=>(v||'').toLowerCase().includes(q)));
+  const cnt=document.getElementById('hr-emp-count');
+  if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명${q?` · 검색 ${list.length}명`:''}`;
+  if(!list.length){
+    cont.innerHTML=`<div class="empty-state"><div class="icon">👥</div><p>${_hrEmps.length?'검색 결과가 없습니다.':'등록된 직원이 없습니다. 엑셀 양식을 받아 한 번에 올리거나, 직원 추가를 눌러 한 명씩 넣으세요.'}</p></div>`;
+    return;
+  }
+  // 조직도 순서로 — 시설 목록·드롭다운과 같은 기준이라 눈이 헷갈리지 않는다
+  const sorted=list.slice().sort((a,b)=>{
+    const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
+    if(oa!==ob) return oa-ob;
+    return (a.성명||'').localeCompare(b.성명||'','ko');
+  });
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
+    <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>배치 시설</th><th>생년월일</th><th>최근 평정</th><th>수상</th><th>주소</th><th style="width:60px"></th></tr></thead>
+    <tbody>${sorted.map(e=>{
+      const ev=_latestEval(e.평정);
+      return `<tr>
+        <td><b>${esc(e.성명)}</b>${e.사원번호?`<div style="font-size:11px;color:var(--t3)">${esc(e.사원번호)}</div>`:''}</td>
+        <td>${esc(e.직급)||'—'}</td>
+        <td>${esc(e.직렬)||'—'}</td>
+        <td>${_facIndent(e.시설명)}${esc(e.시설명)||'—'}</td>
+        <td>${e.생년월일?esc(e.생년월일)+`<div style="font-size:11px;color:var(--t3)">${_empAge(e.생년월일)}</div>`:'—'}</td>
+        <td>${ev?`${esc(ev.연도)}${ev.기간?' '+esc(ev.기간):''} <b>${esc(ev.점수||ev.등급||'')}</b>${(e.평정||[]).length>1?`<div style="font-size:11px;color:var(--t3)">외 ${(e.평정||[]).length-1}건</div>`:''}`:'—'}</td>
+        <td>${(e.수상||[]).length?`<span class="hr-chip">${(e.수상||[]).length}건</span>`:'—'}</td>
+        <td style="max-width:220px;word-break:keep-all;font-size:12px;color:var(--t2)">${esc(e.주소)||'—'}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="openEmpModal('${e.id}')">✏️</button></td>
+      </tr>`;}).join('')}</tbody></table></div>`;
+}
+
+// 정원과 현원을 같은 표에서 맞춰 본다. 현원은 직원 명부를 세어 구하므로 따로 저장하지 않는다.
+function renderQuota(){
+  const cont=document.getElementById('hr-quota-list'); if(!cont) return;
+  const head=(t)=>`<td class="hr-num">${t}</td>`;
+  // 정원에 없는 조합이라도 사람이 배치돼 있으면 보여줘야 한다(정원 0의 초과 배치)
+  const keys=new Map();
+  _hrQuota.forEach(q=>keys.set(`${q.시설명}|${q.직렬}|${q.직급}`,{시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,id:q.id,비고:q.비고}));
+  _hrEmps.forEach(e=>{
+    const k=`${e.시설명}|${e.직렬}|${e.직급}`;
+    if(!keys.has(k)) keys.set(k,{시설명:e.시설명,직렬:e.직렬,직급:e.직급,정원:0,id:null,비고:''});
+  });
+  const rows=[...keys.values()].map(r=>{
+    const 현원=_hrEmps.filter(e=>e.시설명===r.시설명&&e.직렬===r.직렬&&e.직급===r.직급).length;
+    return {...r,현원,과부족:현원-r.정원};
+  }).sort((a,b)=>{
+    const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
+    if(oa!==ob) return oa-ob;
+    return (a.직렬||'').localeCompare(b.직렬||'','ko')||(a.직급||'').localeCompare(b.직급||'','ko');
+  });
+  if(!rows.length){
+    cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 정원 추가를 눌러 시설·직렬·직급별로 넣으세요.</p></div>';
+    return;
+  }
+  const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
+    <thead><tr><th>시설</th><th>직렬</th><th>직급</th><th class="hr-num">정원</th><th class="hr-num">현원</th><th class="hr-num">과부족</th><th>비고</th><th style="width:60px"></th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const d=r.과부족;
+      const cls=d>0?'hr-over':d<0?'hr-under':'hr-fit';
+      const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
+      return `<tr>
+        <td>${_facIndent(r.시설명)}${esc(r.시설명)||'—'}</td>
+        <td>${esc(r.직렬)||'—'}</td><td>${esc(r.직급)||'—'}</td>
+        ${head(r.정원)}${head(r.현원)}
+        <td class="hr-num ${cls}">${txt}</td>
+        <td style="font-size:12px;color:var(--t3)">${esc(r.비고)||''}</td>
+        <td>${r.id?`<button class="btn btn-ghost btn-sm" onclick="openQuotaModal('${r.id}')">✏️</button>`:'<span style="font-size:11px;color:var(--t3)">정원 미등록</span>'}</td>
+      </tr>`;}).join('')}
+      <tr style="background:var(--bg2)"><td colspan="3"><b>합계</b></td>
+        ${head(`<b>${sum('정원')}</b>`)}${head(`<b>${sum('현원')}</b>`)}
+        <td class="hr-num"><b>${sum('현원')-sum('정원')>0?'+':''}${sum('현원')-sum('정원')}</b></td><td colspan="2"></td></tr>
+    </tbody></table></div>`;
+}
+
+// ── 직원 추가·수정 ──────────────────────────────────────────
+function _renderSubRows(){
+  document.getElementById('hr-eval-list').innerHTML=_evalDraft.map((v,i)=>`
+    <div class="hr-sub"><div class="hr-sub-row">
+      <input type="text" class="ev-y" data-i="${i}" value="${esc(v.연도||'')}" placeholder="연도" style="width:76px" />
+      <input type="text" class="ev-p" data-i="${i}" value="${esc(v.기간||'')}" placeholder="상/하반기" style="width:90px" />
+      <input type="text" class="ev-s" data-i="${i}" value="${esc(v.점수||'')}" placeholder="점수" style="width:70px" />
+      <input type="text" class="ev-g" data-i="${i}" value="${esc(v.등급||'')}" placeholder="등급" style="width:70px" />
+      <input type="text" class="ev-m" data-i="${i}" value="${esc(v.비고||'')}" placeholder="비고" style="flex:1;min-width:80px" />
+      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delEvalRow(${i})">✕</button>
+    </div></div>`).join('')||'<div style="font-size:12px;color:var(--t3);padding:4px 0">평정 기록이 없습니다.</div>';
+  document.getElementById('hr-award-list').innerHTML=_awardDraft.map((v,i)=>`
+    <div class="hr-sub"><div class="hr-sub-row">
+      <input type="date" class="aw-d" data-i="${i}" value="${esc(v.일자||'')}" style="width:150px" />
+      <input type="text" class="aw-n" data-i="${i}" value="${esc(v.수상명||'')}" placeholder="수상명" style="flex:1;min-width:110px" />
+      <input type="text" class="aw-o" data-i="${i}" value="${esc(v.수여기관||'')}" placeholder="수여기관" style="width:120px" />
+      <input type="text" class="aw-t" data-i="${i}" value="${esc(v.종류||'')}" placeholder="종류" style="width:90px" />
+      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delAwardRow(${i})">✕</button>
+    </div></div>`).join('')||'<div style="font-size:12px;color:var(--t3);padding:4px 0">수상 기록이 없습니다.</div>';
+}
+function _collectSubRows(){
+  const g=(c,i)=>document.querySelector(`.${c}[data-i="${i}"]`)?.value||'';
+  _evalDraft=_evalDraft.map((_,i)=>({연도:g('ev-y',i),기간:g('ev-p',i),점수:g('ev-s',i),등급:g('ev-g',i),비고:g('ev-m',i)}));
+  _awardDraft=_awardDraft.map((_,i)=>({일자:g('aw-d',i),수상명:g('aw-n',i),수여기관:g('aw-o',i),종류:g('aw-t',i)}));
+}
+function addEvalRow(){ _collectSubRows(); _evalDraft.push({연도:String(new Date().getFullYear())}); _renderSubRows(); }
+function delEvalRow(i){ _collectSubRows(); _evalDraft.splice(i,1); _renderSubRows(); }
+function addAwardRow(){ _collectSubRows(); _awardDraft.push({}); _renderSubRows(); }
+function delAwardRow(i){ _collectSubRows(); _awardDraft.splice(i,1); _renderSubRows(); }
+
+async function openEmpModal(id){
+  await _getFacilityOrderMap();
+  const sel=document.getElementById('hr-f-facility');
+  const opts=await getOrgFacilityOptions(null);
+  fillFacilitySelect(sel,opts,'미지정');
+  const e=id?_hrEmps.find(x=>x.id===id):null;
+  document.getElementById('hr-emp-title').textContent=e?'직원 정보 수정':'직원 추가';
+  document.getElementById('hr-emp-id').value=e?e.id:'';
+  document.getElementById('hr-f-name').value=e?e.성명:'';
+  document.getElementById('hr-f-empno').value=e?e.사원번호:'';
+  document.getElementById('hr-f-birth').value=e?e.생년월일:'';
+  document.getElementById('hr-f-hired').value=e?e.입사일:'';
+  document.getElementById('hr-f-rank').value=e?e.직급:'';
+  document.getElementById('hr-f-series').value=e?e.직렬:'';
+  document.getElementById('hr-f-addr').value=e?e.주소:'';
+  document.getElementById('hr-f-memo').value=e?e.메모:'';
+  sel.value=e?e.시설명:'';
+  document.getElementById('hr-emp-del').style.display=e?'inline-flex':'none';
+  _evalDraft=e?JSON.parse(JSON.stringify(e.평정||[])):[];
+  _awardDraft=e?JSON.parse(JSON.stringify(e.수상||[])):[];
+  _renderSubRows();
+  openModal('hr-emp-modal');
+}
+async function saveEmployee(){
+  const 성명=document.getElementById('hr-f-name').value.trim();
+  if(!성명){ toast('성명을 입력하세요','error'); return; }
+  _collectSubRows();
+  const data={
+    id:document.getElementById('hr-emp-id').value||undefined,
+    성명, 사원번호:document.getElementById('hr-f-empno').value.trim(),
+    생년월일:document.getElementById('hr-f-birth').value||null,
+    입사일:document.getElementById('hr-f-hired').value||null,
+    직급:document.getElementById('hr-f-rank').value.trim(),
+    직렬:document.getElementById('hr-f-series').value.trim(),
+    시설명:document.getElementById('hr-f-facility').value,
+    주소:document.getElementById('hr-f-addr').value.trim(),
+    메모:document.getElementById('hr-f-memo').value.trim(),
+    // 빈 줄은 저장하지 않는다 — 추가만 눌러두고 안 채운 칸이 쌓이면 표가 지저분해진다
+    평정:_evalDraft.filter(v=>v.연도||v.점수||v.등급),
+    수상:_awardDraft.filter(v=>v.수상명||v.일자)
+  };
+  try{ await DB.upsertEmployee(data); closeModal('hr-emp-modal'); await renderHrPage(); toast('저장했습니다'); }
+  catch(e){ toast('저장 실패: '+e.message,'error'); console.error(e); }
+}
+async function deleteEmployee(){
+  const id=document.getElementById('hr-emp-id').value; if(!id) return;
+  if(!await confirmDialog('이 직원의 인사정보를 삭제하시겠습니까?')) return;
+  try{ await DB.deleteEmployee(id); closeModal('hr-emp-modal'); await renderHrPage(); toast('삭제했습니다'); }
+  catch(e){ toast('삭제 실패: '+e.message,'error'); }
+}
+
+// ── 정원 추가·수정 ──────────────────────────────────────────
+async function openQuotaModal(id){
+  await _getFacilityOrderMap();
+  fillFacilitySelect(document.getElementById('hr-q-facility'), await getOrgFacilityOptions(null), '선택하세요');
+  const q=id?_hrQuota.find(x=>x.id===id):null;
+  document.getElementById('hr-quota-title').textContent=q?'정원 수정':'정원 추가';
+  document.getElementById('hr-q-id').value=q?q.id:'';
+  document.getElementById('hr-q-facility').value=q?q.시설명:'';
+  document.getElementById('hr-q-series').value=q?q.직렬:'';
+  document.getElementById('hr-q-rank').value=q?q.직급:'';
+  document.getElementById('hr-q-count').value=q?q.정원:1;
+  document.getElementById('hr-q-memo').value=q?q.비고:'';
+  document.getElementById('hr-q-del').style.display=q?'inline-flex':'none';
+  openModal('hr-quota-modal');
+}
+async function saveQuota(){
+  const 시설명=document.getElementById('hr-q-facility').value;
+  const 직렬=document.getElementById('hr-q-series').value.trim();
+  const 직급=document.getElementById('hr-q-rank').value.trim();
+  if(!시설명||!직렬||!직급){ toast('시설·직렬·직급을 모두 입력하세요','error'); return; }
+  const data={ id:document.getElementById('hr-q-id').value||undefined, 시설명, 직렬, 직급,
+    정원:parseInt(document.getElementById('hr-q-count').value)||0,
+    비고:document.getElementById('hr-q-memo').value.trim() };
+  try{ await DB.upsertQuota(data); closeModal('hr-quota-modal'); await renderHrPage(); toast('저장했습니다'); }
+  catch(e){ toast('저장 실패: '+e.message,'error'); console.error(e); }
+}
+async function deleteQuota(){
+  const id=document.getElementById('hr-q-id').value; if(!id) return;
+  if(!await confirmDialog('이 정원 항목을 삭제하시겠습니까?')) return;
+  try{ await DB.deleteQuota(id); closeModal('hr-quota-modal'); await renderHrPage(); toast('삭제했습니다'); }
+  catch(e){ toast('삭제 실패: '+e.message,'error'); }
+}
+
+// ── 엑셀 일괄 입력 ──────────────────────────────────────────
+// 전 직원을 한 명씩 넣는 건 현실적이지 않다. 시트 두 장(직원·정원)으로 받는다.
+// 평정·수상은 한 칸에 여러 건을 담아야 해서 구분자를 쓴다:
+//   평정  "2025|상반기|92|수|비고 ; 2024|하반기|88|우|"
+//   수상  "2025-03-02|장관표창|행정안전부|표창 ; ..."
+const HR_EVAL_COLS=['연도','기간','점수','등급','비고'];
+const HR_AWARD_COLS=['일자','수상명','수여기관','종류'];
+function _packRows(list,cols){ return (list||[]).map(v=>cols.map(c=>v[c]||'').join('|')).join(' ; '); }
+function _unpackRows(txt,cols){
+  return String(txt||'').split(';').map(x=>x.trim()).filter(Boolean).map(chunk=>{
+    const parts=chunk.split('|').map(x=>x.trim());
+    const o={}; cols.forEach((c,i)=>o[c]=parts[i]||''); return o;
+  }).filter(o=>Object.values(o).some(Boolean));
+}
+// 엑셀은 날짜를 시리얼 숫자로 주기도 한다 — 그대로 저장하면 date 컬럼이 거부한다
+function _xlDate(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date) return v.toISOString().slice(0,10);
+  if(typeof v==='number'){ const d=XLSX.SSF.parse_date_code(v); return d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:null; }
+  const t=String(v).trim().replace(/[./]/g,'-');
+  return /^\d{4}-\d{1,2}-\d{1,2}$/.test(t) ? t.replace(/-(\d)(?=-|$)/g,'-0$1') : null;
+}
+
+function downloadHrTemplate(){
+  const emp=[{성명:'홍길동',사원번호:'091111',생년월일:'1985-03-12',입사일:'2012-01-02',
+    직급:'6급',직렬:'행정',배치시설:'울주군립야영장',거주지주소:'울산광역시 울주군 …',
+    평정:'2025|상반기|92|수|  ;  2024|하반기|88|우|',
+    수상:'2025-03-02|장관표창|행정안전부|표창',메모:''}];
+  const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(emp),'직원');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quo),'정원');
+  // 지금 등록된 직원이 있으면 예시 대신 실제 데이터를 담아 내려준다(수정 후 재업로드용)
+  if(_hrEmps.length){
+    const rows=_hrEmps.map(e=>({성명:e.성명,사원번호:e.사원번호,생년월일:e.생년월일,입사일:e.입사일,
+      직급:e.직급,직렬:e.직렬,배치시설:e.시설명,거주지주소:e.주소,
+      평정:_packRows(e.평정,HR_EVAL_COLS),수상:_packRows(e.수상,HR_AWARD_COLS),메모:e.메모}));
+    wb.Sheets['직원']=XLSX.utils.json_to_sheet(rows);
+  }
+  if(_hrQuota.length) wb.Sheets['정원']=XLSX.utils.json_to_sheet(_hrQuota.map(q=>({시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,비고:q.비고})));
+  XLSX.writeFile(wb,`인사정보_${today()}.xlsx`);
+}
+
+async function uploadHrExcel(ev){
+  const f=ev.target.files?.[0]; if(!f) return;
+  ev.target.value='';
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const empSheet=wb.Sheets['직원'], quoSheet=wb.Sheets['정원'];
+    if(!empSheet&&!quoSheet){ alert('시트 이름이 "직원" 또는 "정원"이어야 합니다. 엑셀 양식을 받아 쓰세요.'); return; }
+    const emps=empSheet?XLSX.utils.sheet_to_json(empSheet):[];
+    const quos=quoSheet?XLSX.utils.sheet_to_json(quoSheet):[];
+    const empRows=emps.map(r=>({
+      성명:String(r.성명||'').trim(), 사원번호:String(r.사원번호||'').trim(),
+      생년월일:_xlDate(r.생년월일), 입사일:_xlDate(r.입사일),
+      직급:String(r.직급||'').trim(), 직렬:String(r.직렬||'').trim(),
+      시설명:String(r.배치시설||r.시설명||'').trim(), 주소:String(r.거주지주소||r.주소||'').trim(),
+      평정:_unpackRows(r.평정,HR_EVAL_COLS), 수상:_unpackRows(r.수상,HR_AWARD_COLS),
+      메모:String(r.메모||'').trim()
+    })).filter(r=>r.성명);
+    const quoRows=quos.map(r=>({
+      시설명:String(r.시설명||'').trim(), 직렬:String(r.직렬||'').trim(),
+      직급:String(r.직급||'').trim(), 정원:parseInt(r.정원)||0, 비고:String(r.비고||'').trim()
+    })).filter(r=>r.시설명&&r.직렬&&r.직급);
+    if(!empRows.length&&!quoRows.length){ alert('읽을 수 있는 행이 없습니다. 성명(직원) 또는 시설명·직렬·직급(정원)이 채워져 있어야 합니다.'); return; }
+    // 이름이 겹쳐도 다른 사람일 수 있어 자동 병합하지 않는다 — 추가만 하고 정리는 사람이 판단한다
+    if(!confirm(`직원 ${empRows.length}명, 정원 ${quoRows.length}건을 추가합니다.\n\n직원은 기존 명부에 덧붙습니다(같은 이름이 있어도 합치지 않습니다).\n정원은 시설·직렬·직급이 같으면 덮어씁니다.\n\n계속할까요?`)) return;
+    if(empRows.length) await DB.insertEmployees(empRows);
+    if(quoRows.length) await DB.insertQuotas(quoRows);
+    await renderHrPage();
+    alert(`완료했습니다.\n직원 ${empRows.length}명, 정원 ${quoRows.length}건`);
+  }catch(e){ console.error('[hr upload]',e); alert('엑셀 처리 중 오류: '+e.message); }
 }
 
 // ═══════════════════════════════════════════════
