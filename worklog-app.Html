@@ -256,6 +256,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .admin-tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border-radius:var(--r2);padding:4px;width:fit-content;}
 .admin-tab{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;color:var(--t2);cursor:pointer;transition:var(--tr);}
 .admin-tab.active{background:var(--accent);color:#1a1000;}
+/* 설정 2단 메뉴 — 위는 묶음, 아래는 그 안의 화면. 아래 줄은 선택된 묶음에만 나온다 */
+.admin-subtabs{display:flex;gap:18px;margin:-16px 0 22px;padding:0 6px;flex-wrap:wrap;}
+.admin-subtabs:empty{display:none;}
+.admin-subtab{font-size:13px;font-weight:600;color:var(--t3);cursor:pointer;padding:4px 0 7px;
+  border-bottom:2px solid transparent;transition:var(--tr);}
+.admin-subtab:hover{color:var(--t1);}
+.admin-subtab.active{color:var(--accent);border-bottom-color:var(--accent);}
 .admin-panel{display:none;}
 .admin-panel.active{display:block;}
 #admin-knowledge .facility-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -1405,54 +1412,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="personal-tab active" id="daily-subtab-work" onclick="switchDailyTab('work')">📔 일일업무</div>
         <div class="personal-tab" id="daily-subtab-perf" onclick="switchDailyTab('perf')">📈 경영실적 입력</div>
         <div class="personal-tab" id="daily-subtab-energy" onclick="switchDailyTab('energy')">⚡ 에너지관리</div>
-        <div class="personal-tab" id="daily-subtab-hr" onclick="switchDailyTab('hr')" style="display:none">👥 인사관리</div>
-      </div>
-      <div id="daily-sub-hr" style="display:none">
-        <div class="perf-head">
-          <div style="min-width:0">
-            <div style="font-size:14px;font-weight:700;color:var(--blue)">👥 인사관리</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:3px">직원 인사정보와 시설·직렬·직급별 정원. 인사배치 시뮬레이션의 밑자료입니다.</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="openEmpModal()">+ 직원 추가</button>
-            <button class="btn btn-secondary btn-sm" onclick="downloadHrTemplate()">📥 엑셀 양식</button>
-            <label class="btn btn-secondary btn-sm" style="cursor:pointer">📤 엑셀 업로드
-              <input type="file" id="hrExcelInput" accept=".xlsx,.xls" style="display:none" onchange="uploadHrExcel(event)" />
-            </label>
-          </div>
-        </div>
-        <div class="hr-warn">
-          ⚠️ 생년월일·주소는 민감한 개인정보입니다. 지금은 로그인 없이도 데이터베이스를 읽을 수 있는 상태라
-          (설정 → 보안 과제 S-1 미완료), 실제 직원 정보는 그 작업을 마친 뒤 채우시길 권합니다.
-        </div>
-        <div class="em-tab-bar" style="margin-top:14px">
-          <button class="em-tab active" id="hr-tab-emp" onclick="switchHrTab('emp')">직원 명부</button>
-          <button class="em-tab" id="hr-tab-quota" onclick="switchHrTab('quota')">정원 · 현원</button>
-        </div>
-        <div id="hr-panel-emp">
-          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 시설로 검색" oninput="renderEmployees()" style="max-width:320px" />
-            <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
-          </div>
-          <div id="hr-emp-list"></div>
-        </div>
-        <div id="hr-panel-quota" style="display:none">
-          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="openQuotaModal()">+ 정원 추가</button>
-            <span style="font-size:11px;color:var(--t3)">현원은 직원 명부를 세어 자동으로 나옵니다</span>
-          </div>
-          <div id="hr-quota-list"></div>
-        </div>
-      </div>
-      <div id="daily-sub-perf" style="display:none">
-        <div class="perf-head">
-          <div style="min-width:0">
-            <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:3px" id="perf-subtitle"></div>
-          </div>
-          <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
-        </div>
-        <div id="perf-list"></div>
       </div>
       <div id="daily-sub-work">
       <div class="daily-date-bar">
@@ -1846,14 +1805,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <h2>설정</h2>
         <p>계정 설정 및 관리 기능</p>
       </div>
-      <div class="admin-tabs">
-        <div class="admin-tab active" id="admin-tab-goals" onclick="switchAdminTab('goals')">📌 조직 목표</div>
-        <div class="admin-tab" id="admin-tab-facility" onclick="switchAdminTab('facility')">🏢 시설목표</div>
-        <div class="admin-tab" id="admin-tab-users" onclick="switchAdminTab('users')">👥 사용자 관리</div>
-        <div class="admin-tab" id="admin-tab-energy" onclick="switchAdminTab('energy')">⚡ 에너지 및 차량 관리</div>
-        <div class="admin-tab" id="admin-tab-knowledge" onclick="switchAdminTab('knowledge')">📚 AI 지식자료</div>
-        <div class="admin-tab" id="admin-tab-google" onclick="switchAdminTab('google')">🔗 Google 계정</div>
-      </div>
+      <div class="admin-tabs" id="admin-nav-main"></div>
+      <div class="admin-subtabs" id="admin-nav-sub"></div>
       <!-- Google 계정 Tab -->
       <div id="admin-google" class="admin-panel">
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;">
@@ -1922,6 +1875,69 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <button class="btn btn-primary" onclick="saveOrgGoals()">💾 조직 목표 저장</button>
       </div>
       <!-- Users Tab -->
+      <!-- 조직도 관리 — 구성만 바꾼다. 계정 추가·삭제는 사용자 관리에서 한다 -->
+      <div id="admin-hr" class="admin-panel">
+        <div class="perf-head">
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">👥 인사관리</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px">직원 인사정보와 시설·직렬·직급별 정원. 인사배치 시뮬레이션의 밑자료입니다.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="openEmpModal()">+ 직원 추가</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadHrTemplate()">📥 엑셀 양식</button>
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer">📤 엑셀 업로드
+              <input type="file" id="hrExcelInput" accept=".xlsx,.xls" style="display:none" onchange="uploadHrExcel(event)" />
+            </label>
+          </div>
+        </div>
+        <div class="hr-warn">
+          ⚠️ 생년월일·주소는 민감한 개인정보입니다. 지금은 로그인 없이도 데이터베이스를 읽을 수 있는 상태라
+          (설정 → 보안 과제 S-1 미완료), 실제 직원 정보는 그 작업을 마친 뒤 채우시길 권합니다.
+        </div>
+        <div class="em-tab-bar" style="margin-top:14px">
+          <button class="em-tab active" id="hr-tab-emp" onclick="switchHrTab('emp')">직원 명부</button>
+          <button class="em-tab" id="hr-tab-quota" onclick="switchHrTab('quota')">정원 · 현원</button>
+        </div>
+        <div id="hr-panel-emp">
+          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
+            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 시설로 검색" oninput="renderEmployees()" style="max-width:320px" />
+            <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
+          </div>
+          <div id="hr-emp-list"></div>
+        </div>
+        <div id="hr-panel-quota" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="openQuotaModal()">+ 정원 추가</button>
+            <span style="font-size:11px;color:var(--t3)">현원은 직원 명부를 세어 자동으로 나옵니다</span>
+          </div>
+          <div id="hr-quota-list"></div>
+        </div>
+      </div>
+      <div id="daily-sub-perf" style="display:none">
+        <div class="perf-head">
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px" id="perf-subtitle"></div>
+          </div>
+          <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
+        </div>
+        <div id="perf-list"></div>
+      </div>
+      <div id="admin-org" class="admin-panel">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <div style="font-size:12px;color:var(--t3)">상자를 끌어다 놓으면 상위 조직과 순서가 바뀝니다. 계정 추가·삭제는 <b>사용자 관리</b>에서 하세요.</div>
+          <div class="gcal-mode-switch" style="margin-left:auto">
+            <button class="gcal-mode-btn active" id="user-view-pyramid" onclick="setUserView('pyramid')">🏢 피라미드</button>
+            <button class="gcal-mode-btn" id="user-view-tree" onclick="setUserView('tree')">🌳 목록</button>
+          </div>
+        </div>
+        <div id="user-pyramid-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
+          <div class="pyr-scroll"><div id="user-pyramid"></div></div>
+        </div>
+        <div id="user-tree-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;">
+          <div id="user-tree"></div>
+        </div>
+      </div>
       <div id="admin-users" class="admin-panel">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="openUserModal()">+ 사용자 추가</button>
@@ -1931,19 +1947,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <input type="file" accept=".csv" style="display:none" onchange="importUsersCSV(event)" />
           </label>
           <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 성명,시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
-          <div class="gcal-mode-switch" style="margin-left:auto;align-self:center">
-            <button class="gcal-mode-btn active" id="user-view-pyramid" onclick="setUserView('pyramid')">🏢 피라미드</button>
-            <button class="gcal-mode-btn" id="user-view-tree" onclick="setUserView('tree')">🌳 목록</button>
-            <button class="gcal-mode-btn" id="user-view-table" onclick="setUserView('table')">☰ 표</button>
-          </div>
         </div>
-        <div id="user-pyramid-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
-          <div class="pyr-scroll"><div id="user-pyramid"></div></div>
-        </div>
-        <div id="user-tree-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;">
-          <div id="user-tree"></div>
-        </div>
-        <div id="user-table-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+        <div id="user-table-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <table class="user-table">
             <thead>
               <tr>
@@ -4038,9 +4043,8 @@ function navigate(page){
     const _savedAdminTab = _sessionSubTab.admin;
     const _isAdmin = currentUser.role==='admin';
     const _isFacAdmin = currentUser.role==='facility-admin';
-    const _allowed = ['google',...(_isAdmin||_isFacAdmin?['facility','energy','knowledge']:[]),...(_isAdmin?['goals','users']:[])];
-    const _adminTab = _savedAdminTab && _allowed.includes(_savedAdminTab) ? _savedAdminTab
-                    : _isAdmin ? 'goals' : _isFacAdmin ? 'facility' : 'google';
+    const _allowed = adminAllowedTabs();
+    const _adminTab = _savedAdminTab && _allowed.includes(_savedAdminTab) ? _savedAdminTab : _allowed[0];
     switchAdminTab(_adminTab);
   }
 
@@ -4048,26 +4052,17 @@ function navigate(page){
 
 // 업무 하위 탭: 일일업무 / 에너지관리
 function switchDailyTab(tab){
-  // 인사관리는 개인정보를 다뤄 관리자에게만 연다. 권한이 없는 사람이 옛 세션값으로
-  // 그 탭에 들어와 있지 않도록 여기서도 막는다.
-  const hrOK = currentUser?.role==='admin';
-  const hrTabBtn=document.getElementById('daily-subtab-hr');
-  if(hrTabBtn) hrTabBtn.style.display = hrOK ? '' : 'none';
-  if(tab==='hr' && !hrOK) tab='work';
-  if(!['work','perf','energy','hr'].includes(tab)) tab='work';
+  if(!['work','perf','energy'].includes(tab)) tab='work';
   _sessionSubTab.daily = tab;
-  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy'],['hr','daily-subtab-hr']].forEach(([t,id])=>{
+  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy']].forEach(([t,id])=>{
     const el=document.getElementById(id); if(el) el.classList.toggle('active', tab===t);
   });
   const work=document.getElementById('daily-sub-work');
   const perf=document.getElementById('daily-sub-perf');
   const energy=document.getElementById('page-energy');
-  const hr=document.getElementById('daily-sub-hr');
   if(work)   work.style.display   = tab==='work'   ? '' : 'none';
   if(perf)   perf.style.display   = tab==='perf'   ? '' : 'none';
   if(energy) energy.style.display = tab==='energy' ? 'block' : 'none';
-  if(hr)     hr.style.display     = tab==='hr'     ? '' : 'none';
-  if(tab==='hr'){ stopGcalAutoRefresh(); renderHrPage(); return; }
   if(tab==='work'){
     renderDailyPage();
     startGcalAutoRefresh();
@@ -9094,10 +9089,13 @@ let _userView = 'pyramid';
 // 키에 버전을 붙인다 — 피라미드 이전 빌드가 저장해 둔 'tree'가 남아 있으면
 // 새 기본값(피라미드)이 무시되고 옛 보기로 복원돼 버린다.
 function _userViewKey(){ return 'wl_user_view2_' + (currentUser?.사원번호 || '_g'); }
+// 조직도 관리의 보기 전환. 표 보기는 '사용자 관리' 화면으로 떨어져 나갔으므로
+// 여기서는 피라미드와 목록 둘뿐이다. 예전에 표를 고른 채로 저장된 값이 남아 있으면
+// 아무것도 안 보이게 되므로 피라미드로 되돌린다.
 function setUserView(v){
-  _userView = ['pyramid','tree','table'].includes(v) ? v : 'pyramid';
+  _userView = ['pyramid','tree'].includes(v) ? v : 'pyramid';
   try{ localStorage.setItem(_userViewKey(), _userView); }catch(e){}
-  const wraps={pyramid:'user-pyramid-wrap', tree:'user-tree-wrap', table:'user-table-wrap'};
+  const wraps={pyramid:'user-pyramid-wrap', tree:'user-tree-wrap'};
   Object.entries(wraps).forEach(([k,id])=>{
     const el=document.getElementById(id); if(el) el.style.display = (_userView===k) ? '' : 'none';
     document.getElementById('user-view-'+k)?.classList.toggle('active', _userView===k);
@@ -9371,18 +9369,66 @@ function importUsersCSV(e){
   e.target.value='';
 }
 
+// ── 설정 메뉴 ────────────────────────────────────────────────
+// 화면이 늘면서 한 줄에 다 늘어놓기 어려워졌다. 성격이 같은 것끼리 묶고
+// 두 줄(묶음 / 그 안의 화면)로 나눈다. 권한은 화면마다 다르므로 여기 한 곳에
+// 적어두고, 볼 수 있는 것이 없는 묶음은 아예 그리지 않는다.
+const ADMIN_NAV=[
+  {label:'🎯 목표', children:[
+    {id:'goals',     label:'조직목표',      roles:['admin']},
+    {id:'facility',  label:'시설목표',      roles:['admin','facility-admin']}]},
+  {label:'🛠 관리', children:[
+    {id:'org',       label:'조직도 관리',    roles:['admin']},
+    {id:'users',     label:'사용자 관리',    roles:['admin']},
+    {id:'hr',        label:'인사관리 data',  roles:['admin']}]},
+  {id:'energy',      label:'⚡ 에너지 및 차량', roles:['admin','facility-admin']},
+  {id:'knowledge',   label:'📚 AI 지식자료',  roles:['admin','facility-admin']},
+  {id:'google',      label:'🔗 Google 계정',  roles:null},   // 모두
+];
+const ADMIN_PANELS=['google','goals','facility','org','users','hr','energy','knowledge'];
+
+function _navOK(item){ return !item.roles || item.roles.includes(currentUser?.role); }
+// 묶음은 그 안에 볼 수 있는 화면이 하나라도 있을 때만 보인다
+function _navVisible(){
+  return ADMIN_NAV.map(g=>g.children
+    ? {...g, children:g.children.filter(_navOK)}
+    : g).filter(g=>g.children ? g.children.length : _navOK(g));
+}
+function adminAllowedTabs(){
+  return _navVisible().flatMap(g=>g.children ? g.children.map(c=>c.id) : [g.id]);
+}
+
 async function switchAdminTab(tab){
+  const groups=_navVisible();
+  const allowed=adminAllowedTabs();
+  if(!allowed.includes(tab)) tab=allowed[0];
+  if(!tab) return;
   _sessionSubTab.admin = tab;
-  ['google','goals','facility','users','energy','knowledge'].forEach(t=>{
-    const tabEl=document.getElementById('admin-tab-'+t);
-    const panelEl=document.getElementById('admin-'+t);
-    if(tabEl) tabEl.classList.toggle('active',t===tab);
-    if(panelEl) panelEl.classList.toggle('active',t===tab);
+
+  const owner=groups.find(g=>g.children ? g.children.some(c=>c.id===tab) : g.id===tab);
+  const main=document.getElementById('admin-nav-main');
+  const sub=document.getElementById('admin-nav-sub');
+  if(main) main.innerHTML=groups.map(g=>{
+    const on=g===owner;
+    const target=g.children ? g.children[0].id : g.id;
+    return `<div class="admin-tab${on?' active':''}" onclick="switchAdminTab('${target}')">${g.label}</div>`;
+  }).join('');
+  // 아래 줄은 자식이 둘 이상인 묶음에서만 쓸모가 있다
+  if(sub) sub.innerHTML=(owner&&owner.children&&owner.children.length>1)
+    ? owner.children.map(c=>`<div class="admin-subtab${c.id===tab?' active':''}" onclick="switchAdminTab('${c.id}')">${c.label}</div>`).join('')
+    : '';
+
+  ADMIN_PANELS.forEach(t=>{
+    const el=document.getElementById('admin-'+t);
+    if(el) el.classList.toggle('active',t===tab);
   });
+
   if(tab==='google'){ updateNotifyUI(); updateTTSUI(); }
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
+  if(tab==='org') await renderAdminUsers();
   if(tab==='users') await renderAdminUsers();
+  if(tab==='hr') await renderHrPage();
   if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); loadVehicleInfos(); }
   if(tab==='knowledge') await ksRenderList();
 }
