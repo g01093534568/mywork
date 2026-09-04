@@ -1899,7 +1899,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div id="hr-panel-emp">
           <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 전공 · 소속으로 검색" oninput="renderEmployees()" style="max-width:320px" />
+            <input type="text" id="hr-search" placeholder="이름 · 사원번호 · 직급 · 직렬 · 전공 · 소속으로 검색" oninput="renderEmployees()" style="max-width:320px" />
             <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
           </div>
           <div id="hr-emp-list"></div>
@@ -2671,6 +2671,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <input type="hidden" id="hr-emp-id" />
     <div class="form-group"><label>현소속</label><select id="hr-f-facility"></select></div>
     <div class="form-group"><label>성명 *</label><input type="text" id="hr-f-name" placeholder="홍길동" /></div>
+    <div class="form-group"><label>사원번호</label><input type="text" id="hr-f-empno" placeholder="예: 091111" /></div>
     <div class="form-row">
       <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /><datalist id="hr-rank-list"></datalist></div>
       <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist>
@@ -4179,7 +4180,7 @@ function _empAge(birth){
 function renderEmployees(){
   const cont=document.getElementById('hr-emp-list'); if(!cont) return;
   const q=(document.getElementById('hr-search')?.value||'').trim().toLowerCase();
-  const list=_hrEmps.filter(e=>!q||[e.성명,e.직급,e.직렬,e.전공,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
+  const list=_hrEmps.filter(e=>!q||[e.성명,e.사원번호,e.직급,e.직렬,e.전공,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
   const cnt=document.getElementById('hr-emp-count');
   if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명${q?` · 검색 ${list.length}명`:''}`;
   if(!list.length){
@@ -4196,7 +4197,7 @@ function renderEmployees(){
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
     <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>전공</th><th>현소속</th><th>생년월일</th><th>주소</th><th style="width:60px"></th></tr></thead>
     <tbody>${sorted.map(e=>`<tr>
-        <td><b>${esc(e.성명)}</b></td>
+        <td><b>${esc(e.성명)}</b>${e.사원번호?`<div style="font-size:11px;color:var(--t3)">${esc(e.사원번호)}</div>`:''}</td>
         <td>${esc(e.직급)||'—'}</td>
         <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
         <td>${esc(e.전공)||'—'}</td>
@@ -4283,14 +4284,14 @@ async function openEmpModal(id){
   document.getElementById('hr-f-rank').value=e?e.직급:'';
   document.getElementById('hr-f-series').value=e?e.직렬:'';
   document.getElementById('hr-f-major').value=e?e.전공:'';
+  document.getElementById('hr-f-empno').value=e?e.사원번호:'';
   document.getElementById('hr-f-addr').value=e?e.주소:'';
   document.getElementById('hr-f-facility').value=e?e.시설명:'';
   document.getElementById('hr-emp-del').style.display=e?'inline-flex':'none';
   // 화면에서 뺀 값(사원번호·입사일·평정·수상 등)은 건드리지 않고 그대로 다시 저장한다 —
   // 칸을 없앴다고 이미 넣어둔 데이터까지 지워지면 안 된다
-  _hrKeep = e ? {사원번호:e.사원번호, 입사일:e.입사일||null,
-                 평정:e.평정||[], 수상:e.수상||[], 메모:e.메모||''}
-              : {사원번호:'', 입사일:null, 평정:[], 수상:[], 메모:''};
+  _hrKeep = e ? {입사일:e.입사일||null, 평정:e.평정||[], 수상:e.수상||[], 메모:e.메모||''}
+              : {입사일:null, 평정:[], 수상:[], 메모:''};
   syncSeriesField();
   openModal('hr-emp-modal');
 }
@@ -4300,7 +4301,7 @@ async function saveEmployee(){
   const data={
     ..._hrKeep,                                   // 화면에 없는 값은 있던 그대로 유지
     id:document.getElementById('hr-emp-id').value||undefined,
-    성명,
+    성명, 사원번호:document.getElementById('hr-f-empno').value.trim(),
     생년월일:document.getElementById('hr-f-birth').value||null,
     직급:document.getElementById('hr-f-rank').value.trim(),
     // 칸이 잠겨 있어도 저장 경로에서 한 번 더 비운다 — 잠그기 전에 넣어둔 값이 남을 수 있다
@@ -4358,7 +4359,7 @@ async function deleteQuota(){
 
 // ── 엑셀 일괄 입력 ──────────────────────────────────────────
 // 전 직원을 한 명씩 넣는 건 현실적이지 않다. 시트 두 장(직원·정원)으로 받는다.
-// 직원 시트: 성명·생년월일·주소·직렬·직급·전공·현소속
+// 직원 시트: 현소속·성명·사원번호·직급·직렬·생년월일·주소·전공
 // 엑셀은 날짜를 시리얼 숫자로 주기도 한다 — 그대로 저장하면 date 컬럼이 거부한다
 function _xlDate(v){
   if(v==null||v==='') return null;
@@ -4369,9 +4370,9 @@ function _xlDate(v){
 }
 
 function downloadHrTemplate(){
-  const emp=[{성명:'홍길동',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',
+  const emp=[{성명:'홍길동',사원번호:'091111',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',
     직렬:'행정',직급:'6급',전공:'행정학',현소속:'울주군립야영장'},
-    {성명:'김철수',생년월일:'1978-07-20',주소:'울산광역시 남구 …',
+    {성명:'김철수',사원번호:'091112',생년월일:'1978-07-20',주소:'울산광역시 남구 …',
      직렬:'',직급:'4급',전공:'토목공학',현소속:'본부장'}];
   const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''},
              {시설명:'본부장',직렬:'',직급:'4급',정원:1,비고:'4급 이상은 직렬을 비워둡니다'}];
@@ -4380,7 +4381,7 @@ function downloadHrTemplate(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quo),'정원');
   // 지금 등록된 직원이 있으면 예시 대신 실제 데이터를 담아 내려준다(수정 후 재업로드용)
   if(_hrEmps.length){
-    const rows=_hrEmps.map(e=>({성명:e.성명,생년월일:e.생년월일,주소:e.주소,
+    const rows=_hrEmps.map(e=>({성명:e.성명,사원번호:e.사원번호,생년월일:e.생년월일,주소:e.주소,
       직렬:e.직렬,직급:e.직급,전공:e.전공,현소속:e.시설명}));
     wb.Sheets['직원']=XLSX.utils.json_to_sheet(rows);
   }
@@ -4399,6 +4400,7 @@ async function uploadHrExcel(ev){
     const quos=quoSheet?XLSX.utils.sheet_to_json(quoSheet):[];
     const empRows=emps.map(r=>({
       성명:String(r.성명||'').trim(),
+      사원번호:String(r.사원번호||'').trim(),
       생년월일:_xlDate(r.생년월일),
       주소:String(r.주소||r.거주지주소||'').trim(),
       직급:String(r.직급||'').trim(),
