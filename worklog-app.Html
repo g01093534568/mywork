@@ -2648,8 +2648,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="form-group"><label>입사일</label><input type="date" id="hr-f-hired" /></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" /><datalist id="hr-rank-list"></datalist></div>
-      <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist></div>
+      <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /><datalist id="hr-rank-list"></datalist></div>
+      <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist>
+        <div id="hr-f-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
     </div>
     <div class="form-group"><label>배치 시설</label><select id="hr-f-facility"></select></div>
     <div class="form-group"><label>거주지 주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
@@ -2683,8 +2684,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <input type="hidden" id="hr-q-id" />
     <div class="form-group"><label>시설 *</label><select id="hr-q-facility"></select></div>
     <div class="form-row">
-      <div class="form-group"><label>직렬 *</label><input type="text" id="hr-q-series" list="hr-series-list" placeholder="예: 행정" /></div>
-      <div class="form-group"><label>직급 *</label><input type="text" id="hr-q-rank" list="hr-rank-list" placeholder="예: 6급" /></div>
+      <div class="form-group"><label>직렬 *</label><input type="text" id="hr-q-series" list="hr-series-list" placeholder="예: 행정" />
+        <div id="hr-q-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
+      <div class="form-group"><label>직급 *</label><input type="text" id="hr-q-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>정원 *</label><input type="number" id="hr-q-count" min="0" value="1" /></div>
@@ -4106,6 +4108,15 @@ async function renderHrPage(){
   switchHrTab(_hrTab);
 }
 
+// 4급 이상은 직렬 구분 없이 관리한다. 공무원 직급은 숫자가 작을수록 상위라
+// "4급"·"3급"은 상위, "5급"·"6급"은 하위다.
+// 숫자로 적힌 것만 판정한다 — "부장"·"과장" 같은 표기는 기관마다 달라 넘겨짚지 않는다.
+// (그런 표기를 쓰신다면 아래 정규식에 덧붙이면 된다)
+function isSeniorRank(rank){
+  const m=String(rank||'').match(/(\d+)\s*급/);
+  return m ? parseInt(m[1],10)<=4 : false;
+}
+
 function _empAge(birth){
   if(!birth) return '';
   const b=new Date(birth), n=new Date();
@@ -4142,7 +4153,7 @@ function renderEmployees(){
       return `<tr>
         <td><b>${esc(e.성명)}</b>${e.사원번호?`<div style="font-size:11px;color:var(--t3)">${esc(e.사원번호)}</div>`:''}</td>
         <td>${esc(e.직급)||'—'}</td>
-        <td>${esc(e.직렬)||'—'}</td>
+        <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
         <td>${_facIndent(e.시설명)}${esc(e.시설명)||'—'}</td>
         <td>${e.생년월일?esc(e.생년월일)+`<div style="font-size:11px;color:var(--t3)">${_empAge(e.생년월일)}</div>`:'—'}</td>
         <td>${ev?`${esc(ev.연도)}${ev.기간?' '+esc(ev.기간):''} <b>${esc(ev.점수||ev.등급||'')}</b>${(e.평정||[]).length>1?`<div style="font-size:11px;color:var(--t3)">외 ${(e.평정||[]).length-1}건</div>`:''}`:'—'}</td>
@@ -4184,7 +4195,7 @@ function renderQuota(){
       const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
       return `<tr>
         <td>${_facIndent(r.시설명)}${esc(r.시설명)||'—'}</td>
-        <td>${esc(r.직렬)||'—'}</td><td>${esc(r.직급)||'—'}</td>
+        <td>${isSeniorRank(r.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(r.직렬)||'—')}</td><td>${esc(r.직급)||'—'}</td>
         ${head(r.정원)}${head(r.현원)}
         <td class="hr-num ${cls}">${txt}</td>
         <td style="font-size:12px;color:var(--t3)">${esc(r.비고)||''}</td>
@@ -4226,6 +4237,20 @@ function delEvalRow(i){ _collectSubRows(); _evalDraft.splice(i,1); _renderSubRow
 function addAwardRow(){ _collectSubRows(); _awardDraft.push({}); _renderSubRows(); }
 function delAwardRow(i){ _collectSubRows(); _awardDraft.splice(i,1); _renderSubRows(); }
 
+// 직급이 4급 이상이면 직렬 칸을 비우고 잠근다. 두 모달이 같은 규칙을 쓰므로 한 함수로 둔다.
+function syncSeriesField(){
+  [['hr-f-rank','hr-f-series','hr-f-series-note'],['hr-q-rank','hr-q-series','hr-q-series-note']].forEach(([r,se,n])=>{
+    const rank=document.getElementById(r), ser=document.getElementById(se), note=document.getElementById(n);
+    if(!rank||!ser) return;
+    const senior=isSeniorRank(rank.value);
+    ser.disabled=senior;
+    ser.style.opacity=senior?'0.5':'';
+    if(senior) ser.value='';                       // 잠글 때 남아 있던 값은 지운다
+    ser.placeholder=senior?'해당 없음':'예: 행정';
+    if(note) note.style.display=senior?'':'none';
+  });
+}
+
 async function openEmpModal(id){
   await _getFacilityOrderMap();
   const sel=document.getElementById('hr-f-facility');
@@ -4247,6 +4272,7 @@ async function openEmpModal(id){
   _evalDraft=e?JSON.parse(JSON.stringify(e.평정||[])):[];
   _awardDraft=e?JSON.parse(JSON.stringify(e.수상||[])):[];
   _renderSubRows();
+  syncSeriesField();
   openModal('hr-emp-modal');
 }
 async function saveEmployee(){
@@ -4259,7 +4285,8 @@ async function saveEmployee(){
     생년월일:document.getElementById('hr-f-birth').value||null,
     입사일:document.getElementById('hr-f-hired').value||null,
     직급:document.getElementById('hr-f-rank').value.trim(),
-    직렬:document.getElementById('hr-f-series').value.trim(),
+    // 칸이 잠겨 있어도 저장 경로에서 한 번 더 비운다 — 잠그기 전에 넣어둔 값이 남을 수 있다
+    직렬:isSeniorRank(document.getElementById('hr-f-rank').value) ? '' : document.getElementById('hr-f-series').value.trim(),
     시설명:document.getElementById('hr-f-facility').value,
     주소:document.getElementById('hr-f-addr').value.trim(),
     메모:document.getElementById('hr-f-memo').value.trim(),
@@ -4290,13 +4317,17 @@ async function openQuotaModal(id){
   document.getElementById('hr-q-count').value=q?q.정원:1;
   document.getElementById('hr-q-memo').value=q?q.비고:'';
   document.getElementById('hr-q-del').style.display=q?'inline-flex':'none';
+  syncSeriesField();
   openModal('hr-quota-modal');
 }
 async function saveQuota(){
   const 시설명=document.getElementById('hr-q-facility').value;
-  const 직렬=document.getElementById('hr-q-series').value.trim();
   const 직급=document.getElementById('hr-q-rank').value.trim();
-  if(!시설명||!직렬||!직급){ toast('시설·직렬·직급을 모두 입력하세요','error'); return; }
+  const senior=isSeniorRank(직급);
+  const 직렬=senior ? '' : document.getElementById('hr-q-series').value.trim();
+  if(!시설명||!직급||(!senior&&!직렬)){
+    toast(senior?'시설과 직급을 입력하세요':'시설·직렬·직급을 모두 입력하세요','error'); return;
+  }
   const data={ id:document.getElementById('hr-q-id').value||undefined, 시설명, 직렬, 직급,
     정원:parseInt(document.getElementById('hr-q-count').value)||0,
     비고:document.getElementById('hr-q-memo').value.trim() };
@@ -4338,7 +4369,8 @@ function downloadHrTemplate(){
     직급:'6급',직렬:'행정',배치시설:'울주군립야영장',거주지주소:'울산광역시 울주군 …',
     평정:'2025|상반기|92|수|  ;  2024|하반기|88|우|',
     수상:'2025-03-02|장관표창|행정안전부|표창',메모:''}];
-  const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''}];
+  const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''},
+             {시설명:'본부장',직렬:'',직급:'4급',정원:1,비고:'4급 이상은 직렬을 비워둡니다'}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(emp),'직원');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quo),'정원');
@@ -4365,15 +4397,17 @@ async function uploadHrExcel(ev){
     const empRows=emps.map(r=>({
       성명:String(r.성명||'').trim(), 사원번호:String(r.사원번호||'').trim(),
       생년월일:_xlDate(r.생년월일), 입사일:_xlDate(r.입사일),
-      직급:String(r.직급||'').trim(), 직렬:String(r.직렬||'').trim(),
+      직급:String(r.직급||'').trim(),
+      직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
       시설명:String(r.배치시설||r.시설명||'').trim(), 주소:String(r.거주지주소||r.주소||'').trim(),
       평정:_unpackRows(r.평정,HR_EVAL_COLS), 수상:_unpackRows(r.수상,HR_AWARD_COLS),
       메모:String(r.메모||'').trim()
     })).filter(r=>r.성명);
     const quoRows=quos.map(r=>({
-      시설명:String(r.시설명||'').trim(), 직렬:String(r.직렬||'').trim(),
+      시설명:String(r.시설명||'').trim(),
+      직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
       직급:String(r.직급||'').trim(), 정원:parseInt(r.정원)||0, 비고:String(r.비고||'').trim()
-    })).filter(r=>r.시설명&&r.직렬&&r.직급);
+    })).filter(r=>r.시설명&&r.직급&&(isSeniorRank(r.직급)||r.직렬));   // 4급 이상은 직렬이 없어도 받는다
     if(!empRows.length&&!quoRows.length){ alert('읽을 수 있는 행이 없습니다. 성명(직원) 또는 시설명·직렬·직급(정원)이 채워져 있어야 합니다.'); return; }
     // 이름이 겹쳐도 다른 사람일 수 있어 자동 병합하지 않는다 — 추가만 하고 정리는 사람이 판단한다
     if(!confirm(`직원 ${empRows.length}명, 정원 ${quoRows.length}건을 추가합니다.\n\n직원은 기존 명부에 덧붙습니다(같은 이름이 있어도 합치지 않습니다).\n정원은 시설·직렬·직급이 같으면 덮어씁니다.\n\n계속할까요?`)) return;
