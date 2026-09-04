@@ -10663,7 +10663,11 @@ async function runAgent(userText,{onUpdate}={}){
       const parts=data.candidates?.[0]?.content?.parts||[];
       const calls=parts.filter(p=>p.functionCall).map(p=>p.functionCall);
       if(calls.length){
-        _convHistory.push({role:'model',parts:calls.map(fc=>({functionCall:fc}))});
+        // 모델이 돌려준 파트를 그대로 싣는다. functionCall 만 뽑아 새로 만들면
+        // 그 옆에 붙어 있는 thoughtSignature 가 사라지는데, Gemini 3 계열은 그 값을
+        // 다음 요청에 되돌려받기를 요구한다("Function call is missing a
+        // thought_signature"). 도구 실행에는 calls 를 쓰고, 히스토리에는 원본을 넣는다.
+        _convHistory.push({role:'model',parts});
         const responses=[];
         for(const fc of calls){
           onUpdate&&onUpdate('step',`${_TOOL_LABELS[fc.name]||fc.name}…`);
