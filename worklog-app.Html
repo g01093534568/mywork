@@ -10465,8 +10465,11 @@ async function getGeminiModel(){
       .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
       .map(m=>m.name.replace('models/',''))
       .filter(m=>!_GEMINI_EXCLUDE.test(m));
-    const ranked=list.filter(m=>/flash|pro/i.test(m)).sort((a,b)=>_geminiScore(b)-_geminiScore(a));
-    _geminiModel=ranked[0]||list[0]||GEMINI_MODEL_FALLBACK;
+    const bad=_geminiBad();
+    const usable=list.filter(m=>!bad[m]);
+    const ranked=usable.filter(m=>/flash|pro/i.test(m)).sort((a,b)=>_geminiScore(b)-_geminiScore(a));
+    // 전부 실패 기록에 걸렸다면 기록을 무시하고라도 하나는 고른다(아무것도 못 고르는 것보다 낫다)
+    _geminiModel=ranked[0]||usable[0]||list[0]||GEMINI_MODEL_FALLBACK;
     try{ localStorage.setItem(_GEMINI_MODEL_CACHE_KEY,JSON.stringify({model:_geminiModel,at:Date.now()})); }catch(e){}
   }catch(e){ _geminiModel=GEMINI_MODEL_FALLBACK; }
   return _geminiModel;
@@ -10474,6 +10477,24 @@ async function getGeminiModel(){
 
 // 모델이 퇴역(404)하면 캐시를 버리고 다음 호출에서 다시 고르게 한다.
 function _forgetGeminiModel(){ _geminiModel=null; try{ localStorage.removeItem(_GEMINI_MODEL_CACHE_KEY); }catch(e){} }
+
+// ── 못 쓰는 모델 기록 ──────────────────────────────────────────
+// 목록에 있다고 다 쓸 수 있는 게 아니다. 새로 나온 모델이 503(과부하)을 내거나
+// 25초 안에 응답을 못 주는 일이 있는데, 점수만 보고 고르면 매번 그 모델을 다시
+// 골라 계속 실패한다. 실패한 모델은 잠시 후보에서 빼고 다음 후보로 넘어간다.
+const _GEMINI_BAD_KEY='wl_gemini_bad';
+const _BAD_TTL_GONE=7*24*60*60*1000;   // 404 퇴역 — 오래 빼둔다
+const _BAD_TTL_BUSY=30*60*1000;        // 503·타임아웃 — 일시적일 수 있으니 짧게
+function _geminiBad(){
+  try{
+    const o=JSON.parse(localStorage.getItem(_GEMINI_BAD_KEY)||'{}'), now=Date.now(), out={};
+    for(const [m,t] of Object.entries(o)) if(t>now) out[m]=t;   // 기한 지난 건 흘려보낸다
+    return out;
+  }catch(e){ return {}; }
+}
+function _markGeminiBad(model,ttl){
+  try{ const o=_geminiBad(); o[model]=Date.now()+ttl; localStorage.setItem(_GEMINI_BAD_KEY,JSON.stringify(o)); }catch(e){}
+}
 
 // 음성은 채팅의 입력 모드 중 하나 — 받아쓴 말이 채팅으로 흘러가고, 음성으로 시작하면 답을 읽어준다.
 function toggleVoiceInput(){ if(_isListening) stopVoiceInput(); else startVoiceInput(); }
@@ -10627,11 +10648,16 @@ async function geminiGenerate(model,payload,_modelRetry=0){
   const res=await geminiProxy('generate',{model,payload});
   if(!res.ok){
     const errData=await res.json().catch(()=>({}));
-    // 404 = 모델 퇴역. 캐시를 버리고 새로 고른 모델로 딱 한 번 다시 시도한다.
-    if(res.status===404 && _modelRetry===0){
+    const msg=errData?.error?.message||'';
+    // 이 모델로는 안 된다는 신호들 — 다른 모델로 갈아타야 풀린다.
+    //   404 퇴역 / 503 과부하 / 프록시의 25초 타임아웃(502로 올라온다)
+    const gone=res.status===404;
+    const busy=res.status===503 || (res.status===502 && /시간 초과|연결 실패/.test(msg));
+    if((gone||busy) && _modelRetry<2){
+      _markGeminiBad(model, gone?_BAD_TTL_GONE:_BAD_TTL_BUSY);
       _forgetGeminiModel();
       const fresh=await getGeminiModel();
-      if(fresh && fresh!==model) return geminiGenerate(fresh,payload,1);
+      if(fresh && fresh!==model) return geminiGenerate(fresh,payload,_modelRetry+1);
     }
     throw new Error(parseGeminiError(res.status,errData));
   }
