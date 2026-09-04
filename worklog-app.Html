@@ -3220,17 +3220,20 @@ const DB = {
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
   async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
 
-  // 웹푸시 구독 — 서버 크론이 이 표를 읽어 알림을 보낸다. 캐시는 두지 않는다.
+  // 웹푸시 구독 — 서버 크론이 이 표를 읽어 알림을 보낸다.
+  // 표를 직접 만지지 않고 함수를 부른다: 푸시 주소는 남이 볼 이유가 없는데,
+  // PostgreSQL 은 upsert(ON CONFLICT)에도 SELECT 권한을 요구해서 직접 쓰게 두면
+  // 결국 표 전체를 읽을 권한을 줘야 한다. (supabase_push_setup.sql 참고)
   async savePushSubscription(sub, 사원번호){
     const j=sub.toJSON();
-    const {error}=await SB.from('push_subscriptions').upsert({
-      endpoint:j.endpoint, owner_id:_ownerId(), 사원번호:사원번호||'',
-      p256dh:j.keys?.p256dh||'', auth:j.keys?.auth||'', updated_at:new Date().toISOString()
-    },{onConflict:'endpoint'});
+    const {error}=await SB.rpc('save_push_subscription',{
+      p_endpoint:j.endpoint, p_owner_id:_ownerId(), p_empno:사원번호||'',
+      p_p256dh:j.keys?.p256dh||'', p_auth:j.keys?.auth||''
+    });
     if(error) throw error;
   },
   async deletePushSubscription(endpoint){
-    const {error}=await SB.from('push_subscriptions').delete().eq('endpoint',endpoint);
+    const {error}=await SB.rpc('delete_push_subscription',{p_endpoint:endpoint});
     if(error) throw error;
   },
 
