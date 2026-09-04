@@ -1815,6 +1815,22 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="gcal-connected-email" style="display:none;margin-top:10px;font-size:12px;color:var(--t2);"></div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🔔 알림</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:14px;">
+            아침 브리핑과 마감 알림을 받습니다. 앱을 열어둔 동안에는 캘린더 일정도 시작 10분 전에 알려줍니다.
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button id="notify-enable-btn" class="btn btn-primary" onclick="enableNotifications()">🔔 알림 켜기</button>
+            <button id="notify-test-btn" class="btn btn-secondary btn-sm" onclick="testNotification()" style="display:none;">테스트 알림</button>
+            <button id="notify-off-btn" class="btn btn-sm btn-danger" onclick="disableNotifications()" style="display:none;">끄기</button>
+          </div>
+          <div id="notify-status" style="margin-top:10px;font-size:12px;color:var(--t2);"></div>
+          <div style="margin-top:10px;font-size:11px;color:var(--t3);line-height:1.6;">
+            아이폰은 <b>홈 화면에 추가</b>한 뒤에만 알림이 옵니다(Safari 제약).<br>
+            캘린더 일정 알림은 구글 연동이 살아 있고 앱이 열려 있을 때만 동작합니다.
+          </div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤖 AI 어시스턴트</div>
           <div style="font-size:13px;color:var(--t2);">AI 어시스턴트·성찰 리포트는 서버에 안전하게 저장된 공용 키로 <b>바로 사용 가능</b>합니다. 별도 설정이 필요 없습니다.</div>
         </div>
@@ -3204,6 +3220,20 @@ const DB = {
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
   async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
 
+  // 웹푸시 구독 — 서버 크론이 이 표를 읽어 알림을 보낸다. 캐시는 두지 않는다.
+  async savePushSubscription(sub, 사원번호){
+    const j=sub.toJSON();
+    const {error}=await SB.from('push_subscriptions').upsert({
+      endpoint:j.endpoint, owner_id:_ownerId(), 사원번호:사원번호||'',
+      p256dh:j.keys?.p256dh||'', auth:j.keys?.auth||'', updated_at:new Date().toISOString()
+    },{onConflict:'endpoint'});
+    if(error) throw error;
+  },
+  async deletePushSubscription(endpoint){
+    const {error}=await SB.from('push_subscriptions').delete().eq('endpoint',endpoint);
+    if(error) throw error;
+  },
+
   // 새 시설은 같은 상위의 맨 뒤에 붙인다. sort_order가 비면 정렬이 9999로 보아
   // 항상 끝으로 가고, 드래그로 고치기 전까지 조직도 순서가 어긋난다.
   async nextSortOrder(parent, users){
@@ -3580,6 +3610,11 @@ async function enterApp(){
   })();
 
   document.getElementById('daily-date').value = today();
+
+  // 이미 알림을 켜둔 사용자는 로그인하면 바로 감시를 재개한다.
+  // 알림 모듈의 변수는 이 파일 아래쪽에 선언돼 있다 — 스크립트가 끝난 뒤에 부른다
+  // (예전에 같은 이유로 홈 화면이 TDZ 로 죽은 적이 있다).
+  setTimeout(() => { startNotifyWatch(); updateNotifyUI(); }, 0);
 
   // localStorage → Supabase 1회 자동 이전 (백그라운드 — navigate 블로킹 방지)
   migrateLocalStorageToSupabase();
@@ -8813,6 +8848,7 @@ async function switchAdminTab(tab){
     if(tabEl) tabEl.classList.toggle('active',t===tab);
     if(panelEl) panelEl.classList.toggle('active',t===tab);
   });
+  if(tab==='google') updateNotifyUI();
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
@@ -9156,6 +9192,36 @@ async function fetchGcalCalendarList() {
   const data = await res.json();
   gcalCalendars = (data.items || []).filter(c => !c.hidden);
   return gcalCalendars;
+}
+
+// 임의 구간의 일정 — 브리핑·임박 알림·AI 도구가 함께 쓴다.
+// 월 단위 조회(fetchGcalEventsForMonth)는 화면 렌더용이라 하루치를 보려고 부르기엔 무겁다.
+async function fetchGcalEventsBetween(timeMin, timeMax) {
+  if (!gcalToken) return [];
+  if (!gcalCalendars.length) await fetchGcalCalendarList();
+  const results = await Promise.all(gcalCalendars.map(async cal => {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`
+              + `?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`
+              + `&singleEvents=true&orderBy=startTime&maxResults=50`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${gcalToken}` } });
+    if (res.status === 401) { gcalToken = null; gcalCalendars = []; sessionStorage.removeItem(_gcalTokenKey()); updateGcalConnectionUI(false,''); throw new Error('401'); }
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.items || []).map(ev => ({ ...ev, _calId: cal.id, _calName: cal.summary }));
+  }));
+  return results.flat().sort((a,b) =>
+    (a.start?.dateTime || a.start?.date || '').localeCompare(b.start?.dateTime || b.start?.date || ''));
+}
+
+// 하루치 일정을 "09:00 회의" 형태의 짧은 줄로. 종일 일정은 시간 없이.
+function _gcalEventLine(ev) {
+  const dt = ev.start?.dateTime;
+  const t = dt ? new Date(dt).toTimeString().slice(0,5) : '종일';
+  return `${t} ${ev.summary || '(제목 없음)'}`;
+}
+async function fetchGcalEventsOn(dateStr) {
+  const d0 = new Date(`${dateStr}T00:00:00`), d1 = new Date(`${dateStr}T23:59:59`);
+  return fetchGcalEventsBetween(d0.toISOString(), d1.toISOString());
 }
 
 async function fetchGcalEventsForMonth(y, m) {
@@ -10317,7 +10383,10 @@ const GEMINI_TOOLS=[
   {name:'weekly_report',description:'이번 주(월~일) 할 일 완료 통계를 집계합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
   {name:'query_energy',description:'에너지(전기/가스/수도 등) 사용량과 요금을 조회·집계합니다',parameters:{type:'OBJECT',properties:{energyType:{type:'STRING',description:'에너지 종류(전기/가스/수도 등), 없으면 전체'},month:{type:'STRING',description:'조회 월 YYYY-MM, 없으면 전체 기간'}},required:[]}},
   {name:'get_today_logs',description:'특정 날짜의 업무 일지를 조회합니다',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD, 생략 시 오늘'}},required:[]}},
-  {name:'search_knowledge',description:'관리자가 업로드한 지식자료(문서·매뉴얼·규정·PDF 등)에서 내용을 찾아 근거로 가져옵니다. 사용자가 업로드된 자료·문서·매뉴얼·규정의 내용을 묻거나 그에 근거한 답을 원하면 반드시 먼저 호출하세요',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'찾고 싶은 핵심 키워드나 질문'}},required:[]}}
+  {name:'search_knowledge',description:'관리자가 업로드한 지식자료(문서·매뉴얼·규정·PDF 등)에서 내용을 찾아 근거로 가져옵니다. 사용자가 업로드된 자료·문서·매뉴얼·규정의 내용을 묻거나 그에 근거한 답을 원하면 반드시 먼저 호출하세요',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'찾고 싶은 핵심 키워드나 질문'}},required:[]}},
+  {name:'add_calendar_event',description:'구글 캘린더에 일정을 추가합니다. "일정 잡아줘/회의 넣어줘/약속 추가" 처럼 시각이 있는 약속이면 할 일(add_todo)이 아니라 이 도구를 쓰세요',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'일정 제목'},date:{type:'STRING',description:'YYYY-MM-DD 시작일'},startTime:{type:'STRING',description:'HH:MM 시작 시각. 없으면 종일 일정'},endTime:{type:'STRING',description:'HH:MM 종료 시각. 생략하면 시작 1시간 뒤'},endDate:{type:'STRING',description:'YYYY-MM-DD 종료일. 하루짜리면 생략'},location:{type:'STRING',description:'장소'},description:{type:'STRING',description:'설명·메모'},calendar:{type:'STRING',description:'넣을 캘린더 이름 일부. 생략하면 업무 캘린더, 없으면 기본 캘린더'}},required:['title','date']}},
+  {name:'list_calendar_events',description:'구글 캘린더 일정을 조회합니다. "오늘 일정 뭐 있어/이번주 일정 알려줘" 같은 질문에 쓰세요',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD 조회할 날짜. 생략 시 오늘'},endDate:{type:'STRING',description:'YYYY-MM-DD 범위 조회의 마지막 날. 하루만 볼 때는 생략'}},required:[]}},
+  {name:'delete_calendar_event',description:'구글 캘린더 일정을 제목 키워드로 찾아 삭제합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'일정 제목에 포함된 말'},date:{type:'STRING',description:'YYYY-MM-DD 그 일정이 있는 날짜. 생략 시 오늘'}},required:['keyword']}}
 ];
 
 let _voiceRec=null,_isListening=false,_voiceMode=false,_finalTranscript='',_geminiModel=null,_convHistory=[];
@@ -10501,9 +10570,10 @@ function _aiSystemPrompt(){
 - "옮기기/정리/모아서" 같은 복합 작업은 먼저 list_todos로 대상을 조회한 뒤 처리하세요.
 - 업로드된 자료·문서·매뉴얼·규정의 내용을 묻는 질문이면 먼저 search_knowledge로 근거를 가져와 [S번호] 인용과 함께 답하세요.
 - 정보가 부족하면 한 문장으로 짧게 되물어보세요.
-- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.`;
+- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.
+- 할 일과 일정을 구분하세요. 시각이 정해진 약속·회의·방문은 add_calendar_event(캘린더), 시각 없이 처리해야 할 업무는 add_todo(할 일)입니다. 애매하면 시각이 언급됐는지로 판단하세요.`;
 }
-const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회',search_knowledge:'지식자료 검색'};
+const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회',search_knowledge:'지식자료 검색',add_calendar_event:'일정 추가',list_calendar_events:'일정 조회',delete_calendar_event:'일정 삭제'};
 
 // 모든 Gemini 호출은 /api/gemini 프록시 경유 (키 노출 방지).
 // 하이브리드: 사용자 개인 키가 있으면 함께 보내 서버가 우선 사용, 없으면 서버 공용 키.
@@ -10607,6 +10677,69 @@ async function executeAITool(toolName,input){
     case 'query_energy':{ const filters={}; if(input.energyType) filters.energyType=input.energyType; if(input.month){ filters.startDate=input.month+'-01'; filters.endDate=input.month+'-28'; } let recs; try{ recs=await _emEnergyQuery(filters); }catch(e){ return '에너지 데이터 조회 권한이 없거나 오류가 발생했습니다'; } if(!recs||!recs.length) return '해당 조건의 에너지 기록이 없습니다'; const byType={}; for(const r of recs){ const k=r.energy_type||'기타'; byType[k]=byType[k]||{usage:0,cost:0,n:0}; byType[k].usage+=parseFloat(r.usage_amount)||0; byType[k].cost+=parseFloat(r.usage_cost)||0; byType[k].n++; } return Object.entries(byType).map(([k,v])=>`${k}: 사용량 ${v.usage.toLocaleString('ko-KR')}, 요금 ${Math.round(v.cost).toLocaleString('ko-KR')}원 (${v.n}건)`).join('\n'); }
     case 'get_today_logs':{ const date=input.date||today(); const acts=await DB.getDailyActivities(currentUser.사원번호,date); if(!acts.length) return `${date} 기록된 일지가 없습니다`; return `[${date} 일지]\n`+acts.map(a=>`• ${a.time?a.time+' ':''}${a.title}${a.content?' — '+a.content:''}`).join('\n'); }
     case 'search_knowledge': return await ksSearchForAgent(input.query);
+
+    // ── 구글 캘린더 ──────────────────────────────────────────────
+    // 토큰이 클릭으로만 갱신되므로(무음 갱신 불가), 끊겼을 때는 무엇을 해야 하는지
+    // 사용자에게 그대로 돌려준다. 어시스턴트가 "실패했습니다"로 뭉개면 손쓸 수가 없다.
+    case 'add_calendar_event': {
+      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다. 업무 → 일일업무 화면에서 구글 연동을 눌러 연결한 뒤 다시 말씀해 주세요.';
+      try{
+        if(!gcalCalendars.length) await fetchGcalCalendarList();
+        const want=(input.calendar||'').trim();
+        const cal = (want && gcalCalendars.find(c=>(c.summary||'').includes(want)))
+                 || gcalCalendars.find(c=>/업무/.test(c.summary||''))
+                 || gcalCalendars.find(c=>c.primary) || gcalCalendars[0];
+        if(!cal) return '쓸 수 있는 캘린더를 찾지 못했습니다.';
+        const date=input.date, endDate=input.endDate||input.date;
+        let start,end;
+        if(input.startTime){
+          const st=input.startTime;
+          let et=input.endTime;
+          if(!et){ const [h,m]=st.split(':').map(Number); et=`${String((h+1)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}`; }
+          start={dateTime:`${date}T${st}:00`,timeZone:'Asia/Seoul'};
+          end={dateTime:`${endDate}T${et}:00`,timeZone:'Asia/Seoul'};
+        } else {
+          // 종일 일정은 end가 exclusive라 하루를 더해야 그날 하루로 잡힌다
+          start={date}; end={date:gcalEndDateToApi(endDate)};
+        }
+        const body={summary:input.title,start,end,
+          ...(input.description&&{description:input.description}),
+          ...(input.location&&{location:input.location})};
+        const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`,{
+          method:'POST',headers:{'Authorization':`Bearer ${gcalToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if(res.status===401){ gcalToken=null; gcalCalendars=[]; sessionStorage.removeItem(_gcalTokenKey()); updateGcalConnectionUI(false,''); return '구글 인증이 만료됐습니다. 다시 연결한 뒤 말씀해 주세요.'; }
+        if(!res.ok){ const e=await res.json().catch(()=>({})); return `일정 추가 실패: ${e.error?.message||res.status}`; }
+        if(currentPage==='daily' && gcalToken) renderCustomCalendar();
+        const when=input.startTime?`${date} ${input.startTime}`:`${date} 종일`;
+        return `"${input.title}" 일정 추가됨 (${when}, ${cal.summary})`;
+      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 추가 중 오류: ${e.message}`; }
+    }
+    case 'list_calendar_events': {
+      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다. 업무 → 일일업무 화면에서 구글 연동을 눌러 연결해 주세요.';
+      try{
+        const d0=input.date||today(), d1=input.endDate||d0;
+        const evs=await fetchGcalEventsBetween(new Date(`${d0}T00:00:00`).toISOString(), new Date(`${d1}T23:59:59`).toISOString());
+        if(!evs.length) return d0===d1 ? `${d0} 등록된 일정이 없습니다` : `${d0}~${d1} 등록된 일정이 없습니다`;
+        return evs.slice(0,30).map(ev=>{
+          const day=(ev.start?.dateTime||ev.start?.date||'').slice(0,10);
+          return `• ${d0===d1?'':day+' '}${_gcalEventLine(ev)}${ev.location?` @${ev.location}`:''}`;
+        }).join('\n');
+      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 조회 중 오류: ${e.message}`; }
+    }
+    case 'delete_calendar_event': {
+      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다.';
+      try{
+        const d=input.date||today();
+        const evs=await fetchGcalEventsOn(d);
+        const hit=evs.find(ev=>(ev.summary||'').includes(input.keyword));
+        if(!hit) return `${d}에 "${input.keyword}"가 들어간 일정을 찾지 못했습니다`;
+        const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(hit._calId)}/events/${encodeURIComponent(hit.id)}`,{
+          method:'DELETE',headers:{'Authorization':`Bearer ${gcalToken}`}});
+        if(!res.ok && res.status!==410) return `일정 삭제 실패: ${res.status}`;
+        if(currentPage==='daily' && gcalToken) renderCustomCalendar();
+        return `"${hit.summary}" 일정 삭제됨 (${d})`;
+      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 삭제 중 오류: ${e.message}`; }
+    }
     default: return '알 수 없는 명령입니다';
   }
 }
@@ -10784,13 +10917,174 @@ async function buildDailyBriefing(){
     const bits=[`오늘 할 일 ${visible.length}개 (완료 ${done} · 미완료 ${pending})`];
     if(dueToday) bits.push(`오늘 마감 ${dueToday}건`);
     if(overdue) bits.push(`⚠️ 기한 지난 미완료 ${overdue}건`);
-    return { text:bits.join(' · '), pending, overdue, dueToday };
+    // 구글이 연결돼 있을 때만 일정을 얹는다. 토큰은 클릭으로만 갱신되므로
+    // 끊겨 있어도 브리핑 자체는 나와야 한다 — 실패는 조용히 넘긴다.
+    let events=[];
+    try{ if(gcalToken) events=await fetchGcalEventsOn(t); }catch(e){}
+    if(events.length){
+      const next=events.find(ev=>ev.start?.dateTime && new Date(ev.start.dateTime)>=new Date());
+      bits.push(`일정 ${events.length}건${next?` · 다음 ${_gcalEventLine(next)}`:''}`);
+    }
+    return { text:bits.join(' · '), pending, overdue, dueToday, events };
   }catch(e){ console.error('[briefing]',e); return null; }
 }
+// ═══════════════════════════════════════════════
+// 알림 — 두 갈래로 나뉜다
+//
+//  · 앱이 열려 있는 동안: 캘린더 일정 임박 알림을 브라우저가 직접 띄운다.
+//    구글 토큰이 이 브라우저의 sessionStorage 에만 있어(무음 갱신 불가) 서버는
+//    캘린더를 읽을 수 없다. 그래서 일정 알림은 여기서만 가능하다.
+//  · 앱을 닫은 뒤: 할 일·마감 브리핑을 서버가 웹푸시로 보낸다(api/cron/remind.js).
+//    이쪽 데이터는 Supabase 에 있어 서버가 읽을 수 있다.
+// ═══════════════════════════════════════════════
+const NOTIFY_LEAD_MIN = 10;          // 몇 분 전에 알릴지
+let _notifyTimer = null;
+let _todayEventsCache = { date:'', at:0, events:[] };
+
+function notifySupported(){ return 'Notification' in window; }
+function notifyGranted(){ return notifySupported() && Notification.permission === 'granted'; }
+
+// 같은 일정을 반복해서 울리지 않도록 — 날짜가 바뀌면 저절로 비워진다
+function _notifyKey(){ return 'wl_notified_' + today(); }
+function _alreadyNotified(id){
+  try{ return (JSON.parse(localStorage.getItem(_notifyKey())||'[]')).includes(id); }catch(e){ return false; }
+}
+function _markNotified(id){
+  try{
+    const k=_notifyKey(); const list=JSON.parse(localStorage.getItem(k)||'[]');
+    if(!list.includes(id)){ list.push(id); localStorage.setItem(k,JSON.stringify(list)); }
+    // 지난 날짜 기록은 쌓아둘 이유가 없다
+    Object.keys(localStorage).filter(x=>x.startsWith('wl_notified_')&&x!==k).forEach(x=>localStorage.removeItem(x));
+  }catch(e){}
+}
+
+function showLocalNotification(title, body, tag){
+  if(!notifyGranted()) return;
+  try{
+    // 서비스워커가 있으면 그쪽으로 — 알림 클릭으로 앱을 다시 띄울 수 있다
+    if(navigator.serviceWorker?.ready){
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, {
+        body, tag, icon:'/icon.svg', badge:'/icon.svg', data:{ url:'/' }
+      })).catch(()=>{ new Notification(title,{body,tag}); });
+    } else {
+      new Notification(title,{body,tag});
+    }
+  }catch(e){ console.error('[notify]',e); }
+}
+
+// 오늘 일정은 1분마다 다시 받아올 필요가 없다 — 5분 캐시
+async function _todayEvents(){
+  const t=today();
+  if(_todayEventsCache.date===t && Date.now()-_todayEventsCache.at < 5*60*1000) return _todayEventsCache.events;
+  let events=[];
+  try{ if(gcalToken) events=await fetchGcalEventsOn(t); }catch(e){ return _todayEventsCache.events; }
+  _todayEventsCache={date:t, at:Date.now(), events};
+  return events;
+}
+
+async function _checkUpcoming(){
+  if(!notifyGranted() || !currentUser) return;
+  const now=Date.now();
+  // ① 임박한 캘린더 일정
+  try{
+    for(const ev of await _todayEvents()){
+      if(!ev.start?.dateTime) continue;                     // 종일 일정은 임박 개념이 없다
+      const mins=(new Date(ev.start.dateTime)-now)/60000;
+      if(mins<0 || mins>NOTIFY_LEAD_MIN) continue;
+      if(_alreadyNotified('ev:'+ev.id)) continue;
+      _markNotified('ev:'+ev.id);
+      showLocalNotification('곧 일정이 시작됩니다',
+        `${_gcalEventLine(ev)}${ev.location?` · ${ev.location}`:''} (${Math.max(0,Math.round(mins))}분 뒤)`, 'ev:'+ev.id);
+    }
+  }catch(e){}
+  // ② 오늘 마감인데 아직 안 끝낸 할 일 — 하루 한 번만
+  try{
+    const t=today();
+    if(!_alreadyNotified('due:'+t)){
+      const todos=await DB.getTodos(currentUser.사원번호);
+      const due=todos.filter(td=>td.status!=='done'&&td.dueDate===t);
+      if(due.length){
+        _markNotified('due:'+t);
+        showLocalNotification('오늘 마감', `${due.length}건 — ${due.slice(0,3).map(td=>td.title).join(', ')}${due.length>3?' 외':''}`, 'due:'+t);
+      }
+    }
+  }catch(e){}
+}
+
+// ── 웹푸시 구독 ────────────────────────────────────────────────
+// 공개키는 숨길 값이 아니다(브라우저가 구독할 때 쓰는 값). 비밀키는 서버 환경변수에만 있다.
+const VAPID_PUBLIC_KEY='BBSEt6fZKJX2hmEmVpfRWYkJgZ1wK_CvUhl-So0nDu_N6FZ7Atg-UWt7vYTi6-VlBd5G-MM-ylHBdQ9P_Oyww5U';
+function _urlB64ToUint8(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
+async function enableNotifications(){
+  if(!notifySupported()){ toast('이 브라우저는 알림을 지원하지 않습니다','error'); return; }
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){
+    toast('브라우저에서 알림이 차단됐습니다. 주소창 자물쇠 아이콘에서 허용으로 바꿔주세요.','error');
+    updateNotifyUI(); return;
+  }
+  startNotifyWatch();
+  // 앱을 닫아도 오는 푸시는 서비스워커 구독이 있어야 한다
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription()
+      || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:_urlB64ToUint8(VAPID_PUBLIC_KEY)});
+    await DB.savePushSubscription(sub, currentUser?.사원번호);
+    toast('알림을 켰습니다 🔔');
+  }catch(e){
+    console.error('[push]',e);
+    // 구독이 실패해도 앱을 열어둔 동안의 알림은 살아 있다 — 그 사실을 알려준다
+    toast('앱이 열려 있을 때만 알림이 옵니다(푸시 구독 실패)','error');
+  }
+  updateNotifyUI();
+}
+
+async function disableNotifications(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){ await DB.deletePushSubscription(sub.endpoint); await sub.unsubscribe(); }
+  }catch(e){ console.error('[push]',e); }
+  if(_notifyTimer){ clearInterval(_notifyTimer); _notifyTimer=null; }
+  toast('알림을 껐습니다. 브라우저 권한 자체를 되돌리려면 주소창 자물쇠 아이콘에서 바꿔주세요.');
+  updateNotifyUI();
+}
+
+function testNotification(){
+  showLocalNotification('WorkLog 알림 테스트','이렇게 도착합니다 🔔','test');
+}
+
+function updateNotifyUI(){
+  const on=document.getElementById('notify-enable-btn'), off=document.getElementById('notify-off-btn'),
+        test=document.getElementById('notify-test-btn'), st=document.getElementById('notify-status');
+  if(!on||!st) return;
+  if(!notifySupported()){
+    on.style.display='none'; st.textContent='이 브라우저는 알림을 지원하지 않습니다.'; return;
+  }
+  const granted=notifyGranted();
+  on.style.display=granted?'none':'inline-flex';
+  if(off) off.style.display=granted?'inline-flex':'none';
+  if(test) test.style.display=granted?'inline-flex':'none';
+  st.textContent = Notification.permission==='denied'
+    ? '브라우저에서 차단돼 있습니다. 주소창 자물쇠 아이콘에서 알림을 허용으로 바꿔주세요.'
+    : granted ? '✓ 켜져 있습니다' : '아직 꺼져 있습니다';
+}
+
+function startNotifyWatch(){
+  if(_notifyTimer) clearInterval(_notifyTimer);
+  if(!notifyGranted()) return;
+  _checkUpcoming();
+  _notifyTimer=setInterval(_checkUpcoming, 60*1000);
+}
+
 async function showHomeBriefing(){
   const el=document.getElementById('home-briefing'); if(!el) return;
   const b=await buildDailyBriefing();
-  if(!b || (!b.pending && !b.overdue)){ el.style.display='none'; return; }
+  if(!b || (!b.pending && !b.overdue && !(b.events||[]).length)){ el.style.display='none'; return; }
   el.style.display='flex';
   el.querySelector('.hb-text').textContent=b.text;
 }

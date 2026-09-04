@@ -32,6 +32,35 @@ self.addEventListener('activate', e => {
   );
 });
 
+// ── 웹푸시 ───────────────────────────────────────────────────
+// 앱이 닫혀 있어도 서비스워커는 깨어나 알림을 띄운다.
+// 서버(api/cron/remind.js)가 보낸 JSON: { title, body, tag, url }
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'WorkLog', {
+    body: d.body || '',
+    tag: d.tag || 'worklog',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    data: { url: d.url || '/' }
+  }));
+});
+
+// 알림을 누르면 이미 열려 있는 탭으로 보내고, 없으면 새로 연다
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if (c.url.includes(self.location.origin)) return c.focus();
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
