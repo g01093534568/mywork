@@ -7,10 +7,12 @@
 //  2) 모든 요청이 캐시 우선이었다. 1번을 고치면 이번엔 HTML이 캐시에 박혀
 //     배포해도 옛 화면이 계속 보이게 된다. 그래서 화면은 네트워크 우선으로 바꾼다.
 
-const CACHE = 'worklog-v2';   // 이 값을 올리면 옛 캐시는 activate에서 전부 지워진다
+const CACHE = 'worklog-v3';   // 이 값을 올리면 옛 캐시는 activate에서 전부 지워진다
+// v3: 아이콘을 PNG로 바꿨다. manifest.json 이 캐시 우선이라 값을 올리지 않으면
+//     옛 manifest 가 계속 나가서 아이폰 홈 화면 아이콘이 그대로 깨진다.
 
 // 잘 바뀌지 않는 것만 미리 담는다. HTML은 넣지 않는다 — 항상 최신을 받아야 한다.
-const ASSETS = ['/manifest.json', '/icon.svg'];
+const ASSETS = ['/manifest.json', '/icon.svg', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png'];
 
 // 캐시하면 안 되는 곳 — 데이터·인증·외부 라이브러리
 const BYPASS = ['supabase.co', 'googleapis.com', 'accounts.google.com', 'cdn.jsdelivr.net'];

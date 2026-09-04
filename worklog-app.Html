@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="WorkLog">
-<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -10945,6 +10945,13 @@ let _notifyTimer = null;
 let _todayEventsCache = { date:'', at:0, events:[] };
 
 function notifySupported(){ return 'Notification' in window; }
+function _isIOS(){
+  return /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);   // 아이패드는 맥으로 위장한다
+}
+function _isStandalone(){
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+}
 function notifyGranted(){ return notifySupported() && Notification.permission === 'granted'; }
 
 // 같은 일정을 반복해서 울리지 않도록 — 날짜가 바뀌면 저절로 비워진다
@@ -11065,6 +11072,17 @@ function updateNotifyUI(){
   const on=document.getElementById('notify-enable-btn'), off=document.getElementById('notify-off-btn'),
         test=document.getElementById('notify-test-btn'), st=document.getElementById('notify-status');
   if(!on||!st) return;
+  // 아이폰은 사파리 탭에서 Notification 자체가 없다. "지원하지 않는다"고만 하면
+  // 방법이 있다는 걸 알 수 없으므로, 무엇을 해야 하는지 그대로 적어준다.
+  if(_isIOS() && !_isStandalone()){
+    on.style.display='none';
+    if(off) off.style.display='none';
+    if(test) test.style.display='none';
+    st.innerHTML='아이폰에서는 홈 화면에 추가해야 알림을 켤 수 있습니다.<br>'
+      + '사파리 아래쪽 <b>공유 <span style="font-size:14px">􀈂</span></b> → <b>홈 화면에 추가</b> → '
+      + '바탕화면의 <b>WorkLog</b> 아이콘으로 다시 열어주세요.';
+    return;
+  }
   if(!notifySupported()){
     on.style.display='none'; st.textContent='이 브라우저는 알림을 지원하지 않습니다.'; return;
   }
