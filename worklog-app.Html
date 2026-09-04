@@ -1947,8 +1947,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <input type="file" accept=".csv" style="display:none" onchange="importUsersCSV(event)" />
           </label>
           <span style="font-size:12px;color:var(--t3);align-self:center">CSV 형식: 성명,시설명,사원번호,패스워드,권한(user/admin/facility-admin)</span>
+          <div class="gcal-mode-switch" style="margin-left:auto;align-self:center">
+            <button class="gcal-mode-btn active" id="um-view-pyramid" onclick="setUserMgmtView('pyramid')">🏢 조직도</button>
+            <button class="gcal-mode-btn" id="um-view-table" onclick="setUserMgmtView('table')">☰ 표</button>
+          </div>
         </div>
-        <div id="user-table-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+        <div id="um-pyramid-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
+          <div class="pyr-scroll"><div id="um-pyramid"></div></div>
+        </div>
+        <div id="user-table-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <table class="user-table">
             <thead>
               <tr>
@@ -8934,16 +8941,22 @@ async function _handleOrgDrop(users, movedId, targetId, mode){
 // 어느 쪽이든 가운데에 놓으면 그 조직의 하위로 들어간다.
 // 조직도 폭이 화면보다 넓으면 flex 가운데정렬만으로는 왼쪽부터 보인다.
 // 뿌리(이사장) 상자가 화면 한가운데 오도록 가로 스크롤을 맞춘다.
+// 조직도가 두 화면(조직도 관리 · 사용자 관리)에 있으므로 둘 다 가운데를 맞춘다.
+// 숨어 있는 쪽은 폭이 0이라 저절로 건너뛴다.
 function _centerPyramid(){
-  const sc=document.querySelector('#user-pyramid-wrap .pyr-scroll');
-  const box=document.querySelector('#user-pyramid .pyr-root .pyr-box');
-  if(!sc || !box || !sc.clientWidth) return;
-  const sr=sc.getBoundingClientRect(), br=box.getBoundingClientRect();
-  sc.scrollLeft += (br.left + br.width/2) - (sr.left + sr.width/2);
+  [['#user-pyramid-wrap .pyr-scroll','#user-pyramid .pyr-root .pyr-box'],
+   ['#um-pyramid-wrap .pyr-scroll',  '#um-pyramid .pyr-root .pyr-box']].forEach(([sSel,bSel])=>{
+    const sc=document.querySelector(sSel), box=document.querySelector(bSel);
+    if(!sc || !box || !sc.clientWidth) return;
+    const sr=sc.getBoundingClientRect(), br=box.getBoundingClientRect();
+    sc.scrollLeft += (br.left + br.width/2) - (sr.left + sr.width/2);
+  });
 }
 
 let _orgDragJustEnded=false;
-function orgBoxClick(id){ if(_orgDragJustEnded) return; openUserModal(id); }
+// 조직도 관리에서는 상자를 눌러도 계정 수정으로 가지 않는다 — 그 화면은 구조만 다룬다.
+// 목록(트리) 보기에서 아직 이 함수를 부르므로 남겨두되 아무 일도 하지 않는다.
+function orgBoxClick(){ /* 조직도는 구조만 — 계정 수정은 '사용자 관리'에서 */ }
 
 function _bindPyramidDnD(root, users){
   let dragId=null;
@@ -9106,7 +9119,10 @@ function setUserView(v){
 
 // 피라미드 조직도 — 조직도 원본처럼 상위는 가로로 펼치고,
 // 아랫조직이 없는 말단 시설끼리는 세로로 붙여 쌓는다(그러지 않으면 폭이 감당이 안 된다).
-function _renderOrgPyramid(users){
+// mode: 'org'  조직도 편집 — 끌어서 옮긴다. 계정은 건드리지 않으므로 클릭은 없다.
+//       'user' 사용자 관리 — 끌 수 없고, 누르면 그 계정을 수정한다.
+// 같은 그림을 두 화면이 쓰되 할 수 있는 일만 다르다.
+function _renderOrgPyramid(users, mode='org'){
   const names=new Set(users.map(u=>u.시설명));
   const children={};
   users.forEach(u=>{
@@ -9120,7 +9136,10 @@ function _renderOrgPyramid(users){
   const box = u => {
     const cls = u.role==='admin' ? ' lv-admin' : u.role==='facility-admin' ? ' lv-fadmin' : '';
     const sub = u.성명 ? esc(u.성명) : (u.role==='admin' ? '본사관리자' : u.role==='facility-admin' ? '시설관리자' : '');
-    return `<div class="pyr-box${cls}" data-id="${u.id}" draggable="true" onclick="orgBoxClick('${u.id}')" title="${esc(u.시설명)}${u.성명?' · '+esc(u.성명):''} — 클릭하면 수정, 끌어서 옮기기">
+    const isOrg = mode==='org';
+    const act = isOrg ? ' draggable="true"' : ` onclick="openUserModal('${u.id}')" style="cursor:pointer"`;
+    const tip = isOrg ? '끌어서 옮기기' : '누르면 계정 수정';
+    return `<div class="pyr-box${cls}" data-id="${u.id}"${act} title="${esc(u.시설명)}${u.성명?' · '+esc(u.성명):''} — ${tip}">
       <div class="pyr-name">${esc(u.시설명)}</div>
       ${sub?`<div class="pyr-sub">${sub}</div>`:''}
     </div>`;
@@ -9201,8 +9220,7 @@ function _renderOrgTree(users){
       <span class="org-actions">
         <button class="btn btn-ghost btn-sm" onclick="moveOrgSibling('${node.id}',-1)" title="위로">▲</button>
         <button class="btn btn-ghost btn-sm" onclick="moveOrgSibling('${node.id}',1)" title="아래로">▼</button>
-        <button class="btn btn-ghost btn-sm" onclick="openUserModal('${node.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteUser('${node.id}')">🗑</button>
+
       </span>
     </div>`);
     const kids = children[node.시설명] || [];
@@ -9266,13 +9284,37 @@ async function renderAdminUsers(){
   }
   const pyrEl=document.getElementById('user-pyramid');
   if(pyrEl){
-    pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 누르면 수정 · 삭제는 목록·표 보기에서</div>'
+    pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 계정 추가·수정·삭제는 <b>사용자 관리</b>에서</div>'
       + _renderOrgPyramid(users);
     _bindPyramidDnD(pyrEl, users);
     requestAnimationFrame(_centerPyramid);   // 배치가 끝난 뒤라야 폭을 잴 수 있다
   }
+  // 사용자 관리 화면의 조직도 — 같은 그림이지만 끌 수 없고 누르면 계정 수정으로 간다
+  const umEl=document.getElementById('um-pyramid');
+  if(umEl){
+    umEl.innerHTML='<div class="pyr-hint">상자를 누르면 그 계정을 수정합니다 · 조직 구조는 <b>조직도 관리</b>에서 바꾸세요</div>'
+      + _renderOrgPyramid(users,'user');
+    requestAnimationFrame(_centerPyramid);
+  }
   try{ setUserView(localStorage.getItem(_userViewKey()) || 'pyramid'); }
   catch(e){ setUserView('pyramid'); }
+  try{ setUserMgmtView(localStorage.getItem(_umViewKey()) || 'pyramid'); }
+  catch(e){ setUserMgmtView('pyramid'); }
+}
+
+// 사용자 관리 보기 — 조직도(피라미드) / 표
+let _umView='pyramid';
+function _umViewKey(){ return 'wl_um_view_' + (currentUser?.사원번호 || '_g'); }
+function setUserMgmtView(v){
+  _umView = ['pyramid','table'].includes(v) ? v : 'pyramid';
+  try{ localStorage.setItem(_umViewKey(), _umView); }catch(e){}
+  const wraps={pyramid:'um-pyramid-wrap', table:'user-table-wrap'};
+  Object.entries(wraps).forEach(([k,id])=>{
+    const el=document.getElementById(id); if(el) el.style.display=(_umView===k)?'':'none';
+    document.getElementById('um-view-'+k)?.classList.toggle('active', _umView===k);
+  });
+  // 숨어 있는 동안에는 폭이 0이라 가운데를 못 잡는다 — 보이게 된 뒤에 맞춘다
+  if(_umView==='pyramid') requestAnimationFrame(_centerPyramid);
 }
 
 async function openUserModal(id){
