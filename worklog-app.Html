@@ -1836,6 +1836,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;"><img class="ai-avatar" src="/assistant.png" alt="" /> AI 어시스턴트</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px;">
+            <button id="tts-natural-btn" class="btn btn-sm btn-primary" onclick="setNaturalTTS(!naturalTTSOn())">🎙 자연스러운 음성 켜짐</button>
+          </div>
+          <div id="tts-natural-desc" style="font-size:11px;color:var(--t3);margin-bottom:12px;"></div>
           <div style="font-size:13px;color:var(--t2);">AI 어시스턴트·성찰 리포트는 서버에 안전하게 저장된 공용 키로 <b>바로 사용 가능</b>합니다. 별도 설정이 필요 없습니다.</div>
         </div>
       </div>
@@ -3621,7 +3625,7 @@ async function enterApp(){
   // 이미 알림을 켜둔 사용자는 로그인하면 바로 감시를 재개한다.
   // 알림 모듈의 변수는 이 파일 아래쪽에 선언돼 있다 — 스크립트가 끝난 뒤에 부른다
   // (예전에 같은 이유로 홈 화면이 TDZ 로 죽은 적이 있다).
-  setTimeout(() => { startNotifyWatch(); updateNotifyUI(); }, 0);
+  setTimeout(() => { startNotifyWatch(); updateNotifyUI(); updateTTSUI(); prewarmTTS(); }, 0);
 
   // localStorage → Supabase 1회 자동 이전 (백그라운드 — navigate 블로킹 방지)
   migrateLocalStorageToSupabase();
@@ -8855,7 +8859,7 @@ async function switchAdminTab(tab){
     if(tabEl) tabEl.classList.toggle('active',t===tab);
     if(panelEl) panelEl.classList.toggle('active',t===tab);
   });
-  if(tab==='google') updateNotifyUI();
+  if(tab==='google'){ updateNotifyUI(); updateTTSUI(); }
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='users') await renderAdminUsers();
@@ -10524,7 +10528,7 @@ function startVoiceInput(){
   _voiceRec.start();
 }
 
-function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); window.speechSynthesis?.cancel(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } }
+function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); stopSpeaking(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } }
 
 let _ttsVoice=null;
 // ── 한국어 음성 고르기 ────────────────────────────────────────
@@ -10557,18 +10561,85 @@ window.listKoVoices=function(){
   console.table(ko.map(v=>({이름:v.name, 네트워크음성:!v.localService, 점수:_voiceScore(v), 선택:_ttsVoice&&v.name===_ttsVoice.name})));
   return ko.length+'개';
 };
-function speakAI(text,onEnd){
-  if(!window.speechSynthesis){ onEnd&&onEnd(); return; }
-  window.speechSynthesis.cancel();
+// ── 자연스러운 음성 (Gemini TTS) ──────────────────────────────
+// 브라우저 내장 TTS는 즉시 나오지만 딱딱하다. Gemini TTS 는 사람 목소리에
+// 가깝지만 음성을 만들어 받아야 해서 짧은 답 ~2초, 보통 답 ~4.5초가 걸린다.
+// 그래서 기본으로 쓰되 언제든 끌 수 있게 하고, 실패하면 내장 TTS로 넘어간다.
+const TTS_MODEL='gemini-2.5-flash-preview-tts';
+const TTS_VOICE='Kore';
+const TTS_TIMEOUT=9000;          // 이보다 늦으면 기다리느니 내장 음성으로 말한다
+let _ttsAudio=null;
+function naturalTTSOn(){ try{ return localStorage.getItem('wl_tts_natural')!=='0'; }catch(e){ return true; } }
+function setNaturalTTS(on){ try{ localStorage.setItem('wl_tts_natural',on?'1':'0'); }catch(e){} updateTTSUI(); }
+
+// Gemini 는 헤더 없는 raw PCM(16bit LE)을 준다 — <audio>가 읽으려면 WAV 헤더를 붙여야 한다
+function _pcmToWav(pcm,rate){
+  const h=new ArrayBuffer(44), v=new DataView(h);
+  const w=(o,t)=>{ for(let i=0;i<t.length;i++) v.setUint8(o+i,t.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+pcm.length,true); w(8,'WAVE'); w(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  w(36,'data'); v.setUint32(40,pcm.length,true);
+  return new Blob([h,pcm],{type:'audio/wav'});
+}
+// "네, 말씀하세요" 처럼 매번 똑같이 말하는 문구는 만들어 두고 다시 쓴다.
+// 호출어를 부를 때마다 2초씩 기다리는 게 체감 지연의 큰 몫이었다.
+const _ttsCache=new Map();
+async function _geminiSpeak(text){
+  const cached=_ttsCache.get(text);
+  if(cached) return cached;
+  const res=await Promise.race([
+    geminiProxy('generate',{model:TTS_MODEL,payload:{
+      contents:[{role:'user',parts:[{text}]}],
+      generationConfig:{responseModalities:['AUDIO'],
+        speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:TTS_VOICE}}}}
+    }}),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('TTS 지연')),TTS_TIMEOUT))
+  ]);
+  if(!res.ok) throw new Error('TTS HTTP '+res.status);
+  const d=await res.json();
+  const inline=(d?.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData)?.inlineData;
+  if(!inline?.data) throw new Error('오디오 없음');
+  const rate=parseInt((inline.mimeType||'').match(/rate=(\d+)/)?.[1]||'24000',10);
+  const bin=atob(inline.data), bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const blob=_pcmToWav(bytes,rate);
+  // 짧고 반복되는 문구만 담아둔다(긴 답변까지 쌓으면 메모리만 먹는다)
+  if(text.length<=20){ if(_ttsCache.size>12) _ttsCache.clear(); _ttsCache.set(text,blob); }
+  return blob;
+}
+// 로그인 직후 호출어 응답을 미리 만들어 둔다 — 처음 부를 때부터 바로 나온다
+function prewarmTTS(){ if(naturalTTSOn()) _geminiSpeak('네, 말씀하세요').catch(()=>{}); }
+
+function _browserSpeak(text,done){
+  if(!window.speechSynthesis){ done(); return; }
   // 1.05는 살짝 빨라 또박또박 읽는 느낌이 강해진다. 조금 늦추면 말투에 가까워진다.
   const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=0.98; u.pitch=1.0;
   if(!_ttsVoice) _pickKoVoice();   // 첫 발화가 목록 로딩보다 빨랐을 수 있다
   if(_ttsVoice) u.voice=_ttsVoice;
-  // 자비스 대기 중이면 TTS 동안 마이크를 멈춰 자기 목소리를 명령으로 오인하지 않게 한다
-  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }
-  u.onend=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
-  u.onerror=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
+  u.onend=done; u.onerror=done;
   window.speechSynthesis.speak(u);
+}
+
+function stopSpeaking(){
+  try{ window.speechSynthesis?.cancel(); }catch(e){}
+  if(_ttsAudio){ try{ _ttsAudio.pause(); }catch(e){} _ttsAudio=null; }
+}
+
+function speakAI(text,onEnd){
+  stopSpeaking();
+  // 자비스 대기 중이면 말하는 동안 마이크를 멈춰 자기 목소리를 명령으로 오인하지 않게 한다
+  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }
+  const done=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
+  if(!naturalTTSOn()){ _browserSpeak(text,done); return; }
+  _geminiSpeak(text).then(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a=new Audio(url); _ttsAudio=a;
+    const cleanup=()=>{ URL.revokeObjectURL(url); if(_ttsAudio===a) _ttsAudio=null; };
+    a.onended=()=>{ cleanup(); done(); };
+    a.onerror=()=>{ cleanup(); _browserSpeak(text,done); };   // 재생 실패해도 말은 해야 한다
+    a.play().catch(()=>{ cleanup(); _browserSpeak(text,done); });
+  }).catch(e=>{ console.warn('[TTS]',e.message,'— 내장 음성으로 대체'); _browserSpeak(text,done); });
 }
 
 function updateMicBtn(on){ const btn=document.getElementById('voice-mic-btn'); if(!btn) return; btn.classList.toggle('listening',on); btn.innerHTML=on?'⏹':'🎙'; btn.title=on?'음성 입력 중지':'음성으로 말하기'; }
@@ -10657,7 +10728,16 @@ function _aiSystemPrompt(){
 - 업로드된 자료·문서·매뉴얼·규정의 내용을 묻는 질문이면 먼저 search_knowledge로 근거를 가져와 [S번호] 인용과 함께 답하세요.
 - 정보가 부족하면 한 문장으로 짧게 되물어보세요.
 - 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.
-- 할 일과 일정을 구분하세요. 시각이 정해진 약속·회의·방문은 add_calendar_event(캘린더), 시각 없이 처리해야 할 업무는 add_todo(할 일)입니다. 애매하면 시각이 언급됐는지로 판단하세요.`;
+- 할 일과 일정을 구분하세요. 시각이 정해진 약속·회의·방문은 add_calendar_event(캘린더), 시각 없이 처리해야 할 업무는 add_todo(할 일)입니다. 애매하면 시각이 언급됐는지로 판단하세요.
+
+[답할 때]
+답은 소리 내어 읽힙니다. 눈으로 읽는 글이 아니라 옆에서 말해주는 것처럼 쓰세요.
+- 목록 기호(*, -, 1.)와 마크다운(**굵게**, # 제목)을 쓰지 마세요. 소리로는 읽히지 않거나 어색하게 읽힙니다.
+- 여러 건은 줄을 나누지 말고 문장으로 이어서 말하세요. "오늘은 두 건 있어요. 아침 아홉 시 간부회의, 오후 두 시 안전점검입니다."
+- 시각은 말로 읽으세요. 09:00 → "아침 아홉 시", 14:00 → "오후 두 시", 2026-09-05 → "내일" 또는 "9월 5일".
+- 두세 문장으로 짧게. 다 읽어주려 하지 말고 중요한 것부터 말하고, 많으면 "그 외에 몇 건 더 있어요"로 줄이세요.
+- 업무 동료에게 말하듯 자연스러운 높임말을 쓰세요. 보고서 문체("~하였습니다", "~요망")나 딱딱한 안내문 투는 피하세요.
+- 이미 처리한 일은 담백하게 알리세요. "할 일에 넣었어요" 정도면 충분합니다.`;
 }
 const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회',search_knowledge:'지식자료 검색',add_calendar_event:'일정 추가',list_calendar_events:'일정 조회',delete_calendar_event:'일정 삭제'};
 
@@ -10684,7 +10764,9 @@ function _setProviderTag(prov,model){
   else if(prov==='gemini') el.textContent='· '+(model||'').replace(/^gemini-/,'Gemini ');
   else el.textContent='';
 }
+const _SLOW_MS=8000;   // 이보다 느리면 대화가 끊긴 느낌이 든다
 async function geminiGenerate(model,payload,_modelRetry=0){
+  const t0=Date.now();
   const res=await geminiProxy('generate',{model,payload});
   if(!res.ok){
     const errData=await res.json().catch(()=>({}));
@@ -10701,6 +10783,10 @@ async function geminiGenerate(model,payload,_modelRetry=0){
     }
     throw new Error(parseGeminiError(res.status,errData));
   }
+  // 같은 세대라도 모델마다 응답 속도가 크게 다르고(실측 0.7초~15초) 시간대에 따라 변한다.
+  // 느리게 답한 모델은 잠시 후보에서 빼 다음 요청이 빠른 쪽으로 가게 한다.
+  const took=Date.now()-t0;
+  if(took>_SLOW_MS){ _markGeminiBad(model,_BAD_TTL_BUSY); _forgetGeminiModel(); }
   _lastProvider=res.headers.get('x-ai-provider')||'';
   _setProviderTag(_lastProvider,model);
   return res.json();
@@ -11100,7 +11186,26 @@ async function _checkUpcoming(){
         `${_gcalEventLine(ev)}${ev.location?` · ${ev.location}`:''} (${Math.max(0,Math.round(mins))}분 뒤)`, 'ev:'+ev.id);
     }
   }catch(e){}
-  // ② 오늘 마감인데 아직 안 끝낸 할 일 — 하루 한 번만
+  // ② 시작 시각이 된 할 일 — 할 일에 적어둔 시간대(예: 16:00~17:30)의 시작을 알린다
+  try{
+    const t=today();
+    const todos=await DB.getTodos(currentUser.사원번호);
+    for(const td of todos){
+      if(td.status==='done'||!td.time) continue;
+      if(!todayVisible(td,t)) continue;                    // 오늘 할 일만
+      const {start}=parseTimeRange(td.time);
+      if(!start) continue;
+      const key='todo:'+td.id+':'+t;                       // 반복 할 일도 날짜별로 한 번씩
+      if(_alreadyNotified(key)) continue;
+      const mins=(new Date(`${t}T${start}:00`)-now)/60000;
+      // 지금부터 1분 안 ~ 2분 지난 것까지. 1분마다 도는 검사라 정각을 놓치지 않게 앞뒤로 여유를 준다.
+      // 앱을 늦게 켜서 한참 지난 일정까지 몰아서 울리는 일은 없어야 한다.
+      if(mins>1 || mins<-2) continue;
+      _markNotified(key);
+      showLocalNotification('지금 시작', `${td.title} (${td.time})`, key);
+    }
+  }catch(e){}
+  // ③ 오늘 마감인데 아직 안 끝낸 할 일 — 하루 한 번만
   try{
     const t=today();
     if(!_alreadyNotified('due:'+t)){
@@ -11159,6 +11264,15 @@ async function disableNotifications(){
 
 function testNotification(){
   showLocalNotification('WorkLog 알림 테스트','이렇게 도착합니다 🔔','test');
+}
+
+function updateTTSUI(){
+  const b=document.getElementById('tts-natural-btn'); if(!b) return;
+  const on=naturalTTSOn();
+  b.textContent=on?'🎙 자연스러운 음성 켜짐':'🔈 기본 음성 사용 중';
+  b.className='btn btn-sm '+(on?'btn-primary':'btn-secondary');
+  const d=document.getElementById('tts-natural-desc');
+  if(d) d.textContent=on?'사람 목소리에 가깝지만 말하기 전 1~4초 걸립니다.':'브라우저 내장 음성 — 즉시 말하지만 딱딱합니다.';
 }
 
 function updateNotifyUI(){
