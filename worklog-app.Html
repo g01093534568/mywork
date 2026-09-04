@@ -1899,7 +1899,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div id="hr-panel-emp">
           <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 전공으로 검색" oninput="renderEmployees()" style="max-width:320px" />
+            <input type="text" id="hr-search" placeholder="이름 · 직급 · 직렬 · 전공 · 소속으로 검색" oninput="renderEmployees()" style="max-width:320px" />
             <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
           </div>
           <div id="hr-emp-list"></div>
@@ -2645,6 +2645,22 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   </div>
 </div>
 
+<!-- 조직 이름 변경 -->
+<div class="modal-overlay" id="org-rename-modal">
+  <div class="modal">
+    <h3>조직 이름 변경</h3>
+    <input type="hidden" id="org-rn-id" />
+    <div class="form-group"><label>현재 이름</label><input type="text" id="org-rn-old" disabled /></div>
+    <div class="form-group"><label>새 이름 *</label><input type="text" id="org-rn-new" placeholder="새 조직 이름"
+      onkeydown="if(event.key==='Enter')saveOrgRename()" /></div>
+    <div id="org-rn-note" style="font-size:11px;color:var(--t3);line-height:1.7"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-secondary" onclick="closeModal('org-rename-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveOrgRename()">변경</button>
+    </div>
+  </div>
+</div>
+
 <!-- 인사관리 — 직원 -->
 <div class="modal-overlay" id="hr-emp-modal">
   <div class="modal">
@@ -2660,6 +2676,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist>
         <div id="hr-f-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
     </div>
+    <div class="form-group"><label>현소속</label><select id="hr-f-facility"></select></div>
     <div class="form-group"><label>주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-danger" id="hr-emp-del" style="display:none" onclick="deleteEmployee()">삭제</button>
@@ -3368,6 +3385,26 @@ const DB = {
     _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
   async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
+
+  // 조직 이름 바꾸기 — 시설명은 여러 표에서 이름 그 자체로 연결돼 있다(외래키가 아니다).
+  // 한 곳만 바꾸면 하위 조직은 부모를 잃고, 에너지·목표·인사 자료는 주인을 잃는다.
+  // 그래서 이름이 쓰이는 모든 자리를 함께 옮긴다.
+  async renameFacility(oldName, newName){
+    const at=async (table,col)=>{
+      const {error}=await SB.from(table).update({[col]:newName}).eq(col,oldName);
+      // 표가 아직 없을 수 있다(인사관리 SQL 미실행 등) — 그건 넘어가고 나머지는 계속한다
+      if(error && !/does not exist|schema cache/i.test(error.message||'')) throw new Error(`${table}.${col}: ${error.message}`);
+    };
+    await at('users','시설명');
+    await at('users','parent_facility');      // 하위 조직이 부모를 잃지 않게
+    await at('facility_goals','시설명');
+    await at('energy_records','facility_name');
+    await at('energy_info','facility_name');
+    await at('vehicle_info','facility_name');
+    await at('hr_employees','시설명');
+    await at('hr_quota','시설명');
+    _cd('users'); _cd(`fg:${oldName}`); _cd(`fg:${newName}`); _cd('hr:emp'); _cd('hr:quota');
+  },
 
   // ── 인사관리 ──
   // 민감정보(생년월일·주소)가 들어간다. 캐시는 두되 로그아웃 시 함께 비워진다.
@@ -4114,7 +4151,7 @@ function _empAge(birth){
 function renderEmployees(){
   const cont=document.getElementById('hr-emp-list'); if(!cont) return;
   const q=(document.getElementById('hr-search')?.value||'').trim().toLowerCase();
-  const list=_hrEmps.filter(e=>!q||[e.성명,e.직급,e.직렬,e.전공].some(v=>(v||'').toLowerCase().includes(q)));
+  const list=_hrEmps.filter(e=>!q||[e.성명,e.직급,e.직렬,e.전공,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
   const cnt=document.getElementById('hr-emp-count');
   if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명${q?` · 검색 ${list.length}명`:''}`;
   if(!list.length){
@@ -4122,15 +4159,20 @@ function renderEmployees(){
     return;
   }
   // 조직도 순서로 — 시설 목록·드롭다운과 같은 기준이라 눈이 헷갈리지 않는다
-  // 배치시설을 입력받지 않으므로 이름 순으로 세운다
-  const sorted=list.slice().sort((a,b)=>(a.성명||'').localeCompare(b.성명||'','ko'));
+  // 조직도 순서로 세우고, 같은 소속 안에서는 이름 순
+  const sorted=list.slice().sort((a,b)=>{
+    const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
+    if(oa!==ob) return oa-ob;
+    return (a.성명||'').localeCompare(b.성명||'','ko');
+  });
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
-    <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>전공</th><th>생년월일</th><th>주소</th><th style="width:60px"></th></tr></thead>
+    <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>전공</th><th>현소속</th><th>생년월일</th><th>주소</th><th style="width:60px"></th></tr></thead>
     <tbody>${sorted.map(e=>`<tr>
         <td><b>${esc(e.성명)}</b></td>
         <td>${esc(e.직급)||'—'}</td>
         <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
         <td>${esc(e.전공)||'—'}</td>
+        <td>${_facIndent(e.시설명)}${esc(e.시설명)||'—'}</td>
         <td>${e.생년월일?esc(e.생년월일)+`<div style="font-size:11px;color:var(--t3)">${_empAge(e.생년월일)}</div>`:'—'}</td>
         <td style="max-width:260px;word-break:keep-all;font-size:12px;color:var(--t2)">${esc(e.주소)||'—'}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="openEmpModal('${e.id}')">✏️</button></td>
@@ -4160,11 +4202,10 @@ function renderQuota(){
     cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 정원 추가를 눌러 시설·직렬·직급별로 넣으세요.</p></div>';
     return;
   }
-  // 직원 입력에서 배치시설을 빼면서 현원을 셀 근거가 사라졌다. 0으로만 보이면
-  // 정원을 잘못 넣은 줄 알기 쉬우므로 이유를 적어둔다.
-  const noPlace=_hrEmps.length && !_hrEmps.some(e=>e.시설명);
+  // 현소속이 비어 있는 직원은 어느 자리에도 세어지지 않는다 — 그 사실을 알려준다
+  const noPlace=_hrEmps.filter(e=>!e.시설명).length;
   const note=noPlace
-    ? '<div class="hr-warn" style="margin:0 0 12px">직원 입력에 배치시설이 없어 <b>현원이 0으로 나옵니다</b>. 현원을 함께 보려면 배치시설 칸을 다시 넣거나, 배치 시뮬레이션 결과로 채워야 합니다.</div>'
+    ? `<div class="hr-warn" style="margin:0 0 12px">현소속이 비어 있는 직원 <b>${noPlace}명</b>은 현원에 세어지지 않습니다.</div>`
     : '';
   const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
   cont.innerHTML=note+`<div class="hr-scroll"><table class="hr-table">
@@ -4205,6 +4246,7 @@ function syncSeriesField(){
 
 async function openEmpModal(id){
   await _getFacilityOrderMap();
+  fillFacilitySelect(document.getElementById('hr-f-facility'), await getOrgFacilityOptions(null), '미지정');
   const e=id?_hrEmps.find(x=>x.id===id):null;
   document.getElementById('hr-emp-title').textContent=e?'직원 정보 수정':'직원 추가';
   document.getElementById('hr-emp-id').value=e?e.id:'';
@@ -4214,12 +4256,13 @@ async function openEmpModal(id){
   document.getElementById('hr-f-series').value=e?e.직렬:'';
   document.getElementById('hr-f-major').value=e?e.전공:'';
   document.getElementById('hr-f-addr').value=e?e.주소:'';
+  document.getElementById('hr-f-facility').value=e?e.시설명:'';
   document.getElementById('hr-emp-del').style.display=e?'inline-flex':'none';
-  // 화면에서 뺀 값(배치시설·평정·수상 등)은 건드리지 않고 그대로 다시 저장한다 —
+  // 화면에서 뺀 값(사원번호·입사일·평정·수상 등)은 건드리지 않고 그대로 다시 저장한다 —
   // 칸을 없앴다고 이미 넣어둔 데이터까지 지워지면 안 된다
-  _hrKeep = e ? {시설명:e.시설명, 사원번호:e.사원번호, 입사일:e.입사일||null,
+  _hrKeep = e ? {사원번호:e.사원번호, 입사일:e.입사일||null,
                  평정:e.평정||[], 수상:e.수상||[], 메모:e.메모||''}
-              : {시설명:'', 사원번호:'', 입사일:null, 평정:[], 수상:[], 메모:''};
+              : {사원번호:'', 입사일:null, 평정:[], 수상:[], 메모:''};
   syncSeriesField();
   openModal('hr-emp-modal');
 }
@@ -4235,6 +4278,7 @@ async function saveEmployee(){
     // 칸이 잠겨 있어도 저장 경로에서 한 번 더 비운다 — 잠그기 전에 넣어둔 값이 남을 수 있다
     직렬:isSeniorRank(document.getElementById('hr-f-rank').value) ? '' : document.getElementById('hr-f-series').value.trim(),
     전공:document.getElementById('hr-f-major').value.trim(),
+    시설명:document.getElementById('hr-f-facility').value,
     주소:document.getElementById('hr-f-addr').value.trim()
   };
   try{ await DB.upsertEmployee(data); closeModal('hr-emp-modal'); await renderHrPage(); toast('저장했습니다'); }
@@ -4286,7 +4330,7 @@ async function deleteQuota(){
 
 // ── 엑셀 일괄 입력 ──────────────────────────────────────────
 // 전 직원을 한 명씩 넣는 건 현실적이지 않다. 시트 두 장(직원·정원)으로 받는다.
-// 직원 시트: 성명·생년월일·주소·직렬·직급·전공
+// 직원 시트: 성명·생년월일·주소·직렬·직급·전공·현소속
 // 엑셀은 날짜를 시리얼 숫자로 주기도 한다 — 그대로 저장하면 date 컬럼이 거부한다
 function _xlDate(v){
   if(v==null||v==='') return null;
@@ -4298,9 +4342,9 @@ function _xlDate(v){
 
 function downloadHrTemplate(){
   const emp=[{성명:'홍길동',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',
-    직렬:'행정',직급:'6급',전공:'행정학'},
+    직렬:'행정',직급:'6급',전공:'행정학',현소속:'울주군립야영장'},
     {성명:'김철수',생년월일:'1978-07-20',주소:'울산광역시 남구 …',
-     직렬:'',직급:'4급',전공:'토목공학'}];
+     직렬:'',직급:'4급',전공:'토목공학',현소속:'본부장'}];
   const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''},
              {시설명:'본부장',직렬:'',직급:'4급',정원:1,비고:'4급 이상은 직렬을 비워둡니다'}];
   const wb=XLSX.utils.book_new();
@@ -4309,7 +4353,7 @@ function downloadHrTemplate(){
   // 지금 등록된 직원이 있으면 예시 대신 실제 데이터를 담아 내려준다(수정 후 재업로드용)
   if(_hrEmps.length){
     const rows=_hrEmps.map(e=>({성명:e.성명,생년월일:e.생년월일,주소:e.주소,
-      직렬:e.직렬,직급:e.직급,전공:e.전공}));
+      직렬:e.직렬,직급:e.직급,전공:e.전공,현소속:e.시설명}));
     wb.Sheets['직원']=XLSX.utils.json_to_sheet(rows);
   }
   if(_hrQuota.length) wb.Sheets['정원']=XLSX.utils.json_to_sheet(_hrQuota.map(q=>({시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,비고:q.비고})));
@@ -4331,7 +4375,8 @@ async function uploadHrExcel(ev){
       주소:String(r.주소||r.거주지주소||'').trim(),
       직급:String(r.직급||'').trim(),
       직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
-      전공:String(r.전공||'').trim()
+      전공:String(r.전공||'').trim(),
+      시설명:String(r.현소속||r.배치시설||r.시설명||'').trim()
     })).filter(r=>r.성명);
     const quoRows=quos.map(r=>({
       시설명:String(r.시설명||'').trim(),
@@ -8882,9 +8927,46 @@ function _centerPyramid(){
 }
 
 let _orgDragJustEnded=false;
-// 조직도 관리에서는 상자를 눌러도 계정 수정으로 가지 않는다 — 그 화면은 구조만 다룬다.
-// 목록(트리) 보기에서 아직 이 함수를 부르므로 남겨두되 아무 일도 하지 않는다.
-function orgBoxClick(){ /* 조직도는 구조만 — 계정 수정은 '사용자 관리'에서 */ }
+// 조직도 관리에서 상자를 누르면 이름을 바꾼다. 계정 수정은 '사용자 관리'의 몫이고,
+// 조직 이름은 구조에 속하므로 여기가 맞다.
+function orgBoxClick(id){ if(_orgDragJustEnded) return; openOrgRename(id); }
+
+async function openOrgRename(id){
+  const users=await DB.getUsers();
+  const u=users.find(x=>x.id===id); if(!u) return;
+  const kids=users.filter(x=>x.parent_facility===u.시설명).length;
+  document.getElementById('org-rn-id').value=id;
+  document.getElementById('org-rn-old').value=u.시설명;
+  document.getElementById('org-rn-new').value=u.시설명;
+  // 무엇이 함께 바뀌는지 미리 알린다 — 이름이 여러 표에 흩어져 있어 되돌리기 번거롭다
+  document.getElementById('org-rn-note').innerHTML=
+    `바꾸면 이 이름을 쓰는 자료가 함께 옮겨집니다 — ${kids?`하위 조직 <b>${kids}개</b>의 상위 이름, `:''}`
+    + '시설목표 · 에너지·차량 자료 · 인사정보와 정원.';
+  openModal('org-rename-modal');
+  setTimeout(()=>{ const el=document.getElementById('org-rn-new'); el?.focus(); el?.select(); },50);
+}
+
+async function saveOrgRename(){
+  const id=document.getElementById('org-rn-id').value;
+  const oldName=document.getElementById('org-rn-old').value;
+  const newName=document.getElementById('org-rn-new').value.trim();
+  if(!newName){ toast('새 이름을 입력하세요','error'); return; }
+  if(newName===oldName){ closeModal('org-rename-modal'); return; }
+  const users=await DB.getUsers();
+  // 같은 이름이 둘이면 상위·하위 연결이 어느 쪽을 가리키는지 알 수 없게 된다
+  if(users.some(u=>u.시설명===newName)){ toast(`"${newName}" 은(는) 이미 있는 조직 이름입니다`,'error'); return; }
+  try{
+    await DB.renameFacility(oldName,newName);
+    // 내 소속이 바뀌었으면 이 세션의 값도 맞춰야 이후 조회가 어긋나지 않는다
+    if(currentUser?.시설명===oldName){
+      currentUser.시설명=newName;
+      try{ localStorage.setItem('wl_user',JSON.stringify(currentUser)); }catch(e){}
+    }
+    closeModal('org-rename-modal');
+    await renderAdminUsers();
+    toast(`"${oldName}" → "${newName}" 으로 바꿨습니다`);
+  }catch(e){ console.error('[rename]',e); toast('변경 실패: '+e.message,'error'); }
+}
 
 function _bindPyramidDnD(root, users){
   let dragId=null;
@@ -9065,8 +9147,8 @@ function _renderOrgPyramid(users, mode='org'){
     const cls = u.role==='admin' ? ' lv-admin' : u.role==='facility-admin' ? ' lv-fadmin' : '';
     const sub = u.성명 ? esc(u.성명) : (u.role==='admin' ? '본사관리자' : u.role==='facility-admin' ? '시설관리자' : '');
     const isOrg = mode==='org';
-    const act = isOrg ? ' draggable="true"' : ` onclick="openUserModal('${u.id}')" style="cursor:pointer"`;
-    const tip = isOrg ? '끌어서 옮기기' : '누르면 계정 수정';
+    const act = isOrg ? ` draggable="true" onclick="orgBoxClick('${u.id}')"` : ` onclick="openUserModal('${u.id}')" style="cursor:pointer"`;
+    const tip = isOrg ? '누르면 이름 변경 · 끌어서 옮기기' : '누르면 계정 수정';
     return `<div class="pyr-box${cls}" data-id="${u.id}"${act} title="${esc(u.시설명)}${u.성명?' · '+esc(u.성명):''} — ${tip}">
       <div class="pyr-name">${esc(u.시설명)}</div>
       ${sub?`<div class="pyr-sub">${sub}</div>`:''}
@@ -9212,7 +9294,7 @@ async function renderAdminUsers(){
   }
   const pyrEl=document.getElementById('user-pyramid');
   if(pyrEl){
-    pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 계정 추가·수정·삭제는 <b>사용자 관리</b>에서</div>'
+    pyrEl.innerHTML='<div class="pyr-hint">상자를 끌어 옮기세요 · 가운데에 놓으면 하위로, 가장자리에 놓으면 같은 단계로 (가로줄은 좌우, 세로줄은 위아래) · 상자를 누르면 이름 변경 · 계정 추가·수정·삭제는 <b>사용자 관리</b>에서</div>'
       + _renderOrgPyramid(users);
     _bindPyramidDnD(pyrEl, users);
     requestAnimationFrame(_centerPyramid);   // 배치가 끝난 뒤라야 폭을 잴 수 있다
