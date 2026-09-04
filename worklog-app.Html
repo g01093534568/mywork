@@ -2669,18 +2669,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   <div class="modal">
     <h3 id="hr-emp-title">직원 추가</h3>
     <input type="hidden" id="hr-emp-id" />
+    <div class="form-group"><label>현소속</label><select id="hr-f-facility"></select></div>
     <div class="form-group"><label>성명 *</label><input type="text" id="hr-f-name" placeholder="홍길동" /></div>
-    <div class="form-row">
-      <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
-      <div class="form-group"><label>전공</label><input type="text" id="hr-f-major" list="hr-major-list" placeholder="예: 행정학" /><datalist id="hr-major-list"></datalist></div>
-    </div>
     <div class="form-row">
       <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /><datalist id="hr-rank-list"></datalist></div>
       <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist>
         <div id="hr-f-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
     </div>
-    <div class="form-group"><label>현소속</label><select id="hr-f-facility"></select></div>
+    <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
     <div class="form-group"><label>주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
+    <div class="form-group"><label>전공</label><input type="text" id="hr-f-major" list="hr-major-list" placeholder="예: 행정학" /><datalist id="hr-major-list"></datalist></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-danger" id="hr-emp-del" style="display:none" onclick="deleteEmployee()">삭제</button>
       <button class="btn btn-secondary" onclick="closeModal('hr-emp-modal')">취소</button>
