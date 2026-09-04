@@ -10411,7 +10411,22 @@ function parseGeminiError(status, errData){
   }
   if(status===400) return `잘못된 요청: ${msg||'API 키 또는 요청 형식을 확인하세요.'}`;
   if(status===403) return 'API 키가 유효하지 않거나 권한이 없습니다.';
+  // 서버가 Gemini·Claude 양쪽 다 실패했다고 알려온 경우. 사용자가 손쓸 수 있는 게
+  // 없으므로 원문(결제·키 오류)을 그대로 보여주지 않고, 관리자 몫임을 알린다.
+  if(st==='ALL_PROVIDERS_FAILED'){
+    _aiUnavailable=true;
+    return 'AI 어시스턴트가 아직 준비되지 않았습니다. 관리자가 AI 키를 설정하면 사용할 수 있습니다.';
+  }
   return msg||`Gemini API 오류 (HTTP ${status})`;
+}
+
+// 양쪽 제공자가 다 막혔다면 이 세션 동안은 계속 막혀 있다. 눌러도 오류만 나는
+// 버튼을 남겨두면 직원들이 반복해서 누르게 되므로, 한 번 확인되면 치운다.
+let _aiUnavailable=false;
+function _hideAIIfUnavailable(){
+  if(!_aiUnavailable) return;
+  const btn=document.getElementById('ai-chat-btn');
+  if(btn) btn.style.display='none';
 }
 
 // 모델은 목록 API로 매번 알아내되 12시간 캐시 — 새 세대가 나오면 저절로 따라가고,
@@ -10896,6 +10911,7 @@ async function sendAIChat(speak){
     else if(state==='done'){ thinking.classList.remove('thinking'); thinking.textContent=msg; }
     else if(state==='error'){ thinking.classList.remove('thinking'); thinking.textContent='⚠️ '+msg; }
   }});
+  _hideAIIfUnavailable();   // 양쪽 제공자가 다 막혔다면 버튼을 치운다
   const m=document.getElementById('ai-chat-msgs'); if(m) m.scrollTop=m.scrollHeight;
   btn.disabled=false; f.disabled=false;
   if(voice && reply){

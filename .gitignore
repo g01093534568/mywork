@@ -4,7 +4,10 @@ Thumbs.db
 
 # Local env and logs
 *.log
+# .env 만 막혀 있어 vercel env pull 이 기본으로 만드는 .env.local 이 새어나갈 수 있었다
 .env
+.env.*
+!.env.example
 .vscode/
 .vercel
 
