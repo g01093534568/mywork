@@ -1874,6 +1874,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <button class="btn btn-primary" onclick="saveOrgGoals()">💾 조직 목표 저장</button>
       </div>
       <!-- Users Tab -->
+      <div id="admin-perm" class="admin-panel">
+        <div style="font-size:14px;font-weight:700;color:var(--blue);margin-bottom:4px">🔐 권한 관리</div>
+        <div style="font-size:12px;color:var(--t3);margin-bottom:14px">
+          역할별로 무엇을 할 수 있는지 한눈에 봅니다. 지금은 <b>보기 전용</b>입니다.
+        </div>
+        <div id="perm-matrix"></div>
+        <div class="hr-warn" style="margin-top:14px">
+          권한을 화면에서 조정하려면 이 표를 데이터베이스에 저장하고 읽어오도록 바꾸면 됩니다.
+          앱 곳곳은 이미 <code>can('권한이름')</code> 을 거쳐 판정하므로, 표만 바뀌면 전체가 따라옵니다.
+        </div>
+      </div>
       <!-- 조직도 관리 — 구성만 바꾼다. 계정 추가·삭제는 사용자 관리에서 한다 -->
       <div id="admin-hr" class="admin-panel">
         <div class="perf-head">
@@ -4074,7 +4085,7 @@ function navigate(page){
   // 에너지관리는 '업무' 페이지의 하위 탭으로 통합됨 → daily로 라우팅
   if(page==='energy'){ _sessionSubTab.daily='energy'; page='daily'; }
   // 운동은 개인 세션의 탭 — 별도 page가 없으므로 personal로 라우팅
-  if(page==='exercise'){ if(currentUser.role==='admin') _sessionSubTab.personal='exercise'; page='personal'; }
+  if(page==='exercise'){ if(can('exercise.view')) _sessionSubTab.personal='exercise'; page='personal'; }
   document.querySelectorAll('.page-section').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   // page-energy는 별도 섹션이지만 하위 탭으로 제어하므로 인라인 display 초기화
@@ -4639,7 +4650,7 @@ async function renderOrgGoals(){
     <div style="width:100%">
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">전략목표 · 전략과제 · 경영목표</div>
       <div class="strategy-grid">`;
-  const _canEdit=currentUser.role==='facility-admin'||currentUser.role==='admin';
+  const _canEdit=can('goals.facility');
   const _allTaskNames=(org.전략과제||[]).map(t=>t.과제);
   (org.전략목표||[]).forEach((목표,i)=>{
     const tasks=(org.전략과제||[]).filter(t=>t.목표idx===i);
@@ -9508,25 +9519,69 @@ function importUsersCSV(e){
   e.target.value='';
 }
 
+// ── 권한 ────────────────────────────────────────────────────
+// 지금까지는 역할(admin / facility-admin / user)을 코드 곳곳에서 직접 비교했다.
+// 33곳에 흩어져 있어 "누가 무엇을 할 수 있는가"를 한눈에 볼 수도, 바꿀 수도 없었다.
+// 할 수 있는 일에 이름을 붙여 여기 한 곳에 모은다 — 나중에 '권한 관리' 화면에서
+// 이 표를 고치면 앱 전체가 따라오게 하기 위한 준비다.
+//
+// 아직은 역할별 고정값이다. 화면에서 조정하려면 이 표를 DB에 저장하고
+// 읽어오도록 바꾸면 되고, can() 을 쓰는 쪽은 손대지 않아도 된다.
+const CAPS = {
+  'goals.org':        { label:'조직목표 설정',      roles:['admin'] },
+  'goals.facility':   { label:'시설목표 관리',      roles:['admin','facility-admin'] },
+  'org.edit':         { label:'조직도 편집',        roles:['admin'] },
+  'users.manage':     { label:'사용자 관리',        roles:['admin'] },
+  'hr.manage':        { label:'인사정보 관리',      roles:['admin'] },
+  'perm.view':        { label:'권한 현황 보기',      roles:['admin'] },
+  'energy.manage':    { label:'에너지·차량 관리',   roles:['admin','facility-admin'] },
+  'knowledge.manage': { label:'AI 지식자료 관리',   roles:['admin','facility-admin'] },
+  'google.connect':   { label:'Google 계정 연동',   roles:['admin','facility-admin','user'] },
+  'exercise.view':    { label:'개인 운동 기록',      roles:['admin'] },
+};
+const ROLE_LABELS={admin:'본사관리자','facility-admin':'시설관리자',user:'사용자'};
+
+function can(cap, role){
+  const c=CAPS[cap];
+  if(!c) return false;                       // 없는 권한 이름은 막는다(오타로 열리면 안 된다)
+  return c.roles.includes(role || currentUser?.role);
+}
+
+// 역할 × 권한 표. 지금은 CAPS 를 그대로 보여준다 — 나중에 DB 에서 읽어오면
+// 이 함수는 그대로 두고 CAPS 를 채우는 쪽만 바꾸면 된다.
+function renderPermMatrix(){
+  const cont=document.getElementById('perm-matrix'); if(!cont) return;
+  const roles=Object.keys(ROLE_LABELS);
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
+    <thead><tr><th>할 수 있는 일</th>${roles.map(r=>`<th style="text-align:center">${ROLE_LABELS[r]}</th>`).join('')}</tr></thead>
+    <tbody>${Object.entries(CAPS).map(([id,c])=>`<tr>
+      <td>${esc(c.label)}<div style="font-size:11px;color:var(--t3)">${esc(id)}</div></td>
+      ${roles.map(r=>`<td style="text-align:center">${c.roles.includes(r)
+        ? '<span style="color:var(--green);font-weight:700">●</span>'
+        : '<span style="color:var(--t3)">·</span>'}</td>`).join('')}
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
 // ── 설정 메뉴 ────────────────────────────────────────────────
 // 화면이 늘면서 한 줄에 다 늘어놓기 어려워졌다. 성격이 같은 것끼리 묶고
 // 두 줄(묶음 / 그 안의 화면)로 나눈다. 권한은 화면마다 다르므로 여기 한 곳에
 // 적어두고, 볼 수 있는 것이 없는 묶음은 아예 그리지 않는다.
 const ADMIN_NAV=[
   {label:'🎯 목표', children:[
-    {id:'goals',     label:'조직목표',      roles:['admin']},
-    {id:'facility',  label:'시설목표',      roles:['admin','facility-admin']}]},
+    {id:'goals',     label:'조직목표',      cap:'goals.org'},
+    {id:'facility',  label:'시설목표',      cap:'goals.facility'}]},
   {label:'🛠 관리', children:[
-    {id:'org',       label:'조직도 관리',    roles:['admin']},
-    {id:'users',     label:'사용자 관리',    roles:['admin']},
-    {id:'hr',        label:'인사관리 data',  roles:['admin']}]},
-  {id:'energy',      label:'⚡ 에너지 및 차량', roles:['admin','facility-admin']},
-  {id:'knowledge',   label:'📚 AI 지식자료',  roles:['admin','facility-admin']},
-  {id:'google',      label:'🔗 Google 계정',  roles:null},   // 모두
+    {id:'org',       label:'조직도 관리',    cap:'org.edit'},
+    {id:'users',     label:'사용자 관리',    cap:'users.manage'},
+    {id:'hr',        label:'인사관리 data',  cap:'hr.manage'},
+    {id:'perm',      label:'권한 관리',      cap:'perm.view'}]},
+  {id:'energy',      label:'⚡ 에너지 및 차량', cap:'energy.manage'},
+  {id:'knowledge',   label:'📚 AI 지식자료',  cap:'knowledge.manage'},
+  {id:'google',      label:'🔗 Google 계정',  cap:'google.connect'},
 ];
-const ADMIN_PANELS=['google','goals','facility','org','users','hr','energy','knowledge'];
+const ADMIN_PANELS=['google','goals','facility','org','users','hr','perm','energy','knowledge'];
 
-function _navOK(item){ return !item.roles || item.roles.includes(currentUser?.role); }
+function _navOK(item){ return !item.cap || can(item.cap); }
 // 묶음은 그 안에 볼 수 있는 화면이 하나라도 있을 때만 보인다
 function _navVisible(){
   return ADMIN_NAV.map(g=>g.children
@@ -9568,6 +9623,7 @@ async function switchAdminTab(tab){
   if(tab==='org') await renderAdminUsers();
   if(tab==='users') await renderAdminUsers();
   if(tab==='hr') await renderHrPage();
+  if(tab==='perm') renderPermMatrix();
   if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); loadVehicleInfos(); }
   if(tab==='knowledge') await ksRenderList();
 }
