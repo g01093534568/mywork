@@ -1924,6 +1924,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       <div id="admin-org" class="admin-panel">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="openOrgAdd()">+ 조직 추가</button>
           <div style="font-size:12px;color:var(--t3)">상자를 끌어다 놓으면 상위 조직과 순서가 바뀝니다. 계정 추가·삭제는 <b>사용자 관리</b>에서 하세요.</div>
           <div class="gcal-mode-switch" style="margin-left:auto">
             <button class="gcal-mode-btn active" id="user-view-pyramid" onclick="setUserView('pyramid')">🏢 피라미드</button>
@@ -2648,15 +2649,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 <!-- 조직 이름 변경 -->
 <div class="modal-overlay" id="org-rename-modal">
   <div class="modal">
-    <h3>조직 이름 변경</h3>
+    <h3 id="org-rn-title">조직 이름 변경</h3>
     <input type="hidden" id="org-rn-id" />
-    <div class="form-group"><label>현재 이름</label><input type="text" id="org-rn-old" disabled /></div>
-    <div class="form-group"><label>새 이름 *</label><input type="text" id="org-rn-new" placeholder="새 조직 이름"
+    <div class="form-group" id="org-rn-old-row"><label>현재 이름</label><input type="text" id="org-rn-old" disabled /></div>
+    <div class="form-group"><label id="org-rn-label">새 이름 *</label><input type="text" id="org-rn-new" placeholder="조직 이름"
       onkeydown="if(event.key==='Enter')saveOrgRename()" /></div>
+    <div class="form-group" id="org-rn-parent-row" style="display:none"><label>상위 조직</label><select id="org-rn-parent"></select></div>
     <div id="org-rn-note" style="font-size:11px;color:var(--t3);line-height:1.7"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-danger" id="org-rn-del" style="display:none" onclick="deleteOrgNode()">조직 삭제</button>
       <button class="btn btn-secondary" onclick="closeModal('org-rename-modal')">취소</button>
-      <button class="btn btn-primary" onclick="saveOrgRename()">변경</button>
+      <button class="btn btn-primary" id="org-rn-save" onclick="saveOrgRename()">변경</button>
     </div>
   </div>
 </div>
@@ -3385,6 +3388,33 @@ const DB = {
     _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
   async deleteUsers(ids){ if(!ids||!ids.length)return; const {error}=await SB.from('users').delete().in('id',ids); if(error)throw error; _cd('users'); },
+
+  // 조직 추가 — 이 앱에서 '조직'은 users 한 행이다. 사원번호·패스워드가 NOT NULL 이다.
+  //
+  // 패스워드를 빈 문자열로 두면 안 된다. verify_login 이 빈 값끼리를 일치로 보고
+  // 사원번호·비밀번호를 모두 비운 채 로그인시켜 준다(실제로 확인했다). 로그인 화면은
+  // 사원번호 6자리를 요구하지만 RPC 를 직접 부르면 통과한다.
+  // 그래서 아무도 모르는 무작위 해시를 넣는다 — 어떤 입력을 해싱해도 이 값이 나오지 않는다.
+  // 계정으로 쓰려면 '사용자 관리'에서 사원번호·비밀번호를 새로 지정해야 한다.
+  async createOrgNode(시설명, parent){
+    const rnd=crypto.getRandomValues(new Uint8Array(32));
+    const 패스워드=Array.from(rnd).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const row={ 시설명, 사원번호:'', 패스워드, role:'user',
+      parent_facility:parent||null, sort_order:await this.nextSortOrder(parent||null) };
+    const {error}=await SB.from('users').insert(row); if(error) throw error; _cd('users');
+  },
+  // 지우기 전에 이 이름에 딸린 자료가 얼마나 되는지 세어 보여준다 — 지우고 나면 되돌릴 수 없다
+  async orgUsage(name){
+    const pairs=[['facility_goals','시설명','시설목표'],['energy_records','facility_name','에너지 기록'],
+                 ['energy_info','facility_name','에너지 정보'],['vehicle_info','facility_name','차량 정보'],
+                 ['hr_employees','시설명','직원'],['hr_quota','시설명','정원']];
+    const out=[];
+    for(const [t,c,label] of pairs){
+      const {count,error}=await SB.from(t).select('*',{count:'exact',head:true}).eq(c,name);
+      if(!error && count) out.push(`${label} ${count}건`);
+    }
+    return out;
+  },
 
   // 조직 이름 바꾸기 — 시설명은 여러 표에서 이름 그 자체로 연결돼 있다(외래키가 아니다).
   // 한 곳만 바꾸면 하위 조직은 부모를 잃고, 에너지·목표·인사 자료는 주인을 잃는다.
@@ -8931,6 +8961,30 @@ let _orgDragJustEnded=false;
 // 조직 이름은 구조에 속하므로 여기가 맞다.
 function orgBoxClick(id){ if(_orgDragJustEnded) return; openOrgRename(id); }
 
+// 모달 하나를 추가·변경 두 용도로 쓴다. 칸 구성만 바꾼다.
+function _orgModalMode(add){
+  document.getElementById('org-rn-title').textContent = add ? '조직 추가' : '조직 이름 변경';
+  document.getElementById('org-rn-label').textContent = add ? '조직 이름 *' : '새 이름 *';
+  document.getElementById('org-rn-old-row').style.display = add ? 'none' : '';
+  document.getElementById('org-rn-parent-row').style.display = add ? '' : 'none';
+  document.getElementById('org-rn-del').style.display = add ? 'none' : 'inline-flex';
+  document.getElementById('org-rn-save').textContent = add ? '추가' : '변경';
+}
+
+async function openOrgAdd(){
+  await _getFacilityOrderMap();
+  fillFacilitySelect(document.getElementById('org-rn-parent'), await getOrgFacilityOptions(null), '최상위');
+  document.getElementById('org-rn-id').value='';
+  document.getElementById('org-rn-old').value='';
+  document.getElementById('org-rn-new').value='';
+  document.getElementById('org-rn-note').innerHTML=
+    '조직만 만들어지고 <b>로그인은 되지 않습니다</b> — 아무도 모르는 비밀번호가 들어갑니다.<br>'
+    + '이 조직으로 로그인하게 하려면 <b>사용자 관리</b>에서 사원번호와 비밀번호를 새로 지정하세요.';
+  _orgModalMode(true);
+  openModal('org-rename-modal');
+  setTimeout(()=>document.getElementById('org-rn-new')?.focus(),50);
+}
+
 async function openOrgRename(id){
   const users=await DB.getUsers();
   const u=users.find(x=>x.id===id); if(!u) return;
@@ -8942,19 +8996,52 @@ async function openOrgRename(id){
   document.getElementById('org-rn-note').innerHTML=
     `바꾸면 이 이름을 쓰는 자료가 함께 옮겨집니다 — ${kids?`하위 조직 <b>${kids}개</b>의 상위 이름, `:''}`
     + '시설목표 · 에너지·차량 자료 · 인사정보와 정원.';
+  _orgModalMode(false);
   openModal('org-rename-modal');
   setTimeout(()=>{ const el=document.getElementById('org-rn-new'); el?.focus(); el?.select(); },50);
+}
+
+async function deleteOrgNode(){
+  const id=document.getElementById('org-rn-id').value;
+  const name=document.getElementById('org-rn-old').value;
+  if(!id||!name) return;
+  const users=await DB.getUsers();
+  // 하위 조직이 있으면 지우지 않는다. 지우면 그 조직들이 부모를 잃고 최상위로 튀어나오는데,
+  // 그건 사용자가 의도한 결과가 아닐 가능성이 크다. 먼저 옮기게 한다.
+  const kids=users.filter(u=>u.parent_facility===name);
+  if(kids.length){
+    toast(`하위 조직 ${kids.length}개(${kids.slice(0,2).map(k=>k.시설명).join(', ')}${kids.length>2?' 외':''})를 먼저 다른 곳으로 옮기세요`,'error');
+    return;
+  }
+  const usage=await DB.orgUsage(name);
+  const warn=usage.length ? `\n\n이 조직에 딸린 자료가 있습니다 — ${usage.join(', ')}.\n조직을 지워도 이 자료는 남지만 주인 없는 상태가 됩니다.` : '';
+  if(!await confirmDialog(`"${name}" 조직을 삭제하시겠습니까?${warn}`)) return;
+  try{
+    await DB.deleteUser(id);
+    closeModal('org-rename-modal');
+    await renderAdminUsers();
+    toast(`"${name}" 조직을 삭제했습니다`);
+  }catch(e){ console.error('[org del]',e); toast('삭제 실패: '+e.message,'error'); }
 }
 
 async function saveOrgRename(){
   const id=document.getElementById('org-rn-id').value;
   const oldName=document.getElementById('org-rn-old').value;
   const newName=document.getElementById('org-rn-new').value.trim();
-  if(!newName){ toast('새 이름을 입력하세요','error'); return; }
-  if(newName===oldName){ closeModal('org-rename-modal'); return; }
+  if(!newName){ toast('조직 이름을 입력하세요','error'); return; }
   const users=await DB.getUsers();
   // 같은 이름이 둘이면 상위·하위 연결이 어느 쪽을 가리키는지 알 수 없게 된다
-  if(users.some(u=>u.시설명===newName)){ toast(`"${newName}" 은(는) 이미 있는 조직 이름입니다`,'error'); return; }
+  if(users.some(u=>u.시설명===newName && u.id!==id)){ toast(`"${newName}" 은(는) 이미 있는 조직 이름입니다`,'error'); return; }
+  if(!id){   // 추가
+    try{
+      await DB.createOrgNode(newName, document.getElementById('org-rn-parent').value);
+      closeModal('org-rename-modal');
+      await renderAdminUsers();
+      toast(`"${newName}" 조직을 만들었습니다`);
+    }catch(e){ console.error('[org add]',e); toast('추가 실패: '+e.message,'error'); }
+    return;
+  }
+  if(newName===oldName){ closeModal('org-rename-modal'); return; }
   try{
     await DB.renameFacility(oldName,newName);
     // 내 소속이 바뀌었으면 이 세션의 값도 맞춰야 이후 조회가 어긋나지 않는다
