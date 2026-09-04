@@ -1837,7 +1837,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
           <div style="font-size:15px;font-weight:700;margin-bottom:6px;"><img class="ai-avatar" src="/assistant.png" alt="" /> AI 어시스턴트</div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px;">
-            <button id="tts-natural-btn" class="btn btn-sm btn-primary" onclick="setNaturalTTS(!naturalTTSOn())">🎙 자연스러운 음성 켜짐</button>
+            <button id="tts-natural-btn" class="btn btn-sm btn-secondary" onclick="setNaturalTTS(!naturalTTSOn())">🔈 기본 음성 사용 중</button>
           </div>
           <div id="tts-natural-desc" style="font-size:11px;color:var(--t3);margin-bottom:12px;"></div>
           <div style="font-size:13px;color:var(--t2);">AI 어시스턴트·성찰 리포트는 서버에 안전하게 저장된 공용 키로 <b>바로 사용 가능</b>합니다. 별도 설정이 필요 없습니다.</div>
@@ -10569,7 +10569,9 @@ const TTS_MODEL='gemini-2.5-flash-preview-tts';
 const TTS_VOICE='Kore';
 const TTS_TIMEOUT=9000;          // 이보다 늦으면 기다리느니 내장 음성으로 말한다
 let _ttsAudio=null;
-function naturalTTSOn(){ try{ return localStorage.getItem('wl_tts_natural')!=='0'; }catch(e){ return true; } }
+// 기본은 꺼둔다. 음성 생성은 텍스트보다 토큰을 훨씬 많이 먹어서, 켜두면 무료 한도가
+// 답변 몇 십 번 만에 바닥난다. 쓰고 싶을 때만 설정에서 켜는 편이 안전하다.
+function naturalTTSOn(){ try{ return localStorage.getItem('wl_tts_natural')==='1'; }catch(e){ return false; } }
 function setNaturalTTS(on){ try{ localStorage.setItem('wl_tts_natural',on?'1':'0'); }catch(e){} updateTTSUI(); }
 
 // Gemini 는 헤더 없는 raw PCM(16bit LE)을 준다 — <audio>가 읽으려면 WAV 헤더를 붙여야 한다
@@ -11272,7 +11274,9 @@ function updateTTSUI(){
   b.textContent=on?'🎙 자연스러운 음성 켜짐':'🔈 기본 음성 사용 중';
   b.className='btn btn-sm '+(on?'btn-primary':'btn-secondary');
   const d=document.getElementById('tts-natural-desc');
-  if(d) d.textContent=on?'사람 목소리에 가깝지만 말하기 전 1~4초 걸립니다.':'브라우저 내장 음성 — 즉시 말하지만 딱딱합니다.';
+  if(d) d.textContent=on
+    ? '사람 목소리에 가깝지만 말하기 전 1~4초 걸리고, API 한도를 빠르게 씁니다.'
+    : '브라우저 내장 음성 — 즉시 말하고 API 한도를 쓰지 않습니다.';
 }
 
 function updateNotifyUI(){
