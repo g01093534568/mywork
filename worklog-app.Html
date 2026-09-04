@@ -10431,7 +10431,10 @@ function _hideAIIfUnavailable(){
 
 // 모델은 목록 API로 매번 알아내되 12시간 캐시 — 새 세대가 나오면 저절로 따라가고,
 // 퇴역 모델을 계속 붙들지 않는다. (예전엔 2.5 계열을 통째로 제외하고 2.0-flash를 고집했다.)
-const GEMINI_MODEL_FALLBACK='gemini-2.5-flash';
+// 목록 조회가 실패했을 때만 쓰는 최후의 이름. 고정 버전을 박아두면 그 모델이 퇴역하는
+// 순간 최후의 보루가 같이 죽는다(실제로 gemini-2.5-flash 가 신규 프로젝트에서 막혔다).
+// 별칭은 구글이 현행 모델로 계속 옮겨준다.
+const GEMINI_MODEL_FALLBACK='gemini-flash-latest';
 const _GEMINI_MODEL_CACHE_KEY='wl_gemini_model';
 const _GEMINI_MODEL_TTL=12*60*60*1000;
 // 실험·미리보기·특수용도(음성/이미지/임베딩) 변형은 도구 호출이 불안정하거나 아예 안 된다.
