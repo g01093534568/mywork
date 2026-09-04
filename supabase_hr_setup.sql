@@ -84,3 +84,18 @@ SELECT table_name AS 표, column_name AS 컬럼, data_type AS 타입
   FROM information_schema.columns
  WHERE table_schema='public' AND table_name IN ('hr_employees','hr_quota')
  ORDER BY table_name, ordinal_position;
+
+
+-- ============================================================
+-- 추가 (2026-09-04) — 전공
+-- 이 파일을 다시 통째로 실행해도 되고, 아래 두 줄만 실행해도 된다.
+-- 입력 화면은 성명·생년월일·주소·직렬·직급·전공 여섯 칸으로 줄였다.
+-- 기존 컬럼(사원번호·입사일·시설명·평정·수상·메모)은 지우지 않았다 —
+-- 이미 넣어둔 값이 있으면 사라지므로, 화면에서만 감춘다.
+-- ============================================================
+ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS 전공 text;
+
+SELECT column_name AS 컬럼, data_type AS 타입
+  FROM information_schema.columns
+ WHERE table_schema='public' AND table_name='hr_employees'
+ ORDER BY ordinal_position;
