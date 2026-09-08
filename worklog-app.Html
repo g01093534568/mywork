@@ -2701,7 +2701,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group"><label>사원번호</label><input type="text" id="hr-f-empno" placeholder="예: 091111" /></div>
     <div class="form-row">
       <div class="form-group"><label>직급</label><input type="text" id="hr-f-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /><datalist id="hr-rank-list"></datalist></div>
-      <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-series-list" placeholder="예: 행정" /><datalist id="hr-series-list"></datalist>
+      <div class="form-group"><label>직렬</label><input type="text" id="hr-f-series" list="hr-f-series-list" placeholder="예: 행정" oninput="syncSeriesField()" onchange="syncSeriesField()" /><datalist id="hr-f-series-list"></datalist>
         <div id="hr-f-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
     </div>
     <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
@@ -2736,7 +2736,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <input type="hidden" id="hr-q-id" />
     <div class="form-group"><label>시설 *</label><select id="hr-q-facility"></select></div>
     <div class="form-row">
-      <div class="form-group"><label>직렬 *</label><input type="text" id="hr-q-series" list="hr-series-list" placeholder="예: 행정" />
+      <div class="form-group"><label>직렬 *</label><input type="text" id="hr-q-series" list="hr-q-series-list" placeholder="예: 행정" /><datalist id="hr-q-series-list"></datalist>
         <div id="hr-q-series-note" style="font-size:11px;color:var(--t3);margin-top:4px;display:none">4급 이상은 직렬을 구분하지 않습니다.</div></div>
       <div class="form-group"><label>직급 *</label><input type="text" id="hr-q-rank" list="hr-rank-list" placeholder="예: 6급" oninput="syncSeriesField()" onchange="syncSeriesField()" /></div>
     </div>
@@ -4237,6 +4237,7 @@ function switchDailyTab(tab){
 // 인사관리 (업무 하위 탭 · 관리자 전용)
 // 인사배치 시뮬레이션의 밑자료 — 사람(직원)과 자리(정원)를 각각 담는다.
 // ═══════════════════════════════════════════════
+let _hrSeriesAll=[];   // 직렬 자동완성 원본. 무기계약을 고르면 두 가지로 좁힌다
 let _hrEmps=[], _hrQuota=[], _hrTab='emp';
 // 입력 화면은 여섯 칸(성명·생년월일·주소·직렬·직급·전공)뿐이지만, 표에는 예전에
 // 넣어둔 값이 남아 있을 수 있다. 수정할 때 그대로 다시 실어 보내 지워지지 않게 한다.
@@ -4262,7 +4263,10 @@ async function renderHrPage(){
   const series=[...new Set([..._hrEmps.map(e=>e.직렬),..._hrQuota.map(q=>q.직렬)].filter(Boolean))].sort();
   const majors=[...new Set(_hrEmps.map(e=>e.전공).filter(Boolean))].sort();
   const fill=(id,list)=>{ const el=document.getElementById(id); if(el) el.innerHTML=list.map(v=>`<option value="${esc(v)}"></option>`).join(''); };
-  fill('hr-rank-list',ranks); fill('hr-series-list',series); fill('hr-major-list',majors);
+  fill('hr-rank-list',ranks); fill('hr-major-list',majors);
+  // 직렬 제안 목록은 칸마다 따로 둔다 — 무기계약을 고르면 그 칸만 사업인력·일반인력으로 좁힌다
+  _hrSeriesAll=series;
+  fill('hr-f-series-list',series); fill('hr-q-series-list',series);
   switchHrTab(_hrTab);
 }
 
@@ -4290,6 +4294,16 @@ function quotaColumns(){
   }
   return out;
 }
+
+// 무기계약직인가. 표기가 '무기'·'무기계약'·'무기계약직'로 갈려도 같은 것으로 본다.
+// 무기계약은 정원표에서 사업인력·일반인력으로 나뉘므로, 직원도 같은 값으로 받아야
+// 정원과 현원이 같은 칸에서 만난다.
+function isWageRank(rank){ return String(rank||'').trim().startsWith('무기'); }
+const WAGE_SERIES=['사업인력','일반인력'];
+// 정원표는 '무기', 직원 명부는 '무기계약'으로 적혀 있다(실제 자료가 그렇다).
+// 같은 자리를 가리키는 말이므로 셀 때는 하나로 본다 — 그러지 않으면 무기계약
+// 직원이 어느 정원에도 세어지지 않고, 정원은 정원대로 통째로 부족으로 나온다.
+function rankKey(rank){ return isWageRank(rank) ? '무기' : String(rank||'').trim(); }
 
 // 급수 정렬 순서. 임원이 맨 위, 그 다음 숫자가 작은 급수부터, 무기계약은 맨 아래.
 // QUOTA_RANKS 에 없는 급수(7급 등)가 들어와도 숫자대로 제자리에 들어간다.
@@ -4387,8 +4401,8 @@ function renderRankMatrix(cont, mode){
     cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 시설별 일괄 입력이나 엑셀 업로드로 채우세요.</p></div>';
     return;
   }
-  const quotaOf=(f,c)=>{ const q=_hrQuota.find(x=>x.시설명===f&&x.직급===c.직급&&x.직렬===c.직렬); return q?q.정원:0; };
-  const headOf =(f,c)=>_hrEmps.filter(e=>e.시설명===f&&e.직급===c.직급&&e.직렬===c.직렬).length;
+  const quotaOf=(f,c)=>{ const q=_hrQuota.find(x=>x.시설명===f&&rankKey(x.직급)===rankKey(c.직급)&&x.직렬===c.직렬); return q?q.정원:0; };
+  const headOf =(f,c)=>_hrEmps.filter(e=>e.시설명===f&&rankKey(e.직급)===rankKey(c.직급)&&e.직렬===c.직렬).length;
   const inUse  =(f,c)=>quotaOf(f,c)>0||(isGap&&headOf(f,c)>0);
   const val    =(f,c)=>isGap?headOf(f,c)-quotaOf(f,c):quotaOf(f,c);
 
@@ -4471,13 +4485,13 @@ function renderQuota(){
   const head=(t)=>`<td class="hr-num">${t}</td>`;
   // 정원에 없는 조합이라도 사람이 배치돼 있으면 보여줘야 한다(정원 0의 초과 배치)
   const keys=new Map();
-  _hrQuota.forEach(q=>keys.set(`${q.시설명}|${q.직렬}|${q.직급}`,{시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,id:q.id,비고:q.비고}));
+  _hrQuota.forEach(q=>keys.set(`${q.시설명}|${q.직렬}|${rankKey(q.직급)}`,{시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,id:q.id,비고:q.비고}));
   _hrEmps.forEach(e=>{
-    const k=`${e.시설명}|${e.직렬}|${e.직급}`;
+    const k=`${e.시설명}|${e.직렬}|${rankKey(e.직급)}`;
     if(!keys.has(k)) keys.set(k,{시설명:e.시설명,직렬:e.직렬,직급:e.직급,정원:0,id:null,비고:''});
   });
   const rows=[...keys.values()].map(r=>{
-    const 현원=_hrEmps.filter(e=>e.시설명===r.시설명&&e.직렬===r.직렬&&e.직급===r.직급).length;
+    const 현원=_hrEmps.filter(e=>e.시설명===r.시설명&&e.직렬===r.직렬&&rankKey(e.직급)===rankKey(r.직급)).length;
     return {...r,현원,과부족:현원-r.정원};
   }).sort((a,b)=>{
     const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
@@ -4541,16 +4555,45 @@ function renderQuota(){
 
 // 직급이 4급 이상이면 직렬 칸을 비우고 잠근다. 두 모달이 같은 규칙을 쓰므로 한 함수로 둔다.
 function syncSeriesField(){
-  [['hr-f-rank','hr-f-series','hr-f-series-note'],['hr-q-rank','hr-q-series','hr-q-series-note']].forEach(([r,se,n])=>{
+  [['hr-f-rank','hr-f-series','hr-f-series-note','hr-f-series-list'],
+   ['hr-q-rank','hr-q-series','hr-q-series-note','hr-q-series-list']].forEach(([r,se,n,dl])=>{
     const rank=document.getElementById(r), ser=document.getElementById(se), note=document.getElementById(n);
     if(!rank||!ser) return;
-    const senior=isSeniorRank(rank.value);
+    const senior=isSeniorRank(rank.value), wage=isWageRank(rank.value);
     ser.disabled=senior;
     ser.style.opacity=senior?'0.5':'';
     if(senior) ser.value='';                       // 잠글 때 남아 있던 값은 지운다
-    ser.placeholder=senior?'해당 없음':'예: 행정';
-    if(note) note.style.display=senior?'':'none';
+    ser.placeholder=senior?'해당 없음':(wage?'사업인력 또는 일반인력':'예: 행정');
+
+    // 무기계약이면 제안 목록을 두 가지로 좁힌다. 자유 입력 칸이라 목록만으로는
+    // 막지 못하므로 저장할 때 한 번 더 본다(checkWageSeries).
+    const list=document.getElementById(dl);
+    if(list){
+      const opts=wage?WAGE_SERIES:_hrSeriesAll;
+      list.innerHTML=opts.map(v=>`<option value="${esc(v)}"></option>`).join('');
+    }
+    // 무기계약인데 사업/일반이 아닌 값이 남아 있으면 비워서 다시 고르게 한다
+    if(wage && ser.value && !WAGE_SERIES.includes(ser.value.trim())) ser.value='';
+
+    const bad = wage && ser.value.trim() && !WAGE_SERIES.includes(ser.value.trim());
+    ser.style.borderColor = bad ? 'var(--red)' : '';
+    if(note){
+      note.style.display=(senior||wage)?'':'none';
+      note.textContent=senior
+        ? '4급 이상은 직렬을 구분하지 않습니다.'
+        : '무기계약은 사업인력 또는 일반인력으로 입력해야 합니다.';
+      note.style.color=wage?'var(--accent)':'var(--t3)';
+    }
   });
+}
+
+// 저장 직전 검사. 무기계약은 정원표가 사업인력·일반인력으로 갈려 있어서, 다른 값으로
+// 넣으면 그 사람이 어느 정원에도 세어지지 않는다.
+function checkWageSeries(직급, 직렬){
+  if(!isWageRank(직급)) return true;
+  if(WAGE_SERIES.includes(String(직렬||'').trim())) return true;
+  toast('무기계약은 직렬을 사업인력 또는 일반인력으로 입력하세요','error');
+  return false;
 }
 
 async function openEmpModal(id){
@@ -4578,6 +4621,9 @@ async function openEmpModal(id){
 async function saveEmployee(){
   const 성명=document.getElementById('hr-f-name').value.trim();
   if(!성명){ toast('성명을 입력하세요','error'); return; }
+  const _rank=document.getElementById('hr-f-rank').value.trim();
+  const _ser=document.getElementById('hr-f-series').value.trim();
+  if(!checkWageSeries(_rank,_ser)){ document.getElementById('hr-f-series').focus(); return; }
   const data={
     ..._hrKeep,                                   // 화면에 없는 값은 있던 그대로 유지
     id:document.getElementById('hr-emp-id').value||undefined,
@@ -4694,6 +4740,7 @@ async function saveQuota(){
   if(!시설명||!직급||(!senior&&!직렬)){
     toast(senior?'시설과 직급을 입력하세요':'시설·직렬·직급을 모두 입력하세요','error'); return;
   }
+  if(!checkWageSeries(직급,직렬)){ document.getElementById('hr-q-series').focus(); return; }
   const data={ id:document.getElementById('hr-q-id').value||undefined, 시설명, 직렬, 직급,
     정원:parseInt(document.getElementById('hr-q-count').value)||0,
     비고:document.getElementById('hr-q-memo').value.trim() };
