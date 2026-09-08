@@ -349,12 +349,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .hr-table tr:hover td{background:rgba(255,255,255,0.02);}
 .hr-scroll{overflow-x:auto;}
 .hr-num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
-/* 정원표는 숫자를 맞춰 보는 표라 시설 이름까지 전부 가운데로 세운다.
-   하위시설은 공백 들여쓰기 대신 _facMark 의 └ 로 나타낸다(가운데 정렬에서는
-   공백이 양쪽으로 밀려 계층을 보여주지 못한다). */
+/* 정원표는 숫자를 맞춰 보는 표라 가운데로 세운다. 시설 이름 칸(.hr-fac)만
+   왼쪽에 둔다 — 하위부서를 왼쪽 여백으로 들여쓰는데, 가운데 정렬에서는 그
+   여백이 양쪽으로 밀려 계층이 보이지 않기 때문이다. */
 .hr-table.hr-center th,
 .hr-table.hr-center td{text-align:center;vertical-align:middle;}
 .hr-table.hr-center .hr-num{text-align:center;}
+.hr-table.hr-center td.hr-fac{text-align:left;}
 /* 직렬로 갈리는 직급(5급·6급·무기)의 소계 칸 — 낱개 값과 구별되게 옅게 깔아 준다 */
 .hr-table .hr-subtot{background:rgba(255,255,255,0.035);font-weight:700;}
 /* 합계 줄이 머리글 바로 아래로 올라오면 시설 줄과 묻힌다 — 밑줄로 갈라 준다 */
@@ -4423,13 +4424,13 @@ function renderRankMatrix(cont, mode){
     </thead>
     <tbody>
       <tr class="hr-totalrow" style="background:var(--bg2)">
-        <td><b>합계</b></td>
+        <td class="hr-fac"><b>합계</b></td>
         ${sumCell(facs.reduce((a,f)=>a+rowSum(f),0))}
         ${groups.map(g=>(isSplit(g)?sumCell(subTotal(g),'hr-subtot'):'')
           +g.cols.map(c=>sumCell(colSum(c))).join('')).join('')}
       </tr>
       ${facs.map(f=>`<tr>
-        <td style="white-space:nowrap">${_facMark(f)}${esc(f)}</td>
+        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+_facDepth(f)*20}px">${esc(f)}</td>
         ${sumCell(rowSum(f),'',used.some(c=>inUse(f,c)))}
         ${groups.map(g=>(isSplit(g)?sumCell(subSum(f,g),'hr-subtot',g.cols.some(c=>inUse(f,c))):'')+g.cols.map(c=>cell(f,c)).join('')).join('')}
       </tr>`).join('')}
@@ -4479,7 +4480,7 @@ function renderQuota(){
   // 정원표와 같은 꼴로 맞춘다 — 위 단은 구분, 아래 단에 시설·직렬·직급.
   // 합계는 머리글 바로 아래에 두고 밑줄로 시설 줄과 가른다.
   const 합계행=`<tr class="hr-totalrow" style="background:var(--bg2)">
-    <td colspan="3"><b>합계</b></td>
+    <td colspan="3" class="hr-fac"><b>합계</b></td>
     ${head(`<b>${sum('정원')}</b>`)}${head(`<b>${sum('현원')}</b>`)}
     <td class="hr-num"><b>${sum('현원')-sum('정원')>0?'+':''}${sum('현원')-sum('정원')}</b></td>
     <td colspan="2"></td></tr>`;
@@ -4499,7 +4500,7 @@ function renderQuota(){
       const cls=d>0?'hr-over':d<0?'hr-under':'hr-fit';
       const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
       return `<tr>
-        <td>${_facMark(r.시설명)}${esc(r.시설명)||'—'}</td>
+        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+_facDepth(r.시설명)*20}px">${esc(r.시설명)||'—'}</td>
         <td>${isSeniorRank(r.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(r.직렬)||'—')}</td><td>${esc(r.직급)||'—'}</td>
         ${head(r.정원)}${head(r.현원)}
         <td class="hr-num ${cls}">${txt}</td>
@@ -13622,12 +13623,10 @@ function _facIndent(name, base = 0) {
     return d ? '\u00A0'.repeat(d * 3) + '└ ' : '';
 }
 
-// 가운데 정렬한 표(정원표)에서 쓰는 계층 표시. 공백 들여쓰기는 가운데로 밀리면
-// 의미가 사라지므로, 하위시설임을 └ 로만 나타낸다.
-function _facMark(name, base = 0) {
+// 조직도에서 몇 단 아래인가. 정원표는 이 깊이만큼 왼쪽 여백을 줘서 들여쓴다.
+function _facDepth(name, base = 0) {
     const v = _facOrderMap.get(name);
-    const d = v ? Math.max(0, v.depth - base) : 0;
-    return d ? '└ '.repeat(Math.min(d, 2)) : '';
+    return v ? Math.max(0, v.depth - base) : 0;
 }
 
 // 볼 수 있는 시설만 남긴 조직도 순서 목록. 상위가 목록에서 빠지면 들여쓰기도 그만큼
