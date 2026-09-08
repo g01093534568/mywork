@@ -1925,6 +1925,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <input type="text" id="hr-search" placeholder="이름 · 사원번호 · 직급 · 직렬 · 전공 · 소속으로 검색" oninput="renderEmployees()" style="max-width:320px" />
             <span id="hr-emp-count" style="font-size:12px;color:var(--t3)"></span>
           </div>
+          <div class="hr-warn" id="hr-moves-warn" style="display:none;margin-bottom:12px"></div>
           <div id="hr-emp-list"></div>
         </div>
         <div id="hr-panel-quota" style="display:none">
@@ -2710,6 +2711,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group">
       <label>최근 인사이동 시설</label>
       <div style="font-size:11px;color:var(--t3);margin:-2px 0 6px">1번이 가장 최근입니다. 현소속 이전에 근무한 곳을 순서대로 고르세요.</div>
+      <div id="hr-f-moves-warn" style="display:none;font-size:11px;color:var(--red);margin:-2px 0 6px">데이터베이스에 칸이 없어 지금은 저장되지 않습니다(직원 명부 위 안내 참고).</div>
       <div id="hr-f-moves" style="display:grid;gap:6px"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
@@ -3545,6 +3547,9 @@ const DB = {
     if(_cg(k)) return _cg(k);
     const {data,error}=await SB.from('hr_employees').select('*').order('성명');
     if(error){ console.error('[hr]',error); return []; }
+    // 이동이력 컬럼을 아직 안 만들었는지 여기서 미리 안다 — 저장이 조용히 반쪽만
+    // 되는 것보다, 넣기 전에 화면에서 말해 주는 편이 낫다.
+    if(data && data.length) _movesColumnMissing = !('이동이력' in data[0]);
     return _cs(k,(data||[]).map(dbToEmp));
   },
   async upsertEmployee(e){ await _empWrite(rows=>SB.from('hr_employees').upsert(rows), [empToDb(e)]); },
@@ -4361,6 +4366,16 @@ function renderEmployees(){
   const cont=document.getElementById('hr-emp-list'); if(!cont) return;
   const q=(document.getElementById('hr-search')?.value||'').trim().toLowerCase();
   const list=_hrEmps.filter(e=>!q||[e.성명,e.사원번호,e.직급,e.직렬,e.전공,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
+  const warn=document.getElementById('hr-moves-warn');
+  if(warn){
+    warn.style.display=_movesColumnMissing?'':'none';
+    warn.innerHTML=_movesColumnMissing
+      ? '⚠️ <b>최근 인사이동 시설이 저장되지 않습니다.</b> 데이터베이스에 <code>이동이력</code> 칸이 아직 없습니다. '
+        + 'Supabase → SQL Editor 에서 아래 한 줄을 실행하세요.'
+        + '<div style="margin-top:6px;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg2);padding:6px 8px;border-radius:6px;user-select:all">'
+        + 'ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS 이동이력 jsonb DEFAULT \'[]\'::jsonb;</div>'
+      : '';
+  }
   const cnt=document.getElementById('hr-emp-count');
   if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명${q?` · 검색 ${list.length}명`:''}`;
   if(!list.length){
@@ -4641,6 +4656,8 @@ async function openEmpModal(id){
   // 자유 입력으로 두면 표기가 갈려 시뮬레이션에서 같은 시설로 안 묶인다.
   const _opts=await getOrgFacilityOptions(null);
   const _moves=_arr(e&&e.이동이력);
+  const _mw=document.getElementById('hr-f-moves-warn');
+  if(_mw) _mw.style.display=_movesColumnMissing?'':'none';
   const _wrap=document.getElementById('hr-f-moves');
   if(_wrap){
     _wrap.innerHTML=Array.from({length:HR_MOVE_SLOTS},(_,i)=>
@@ -4684,7 +4701,15 @@ async function saveEmployee(){
     이동이력:Array.from({length:HR_MOVE_SLOTS},(_,i)=>
       (document.getElementById('hr-f-move-'+i)?.value||'').trim()).filter(Boolean)
   };
-  try{ await DB.upsertEmployee(data); closeModal('hr-emp-modal'); await renderHrPage(); toast('저장했습니다'); }
+  try{
+    await DB.upsertEmployee(data);
+    closeModal('hr-emp-modal'); await renderHrPage();
+    // 이동이력만 빠진 채 저장됐다면 '저장했습니다'로 덮지 않는다 — 예전엔 경고가
+    // 성공 알림에 묻혀서, 안 들어간 줄도 모르고 계속 입력하게 됐다.
+    if(_movesColumnMissing && data.이동이력.length)
+      toast('저장했지만 최근 인사이동은 빠졌습니다 — supabase_hr_move.sql 을 실행하세요','error');
+    else toast('저장했습니다');
+  }
   catch(e){ toast('저장 실패: '+e.message,'error'); console.error(e); }
 }
 async function deleteEmployee(){
