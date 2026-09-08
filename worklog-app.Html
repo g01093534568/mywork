@@ -1519,6 +1519,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
       </div><!-- /daily-sub-work -->
 
+      <div id="daily-sub-perf" style="display:none">
+        <div class="perf-head">
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px" id="perf-subtitle"></div>
+          </div>
+          <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
+        </div>
+        <div id="perf-list"></div>
+      </div><!-- /daily-sub-perf -->
+
     </div>
 
     <!-- ── PERSONAL PAGE ── -->
@@ -1995,16 +2006,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div id="hr-quota-list"></div>
         </div>
       </div>
-      <div id="daily-sub-perf" style="display:none">
-        <div class="perf-head">
-          <div style="min-width:0">
-            <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:3px" id="perf-subtitle"></div>
-          </div>
-          <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
-        </div>
-        <div id="perf-list"></div>
-      </div>
+      
       <div id="admin-org" class="admin-panel">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-primary btn-sm" onclick="openOrgAdd()">+ 조직 추가</button>
@@ -2741,11 +2743,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div id="org-rn-loc-row" style="display:none">
       <div class="form-group"><label>시설 위치(주소)</label>
         <input type="text" id="org-rn-addr" placeholder="예: 울산광역시 울주군 상북면 등억알프스리 …" />
-        <div style="font-size:11px;color:var(--t3);margin-top:4px">인사배치에서 직원 거주지와의 거리를 가늠하는 데 씁니다.</div></div>
-      <div class="form-row">
-        <div class="form-group"><label>위도</label><input type="text" id="org-rn-lat" placeholder="예: 35.5684 (선택)" /></div>
-        <div class="form-group"><label>경도</label><input type="text" id="org-rn-lng" placeholder="예: 129.1120 (선택)" /></div>
-      </div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">인사배치에서 직원 거주지와 얼마나 가까운지 가늠하는 데 씁니다 — 행정구역(읍·면·동)까지 적으면 더 정확합니다.</div></div>
       <div id="org-rn-loc-warn" style="display:none;font-size:11px;color:var(--red);margin:-4px 0 8px"></div>
     </div>
     <div id="org-rn-note" style="font-size:11px;color:var(--t3);line-height:1.7"></div>
@@ -3544,11 +3542,11 @@ const DB = {
   async getUsers(){
     const k='users';
     if(_cg(k)) return _cg(k);
-    // 위치 칸(시설주소·위도·경도)은 supabase_placement_setup.sql 로 만든다. 아직 없으면
+    // 시설주소 칸은 supabase_placement_setup.sql 로 만든다. 아직 없으면
     // 조회가 통째로 실패하므로, 실패하면 위치 없이 한 번 더 읽는다.
     const BASE='id,성명,시설명,사원번호,role,created_at,parent_facility,sort_order';
     if(!_orgLocMissing){
-      const r=await SB.from('users').select(BASE+',시설주소,위도,경도');
+      const r=await SB.from('users').select(BASE+',시설주소');
       if(!r.error) return _cs(k,r.data||[]);
       _orgLocMissing=true;
       console.warn('[users] 위치 칸 없음 — supabase_placement_setup.sql 미실행');
@@ -3557,7 +3555,7 @@ const DB = {
   },
   // 시설 위치 전용 — 이름·권한은 손대지 않는다
   async updateOrgLocation(id, loc){
-    const {error}=await SB.from('users').update({시설주소:loc.시설주소||null, 위도:loc.위도, 경도:loc.경도}).eq('id',id);
+    const {error}=await SB.from('users').update({시설주소:loc.시설주소||null}).eq('id',id);
     if(error) throw error; _cd('users');
   },
   // 조직 이동 전용 — 상위와 순서만 바꾼다(패스워드·성명·권한은 손대지 않는다)
@@ -4777,7 +4775,7 @@ async function renderPlacePage(){
   // 준비가 덜 된 것을 먼저 말해 준다 — 돌려 보고 나서 "왜 다 미배정이지" 하지 않도록
   const miss=[];
   if(_fixedColumnMissing) miss.push('사전 배치를 저장할 칸(배치고정)');
-  if(_orgLocMissing)      miss.push('시설 위치 칸(시설주소·위도·경도)');
+  if(_orgLocMissing)      miss.push('시설 주소 칸(시설주소)');
   const warn=document.getElementById('place-warn');
   if(warn){
     warn.style.display=miss.length?'':'none';
@@ -10046,8 +10044,6 @@ async function openOrgRename(id){
   document.getElementById('org-rn-old').value=u.시설명;
   document.getElementById('org-rn-new').value=u.시설명;
   document.getElementById('org-rn-addr').value=u.시설주소||'';
-  document.getElementById('org-rn-lat').value=(u.위도??'')===null?'':(u.위도??'');
-  document.getElementById('org-rn-lng').value=(u.경도??'')===null?'':(u.경도??'');
   // 무엇이 함께 바뀌는지 미리 알린다 — 이름이 여러 표에 흩어져 있어 되돌리기 번거롭다
   document.getElementById('org-rn-note').innerHTML=
     `바꾸면 이 이름을 쓰는 자료가 함께 옮겨집니다 — ${kids?`하위 조직 <b>${kids}개</b>의 상위 이름, `:''}`
@@ -10057,22 +10053,11 @@ async function openOrgRename(id){
   setTimeout(()=>{ const el=document.getElementById('org-rn-new'); el?.focus(); el?.select(); },50);
 }
 
-// 위치 칸을 읽어 검사한다. 형식이 틀리면 null 을 돌려주고 안내를 띄운다.
-// 좌표는 선택이라 비어 있으면 null 로 저장한다(0 이 아니다 — 0,0 은 아프리카 앞바다다).
+// 시설 위치는 주소 한 줄만 받는다. 좌표는 두지 않는다 —
+// 직원 주소에 좌표가 없어 실거리를 어차피 계산할 수 없고, 쓰지도 않을 값을
+// 받아 두면 채워야 할 칸처럼 보인다.
 function _readOrgLocFields(){
-  const raw=v=>String(v||'').trim();
-  const 시설주소=raw(document.getElementById('org-rn-addr')?.value);
-  const parse=(v,lo,hi,name)=>{
-    const t=raw(v); if(!t) return null;
-    const n=Number(t);
-    if(!Number.isFinite(n)||n<lo||n>hi){ toast(`${name}는 ${lo}~${hi} 사이의 숫자여야 합니다`,'error'); return undefined; }
-    return n;
-  };
-  const 위도=parse(document.getElementById('org-rn-lat')?.value,-90,90,'위도');
-  if(위도===undefined) return null;
-  const 경도=parse(document.getElementById('org-rn-lng')?.value,-180,180,'경도');
-  if(경도===undefined) return null;
-  return {시설주소, 위도, 경도};
+  return { 시설주소: String(document.getElementById('org-rn-addr')?.value||'').trim() };
 }
 
 async function deleteOrgNode(){
