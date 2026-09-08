@@ -1920,7 +1920,10 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" onclick="openQuotaSheet()">📋 시설별 일괄 입력</button>
             <button class="btn btn-secondary btn-sm" onclick="openQuotaModal()">+ 한 건 추가</button>
-            <span style="font-size:11px;color:var(--t3)">현원은 직원 명부를 세어 자동으로 나옵니다</span>
+            <div class="gcal-mode-switch" style="margin-left:auto">
+              <button class="gcal-mode-btn active" id="qv-matrix" onclick="setQuotaView('matrix')">📊 정원표</button>
+              <button class="gcal-mode-btn" id="qv-list" onclick="setQuotaView('list')">📋 과부족</button>
+            </div>
           </div>
           <div id="hr-quota-list"></div>
         </div>
@@ -4277,8 +4280,72 @@ function renderEmployees(){
       </tr>`).join('')}</tbody></table></div>`;
 }
 
+// 정원 보기 — 정원표 모양(행렬) / 과부족 목록
+let _quotaView='matrix';
+function setQuotaView(v){
+  _quotaView = v==='list' ? 'list' : 'matrix';
+  document.getElementById('qv-matrix')?.classList.toggle('active',_quotaView==='matrix');
+  document.getElementById('qv-list')?.classList.toggle('active',_quotaView==='list');
+  renderQuota();
+}
+
+// 원본 정원표와 같은 행렬. 시설이 행이고 직급·직렬이 열이며, 머리글이 2단이다.
+// 숫자만 늘어놓은 목록보다 이쪽이 원본과 대조하기 쉽다.
+function renderQuotaMatrix(cont){
+  const cols=quotaColumns();
+  const facs=[];
+  // 조직도 순서대로 세우되, 정원이 등록된 시설만 보여준다(빈 줄이 스무 개 깔리면 읽기 어렵다)
+  [...new Set(_hrQuota.map(q=>q.시설명))].forEach(f=>facs.push(f));
+  facs.sort((a,b)=>{ const oa=_facOrder(a),ob=_facOrder(b); return oa!==ob?oa-ob:(a||'').localeCompare(b||'','ko'); });
+  if(!facs.length){
+    cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 시설별 일괄 입력이나 엑셀 업로드로 채우세요.</p></div>';
+    return;
+  }
+  const val=(f,c)=>{ const q=_hrQuota.find(x=>x.시설명===f&&x.직급===c.직급&&x.직렬===c.직렬); return q?q.정원:0; };
+  // 아무 시설에서도 안 쓰는 열은 접는다 — 20열을 다 펼치면 가로로 너무 길다
+  const used=cols.filter(c=>facs.some(f=>val(f,c)>0));
+  const groups=[];   // 2단 머리글: 직급으로 묶고, 직렬이 갈리는 직급만 아래 단을 갖는다
+  used.forEach(c=>{
+    const g=groups[groups.length-1];
+    if(g && g.직급===c.직급) g.cols.push(c); else groups.push({직급:c.직급, cols:[c]});
+  });
+  const num=n=>n?`<td class="hr-num">${n}</td>`:'<td class="hr-num" style="color:var(--t3)">·</td>';
+  const rowSum=f=>used.reduce((a,c)=>a+val(f,c),0);
+  const colSum=c=>facs.reduce((a,f)=>a+val(f,c),0);
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
+    <thead>
+      <tr>
+        <th rowspan="2">시설</th><th rowspan="2" class="hr-num">계</th>
+        ${groups.map(g=>g.cols.length===1&&!g.cols[0].직렬
+          ? `<th rowspan="2" class="hr-num">${esc(g.직급)}</th>`
+          : `<th colspan="${g.cols.length}" style="text-align:center">${esc(g.직급)}</th>`).join('')}
+      </tr>
+      <tr>
+        ${groups.filter(g=>!(g.cols.length===1&&!g.cols[0].직렬))
+          .flatMap(g=>g.cols.map(c=>`<th class="hr-num" style="font-size:10px">${esc(c.직렬)}</th>`)).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${facs.map(f=>`<tr>
+        <td style="white-space:nowrap">${_facIndent(f)}${esc(f)}</td>
+        <td class="hr-num"><b>${rowSum(f)}</b></td>
+        ${used.map(c=>num(val(f,c))).join('')}
+      </tr>`).join('')}
+      <tr style="background:var(--bg2)">
+        <td><b>합계</b></td>
+        <td class="hr-num"><b>${facs.reduce((a,f)=>a+rowSum(f),0)}</b></td>
+        ${used.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')}
+      </tr>
+    </tbody></table></div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">
+      정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 과부족은 <b>📋 과부족</b> 보기에서 확인하세요.
+    </div>`;
+}
+
 // 정원과 현원을 같은 표에서 맞춰 본다. 현원은 직원 명부를 세어 구하므로 따로 저장하지 않는다.
 function renderQuota(){
+  const _c=document.getElementById('hr-quota-list');
+  if(_c && _quotaView==='matrix'){ renderQuotaMatrix(_c); return; }
   const cont=document.getElementById('hr-quota-list'); if(!cont) return;
   const head=(t)=>`<td class="hr-num">${t}</td>`;
   // 정원에 없는 조합이라도 사람이 배치돼 있으면 보여줘야 한다(정원 0의 초과 배치)
