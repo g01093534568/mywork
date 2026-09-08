@@ -15455,6 +15455,17 @@ async function uploadFacilitiesExcel(event) {
             return;
         }
 
+        // 비밀번호가 빈 줄은 받지 않는다. 그대로 해싱하면 sha256('') 이 들어가는데
+        // 그 값은 누구나 계산할 수 있는 상수라, 그 계정으로 아무나 로그인하게 된다.
+        const noPw = facilities.filter(f => !String(f.password || '').trim());
+        if (noPw.length) {
+            alert(`비밀번호가 비어 있는 줄이 ${noPw.length}개 있습니다.\n`
+                + `${noPw.slice(0,3).map(f=>f.facilityName||'(이름없음)').join(', ')}${noPw.length>3?' 외':''}\n\n`
+                + `비밀번호 없이 만들면 누구나 로그인할 수 있게 됩니다. 채운 뒤 다시 올려주세요.`);
+            event.target.value = '';
+            return;
+        }
+
         const confirmed = confirm(`${facilities.length}개의 시설을 추가하시겠습니까?`);
         if (!confirmed) {
             event.target.value = '';
@@ -15464,7 +15475,7 @@ async function uploadFacilitiesExcel(event) {
         const insertRows = await Promise.all(facilities.map(async f => ({
             시설명: f.facilityName || '',
             사원번호: f.id || '',
-            패스워드: isHashed(f.password) ? f.password : await hashPassword(f.password || ''),
+            패스워드: isHashed(f.password) ? f.password : await hashPassword(String(f.password).trim()),
             role: f.role || 'user',
             parent_facility: f.parentFacility || ''
         })));
