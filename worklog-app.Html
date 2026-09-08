@@ -4342,6 +4342,9 @@ function renderEmployees(){
     }
     return (a.성명||'').localeCompare(b.성명||'','ko');
   });
+  // 명부에 나온 시설끼리만 견준 깊이 — 상위가 명부에 없으면 그만큼 당겨야
+  // 그 시설만 혼자 오른쪽으로 밀려 보이지 않는다(정원표와 같은 규칙)
+  const depthOf=_facDepthMap(sorted.map(e=>e.시설명));
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
     <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>전공</th><th>현소속</th><th>생년월일</th><th>주소</th><th style="width:60px"></th></tr></thead>
     <tbody>${sorted.map(e=>`<tr>
@@ -4349,7 +4352,7 @@ function renderEmployees(){
         <td>${esc(e.직급)||'—'}</td>
         <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
         <td>${esc(e.전공)||'—'}</td>
-        <td>${_facIndent(e.시설명)}${esc(e.시설명)||'—'}</td>
+        <td>${_facIndentDepth(depthOf.get(e.시설명)||0)}${esc(e.시설명)||'—'}</td>
         <td>${e.생년월일?esc(e.생년월일)+`<div style="font-size:11px;color:var(--t3)">${_empAge(e.생년월일)}</div>`:'—'}</td>
         <td style="max-width:260px;word-break:keep-all;font-size:12px;color:var(--t2)">${esc(e.주소)||'—'}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="openEmpModal('${e.id}')">✏️</button></td>
@@ -4397,6 +4400,7 @@ function renderRankMatrix(cont, mode){
     if(g && g.직급===c.직급) g.cols.push(c); else groups.push({직급:c.직급, cols:[c]});
   });
 
+  const depthOf=_facDepthMap(facs);   // 표에 나온 시설끼리만 견준 들여쓰기 깊이
   const gapCls=d=>d>0?'hr-over':d<0?'hr-under':'hr-fit';
   const signed=d=>`${d>0?'+':''}${d}`;
   const dot='<span style="color:var(--t3)">·</span>';
@@ -4449,7 +4453,7 @@ function renderRankMatrix(cont, mode){
           +g.cols.map(c=>sumCell(colSum(c))).join('')).join('')}
       </tr>
       ${facs.map(f=>`<tr>
-        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+_facDepth(f)*20}px">${esc(f)}</td>
+        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+(depthOf.get(f)||0)*20}px">${esc(f)}</td>
         ${sumCell(rowSum(f),'',used.some(c=>inUse(f,c)))}
         ${groups.map(g=>(isSplit(g)?sumCell(subSum(f,g),'hr-subtot',g.cols.some(c=>inUse(f,c))):'')+g.cols.map(c=>cell(f,c)).join('')).join('')}
       </tr>`).join('')}
@@ -4493,6 +4497,7 @@ function renderQuota(){
     ? `<div class="hr-warn" style="margin:0 0 12px">현소속이 비어 있는 직원 <b>${noPlace}명</b>은 현원에 세어지지 않습니다.</div>`
     : '';
   const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
+  const depthOf=_facDepthMap(rows.map(r=>r.시설명));
 
   // 정원표와 똑같은 서식(시설 × 직급·직렬)으로 과부족을 먼저 보여준다.
   // 그 아래에 상세 표를 둔다 — 정원을 고치는 ✏️ 는 상세 표에만 있다.
@@ -4522,7 +4527,7 @@ function renderQuota(){
       const cls=d>0?'hr-over':d<0?'hr-under':'hr-fit';
       const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
       return `<tr>
-        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+_facDepth(r.시설명)*20}px">${esc(r.시설명)||'—'}</td>
+        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+(depthOf.get(r.시설명)||0)*20}px">${esc(r.시설명)||'—'}</td>
         <td>${isSeniorRank(r.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(r.직렬)||'—')}</td><td>${esc(r.직급)||'—'}</td>
         ${head(r.정원)}${head(r.현원)}
         <td class="hr-num ${cls}">${txt}</td>
@@ -13639,16 +13644,37 @@ function _facBaseDepth(names) {
     (names || []).forEach(n => { const v = _facOrderMap.get(n); if (v && v.depth < base) base = v.depth; });
     return base === Infinity ? 0 : base;
 }
-function _facIndent(name, base = 0) {
-    const v = _facOrderMap.get(name);
-    const d = v ? Math.max(0, v.depth - base) : 0;
+function _facIndentDepth(d) {
     return d ? '\u00A0'.repeat(d * 3) + '└ ' : '';
 }
+function _facIndent(name, base = 0) {
+    const v = _facOrderMap.get(name);
+    return _facIndentDepth(v ? Math.max(0, v.depth - base) : 0);
+}
 
-// 조직도에서 몇 단 아래인가. 정원표는 이 깊이만큼 왼쪽 여백을 줘서 들여쓴다.
+// 조직도에서 몇 단 아래인가.
 function _facDepth(name, base = 0) {
     const v = _facOrderMap.get(name);
     return v ? Math.max(0, v.depth - base) : 0;
+}
+
+// 표에 실제로 나온 시설만 놓고 다시 센 들여쓰기 깊이.
+// 조직도 깊이를 그대로 쓰면, 중간 상위가 표에 없는 시설(정원이 안 잡힌 사업소 밑의
+// 운동장·체육시설 같은)만 혼자 한 단 더 밀려 보인다. 표에 남은 조상만 세어
+// 형제끼리 같은 자리에 서게 한다 — 시설 드롭다운(getOrgFacilityOptions)과 같은 규칙이다.
+function _facDepthMap(names) {
+    const shown = new Set(names);
+    const ordered = [..._facOrderMap.entries()].sort((a, b) => a[1].order - b[1].order);
+    const stack = [];   // 표에 남은 조상들 {depth, indent}
+    const out = new Map();
+    for (const [name, v] of ordered) {
+        if (!shown.has(name)) continue;
+        while (stack.length && stack[stack.length - 1].depth >= v.depth) stack.pop();
+        const indent = stack.length ? stack[stack.length - 1].indent + 1 : 0;
+        stack.push({ depth: v.depth, indent });
+        out.set(name, indent);
+    }
+    return out;
 }
 
 // 볼 수 있는 시설만 남긴 조직도 순서 목록. 상위가 목록에서 빠지면 들여쓰기도 그만큼
