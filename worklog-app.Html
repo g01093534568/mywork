@@ -3503,6 +3503,7 @@ const DB = {
   // 시설·직렬·직급 조합이 유일키라 같은 조합을 다시 넣으면 정원만 갱신된다
   async upsertQuota(q){ const {error}=await SB.from('hr_quota').upsert(quotaToDb(q),{onConflict:'시설명,직렬,직급'}); if(error)throw error; _cd('hr:quota'); },
   async deleteQuota(id){ const {error}=await SB.from('hr_quota').delete().eq('id',id); if(error)throw error; _cd('hr:quota'); },
+  async deleteQuotas(ids){ if(!ids.length)return; const {error}=await SB.from('hr_quota').delete().in('id',ids); if(error)throw error; _cd('hr:quota'); },
   async insertQuotas(rows){ if(!rows.length)return; const {error}=await SB.from('hr_quota').upsert(rows.map(quotaToDb),{onConflict:'시설명,직렬,직급'}); if(error)throw error; _cd('hr:quota'); },
 
   // 웹푸시 구독 — 서버 크론이 이 표를 읽어 알림을 보낸다.
@@ -4218,6 +4219,18 @@ const QUOTA_SERIES={ '5급':SERIES_GENERAL, '6급':SERIES_GENERAL, '무기':['�
 // 그 직급이 직렬로 갈리는가. 갈리지 않으면 빈 문자열 하나로 저장한다.
 function seriesFor(rank){ return QUOTA_SERIES[rank] || []; }
 
+// 엑셀 정원 시트의 열. 정원표의 2단 머리글(직급 → 직렬)을 한 줄로 편다.
+//   임원 · 2급 · 3급 · 4급 · 5급-행정 · … · 무기-일반인력
+function quotaColumns(){
+  const out=[];
+  for(const r of QUOTA_RANKS){
+    const ss=seriesFor(r);
+    if(ss.length) ss.forEach(x=>out.push({key:`${r}-${x}`, 직급:r, 직렬:x}));
+    else out.push({key:r, 직급:r, 직렬:''});
+  }
+  return out;
+}
+
 function isSeniorRank(rank){
   const r=String(rank||'').trim();
   if(r==='임원') return true;                 // 임원도 직렬을 나누지 않는다
@@ -4506,28 +4519,50 @@ function _empToRow(e){
   return {id:e.id, 현소속:e.시설명, 성명:e.성명, 사원번호:e.사원번호, 직급:e.직급,
           직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공};
 }
-function _hrWorkbook(empRows,quoRows){
+function _hrWorkbook(empRows,quoRows,quoHeader){
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(empRows,{header:HR_EMP_COLS}),'직원');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quoRows),'정원');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quoRows, quoHeader?{header:quoHeader}:undefined),'정원');
   return wb;
 }
 
-function downloadHrTemplate(){
+// 정원 시트를 정원표와 같은 행렬로 만든다 — 시설이 행, 직급·직렬이 열.
+// 평평한 목록(시설명/직렬/직급/정원)으로 주면 100줄이 넘어 원본 표와 대조가 어렵다.
+// '계' 열은 확인용이다. 올릴 때는 무시하고 각 칸을 다시 더한다.
+async function _quotaMatrix(){
+  const cols=quotaColumns();
+  const header=['시설',...cols.map(c=>c.key),'계'];
+  const facs=(await getOrgFacilityOptions(null)).map(o=>o.name);
+  // 조직도에 없는 이름으로 저장된 정원도 빠뜨리지 않는다
+  _hrQuota.forEach(q=>{ if(q.시설명 && !facs.includes(q.시설명)) facs.push(q.시설명); });
+  const rows=facs.map(f=>{
+    const row={시설:f}; let sum=0;
+    cols.forEach(c=>{
+      const q=_hrQuota.find(x=>x.시설명===f && x.직급===c.직급 && x.직렬===c.직렬);
+      const n=q?q.정원:0;
+      row[c.key]=n||'';        // 0은 빈 칸으로 — 표가 숫자로 빽빽하면 읽기 어렵다
+      sum+=n;
+    });
+    row['계']=sum||'';
+    return row;
+  });
+  return {rows,header};
+}
+
+async function downloadHrTemplate(){
   const emp=[{id:'',현소속:'울주군립야영장',성명:'홍길동',사원번호:'091111',직급:'6급',
               직렬:'행정',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',전공:'행정학'},
              {id:'',현소속:'본부장',성명:'김철수',사원번호:'091112',직급:'4급',
               직렬:'',생년월일:'1978-07-20',주소:'울산광역시 남구 …',전공:'토목공학'}];
-  const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''},
-             {시설명:'본부장',직렬:'',직급:'4급',정원:1,비고:'4급 이상은 직렬을 비워둡니다'}];
-  XLSX.writeFile(_hrWorkbook(emp,quo),'인사정보_양식.xlsx');
+  // 정원 양식은 조직도의 모든 시설을 행으로 깔아 준다 — 숫자만 채우면 된다
+  const {rows,header}=await _quotaMatrix();
+  XLSX.writeFile(_hrWorkbook(emp,rows,header),'인사정보_양식.xlsx');
 }
 
-function downloadHrExcel(){
-  if(!_hrEmps.length && !_hrQuota.length){ toast('내려받을 자료가 없습니다. 빈 양식을 받아 채우세요.','error'); return; }
+async function downloadHrExcel(){
   const emp=_hrEmps.map(_empToRow);
-  const quo=_hrQuota.map(q=>({시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,비고:q.비고}));
-  XLSX.writeFile(_hrWorkbook(emp,quo),`인사정보_${today()}.xlsx`);
+  const {rows,header}=await _quotaMatrix();
+  XLSX.writeFile(_hrWorkbook(emp,rows,header),`인사정보_${today()}.xlsx`);
 }
 
 async function uploadHrExcel(ev){
@@ -4550,23 +4585,48 @@ async function uploadHrExcel(ev){
       전공:String(r.전공||'').trim(),
       시설명:String(r.현소속||r.배치시설||r.시설명||'').trim()
     })).filter(r=>r.성명);
-    const quoRows=quos.map(r=>({
-      시설명:String(r.시설명||'').trim(),
-      직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
-      직급:String(r.직급||'').trim(), 정원:parseInt(r.정원)||0, 비고:String(r.비고||'').trim()
-    })).filter(r=>r.시설명&&r.직급&&(isSeniorRank(r.직급)||r.직렬));   // 4급 이상은 직렬이 없어도 받는다
-    if(!empRows.length&&!quoRows.length){ alert('읽을 수 있는 행이 없습니다. 성명(직원) 또는 시설명·직렬·직급(정원)이 채워져 있어야 합니다.'); return; }
+    // 정원 시트는 두 모양을 다 받는다:
+    //  · 행렬 — 시설이 행, '5급-행정' 같은 열. 지금 내려주는 모양.
+    //  · 목록 — 시설명/직렬/직급/정원. 예전에 받아간 파일을 위해 남겨둔다.
+    const cols=quotaColumns();
+    const isMatrix = quos.length && !('직급' in quos[0]);
+    let quoRows=[], quoDel=[];
+    if(isMatrix){
+      for(const r of quos){
+        const fac=String(r.시설||r.시설명||'').trim();
+        if(!fac) continue;
+        for(const c of cols){
+          const raw=r[c.key];
+          const n=parseInt(raw)||0;
+          if(n>0) quoRows.push({시설명:fac, 직렬:c.직렬, 직급:c.직급, 정원:n, 비고:''});
+          else {
+            // 비웠거나 0으로 바꾼 칸은 줄을 지운다 — 그래야 받아서 고친 게 그대로 반영된다
+            const had=_hrQuota.find(q=>q.시설명===fac&&q.직급===c.직급&&q.직렬===c.직렬);
+            if(had) quoDel.push(had.id);
+          }
+        }
+      }
+    } else {
+      quoRows=quos.map(r=>({
+        시설명:String(r.시설명||'').trim(),
+        직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
+        직급:String(r.직급||'').trim(), 정원:parseInt(r.정원)||0, 비고:String(r.비고||'').trim()
+      })).filter(r=>r.시설명&&r.직급&&(isSeniorRank(r.직급)||r.직렬));   // 4급 이상은 직렬이 없어도 받는다
+    }
+    if(!empRows.length&&!quoRows.length&&!quoDel.length){ alert('읽을 수 있는 행이 없습니다. 직원 시트는 성명이, 정원 시트는 시설과 숫자가 채워져 있어야 합니다.'); return; }
     // id 가 있으면 그 사람을 고치고, 없으면 새로 만든다. 이름만으로는 합치지 않는다 —
     // 동명이인이 있을 수 있고, 잘못 합치면 되돌리기 어렵다.
     const willUpd=empRows.filter(r=>r.id).length, willIns=empRows.length-willUpd;
-    if(!confirm(`직원 ${willIns}명 추가${willUpd?`, ${willUpd}명 수정`:''}, 정원 ${quoRows.length}건.\n\n`
+    if(!confirm(`직원 ${willIns}명 추가${willUpd?`, ${willUpd}명 수정`:''}, 정원 ${quoRows.length}칸`
+      + `${quoDel.length?` (빈 칸 ${quoDel.length}개는 삭제)`:''}.\n\n`
       + `id 칸이 있는 줄은 그 직원을 고치고, 비어 있으면 새로 만듭니다.\n`
-      + `정원은 시설·직렬·직급이 같으면 덮어씁니다.\n\n계속할까요?`)) return;
+      + `정원은 시설·직급·직렬이 같으면 덮어쓰고, 빈 칸은 지웁니다.\n\n계속할까요?`)) return;
     let r={수정:0,추가:0};
     if(empRows.length) r=await DB.saveEmployeesBulk(empRows);
     if(quoRows.length) await DB.insertQuotas(quoRows);
+    if(quoDel.length) await DB.deleteQuotas(quoDel);
     await renderHrPage();
-    alert(`완료했습니다.\n직원 추가 ${r.추가}명 · 수정 ${r.수정}명, 정원 ${quoRows.length}건`);
+    alert(`완료했습니다.\n직원 추가 ${r.추가}명 · 수정 ${r.수정}명\n정원 ${quoRows.length}칸${quoDel.length?` · 삭제 ${quoDel.length}칸`:''}`);
   }catch(e){ console.error('[hr upload]',e); alert('엑셀 처리 중 오류: '+e.message); }
 }
 
