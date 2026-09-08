@@ -4291,6 +4291,18 @@ function quotaColumns(){
   return out;
 }
 
+// 급수 정렬 순서. 임원이 맨 위, 그 다음 숫자가 작은 급수부터, 무기계약은 맨 아래.
+// QUOTA_RANKS 에 없는 급수(7급 등)가 들어와도 숫자대로 제자리에 들어간다.
+function _rankOrder(rank){
+  const r=String(rank||'').trim();
+  if(!r) return 998;
+  if(r==='임원') return 0;
+  const m=r.match(/(\d+)\s*급/);
+  if(m) return parseInt(m[1],10);          // 2급=2 … 6급=6 … 7급=7
+  if(r==='무기'||r.startsWith('무기')) return 100;
+  return 900;
+}
+
 function isSeniorRank(rank){
   const r=String(rank||'').trim();
   if(r==='임원') return true;                 // 임원도 직렬을 나누지 않는다
@@ -4316,11 +4328,18 @@ function renderEmployees(){
     cont.innerHTML=`<div class="empty-state"><div class="icon">👥</div><p>${_hrEmps.length?'검색 결과가 없습니다.':'등록된 직원이 없습니다. 엑셀 양식을 받아 한 번에 올리거나, 직원 추가를 눌러 한 명씩 넣으세요.'}</p></div>`;
     return;
   }
-  // 조직도 순서로 — 시설 목록·드롭다운과 같은 기준이라 눈이 헷갈리지 않는다
-  // 조직도 순서로 세우고, 같은 소속 안에서는 이름 순
+  // 조직도 순서로 — 시설 목록·정원표와 같은 기준이라 눈이 헷갈리지 않는다.
+  // 한 시설 안에서는 급수(임원→2급→…→무기), 같은 급수면 사원번호 순.
   const sorted=list.slice().sort((a,b)=>{
     const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
     if(oa!==ob) return oa-ob;
+    const ra=_rankOrder(a.직급), rb=_rankOrder(b.직급);
+    if(ra!==rb) return ra-rb;
+    const na=(a.사원번호||'').trim(), nb=(b.사원번호||'').trim();
+    if(na!==nb){
+      if(!na) return 1; if(!nb) return -1;      // 사원번호가 없는 사람은 뒤로
+      return na.localeCompare(nb,'ko',{numeric:true});
+    }
     return (a.성명||'').localeCompare(b.성명||'','ko');
   });
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
@@ -4459,7 +4478,10 @@ function renderQuota(){
   }).sort((a,b)=>{
     const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
     if(oa!==ob) return oa-ob;
-    return (a.직렬||'').localeCompare(b.직렬||'','ko')||(a.직급||'').localeCompare(b.직급||'','ko');
+    // 직급을 글자 순으로 세우면 5급·6급·무기·임원이 된다 — 급수 순서로 세운다
+    const ra=_rankOrder(a.직급), rb=_rankOrder(b.직급);
+    if(ra!==rb) return ra-rb;
+    return (a.직렬||'').localeCompare(b.직렬||'','ko');
   });
   if(!rows.length){
     cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 정원 추가를 눌러 시설·직렬·직급별로 넣으세요.</p></div>';
