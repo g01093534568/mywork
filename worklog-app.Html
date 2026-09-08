@@ -1894,7 +1894,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="openEmpModal()">+ 직원 추가</button>
-            <button class="btn btn-secondary btn-sm" onclick="downloadHrTemplate()">📥 엑셀 양식</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadHrExcel()">📥 엑셀 다운로드</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadHrTemplate()">📄 빈 양식</button>
             <label class="btn btn-secondary btn-sm" style="cursor:pointer">📤 엑셀 업로드
               <input type="file" id="hrExcelInput" accept=".xlsx,.xls" style="display:none" onchange="uploadHrExcel(event)" />
             </label>
@@ -3389,11 +3390,20 @@ const DB = {
     const {error}=await SB.from('users').update({parent_facility:parent||null, sort_order:order}).eq('id',id);
     if(error) throw error; _cd('users');
   },
-  async upsertUser(u){ const row={id:u.id,성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role,parent_facility:u.parent_facility||null}; const hasPw=u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!==''; if(hasPw) row.패스워드=u.패스워드;
-    if(u._isEdit&&!hasPw){ // 수정인데 패스워드 미입력 → 기존 패스워드 유지를 위해 update만 수행
+  // upsert 를 쓰지 않는다. upsert 는 INSERT ... ON CONFLICT DO UPDATE 로 나가는데,
+  // 그 구문은 SELECT 권한을 요구한다. 패스워드를 감추려고 users 의 테이블 SELECT 를
+  // 걷어낸 뒤로는 42501(permission denied)로 막혔다 — 사용자 추가와
+  // 비밀번호를 바꾸는 수정이 통째로 실패했다.
+  // 새로 만드는지 고치는지는 _isEdit 로 이미 알 수 있으므로 나눠서 부른다.
+  // 순수 INSERT 와 UPDATE 는 SELECT 권한이 없어도 된다.
+  async upsertUser(u){
+    const row={성명:u.성명,시설명:u.시설명,사원번호:u.사원번호,role:u.role,parent_facility:u.parent_facility||null};
+    const hasPw=u.패스워드!==undefined&&u.패스워드!==null&&u.패스워드!=='';
+    if(hasPw) row.패스워드=u.패스워드;          // 비우면 기존 비밀번호를 그대로 둔다
+    if(u._isEdit){
       const {error}=await SB.from('users').update(row).eq('id',u.id); if(error)throw error;
     } else {
-      const {error}=await SB.from('users').upsert(row,{onConflict:'id'}); if(error)throw error;
+      const {error}=await SB.from('users').insert({...row, id:u.id}); if(error)throw error;
     }
     _cd('users'); },
   async deleteUser(id){ const {error}=await SB.from('users').delete().eq('id',id); if(error)throw error; _cd('users'); },
@@ -3458,6 +3468,15 @@ const DB = {
   async upsertEmployee(e){ const {error}=await SB.from('hr_employees').upsert(empToDb(e)); if(error)throw error; _cd('hr:emp'); },
   async deleteEmployee(id){ const {error}=await SB.from('hr_employees').delete().eq('id',id); if(error)throw error; _cd('hr:emp'); },
   async insertEmployees(rows){ if(!rows.length)return; const {error}=await SB.from('hr_employees').insert(rows.map(empToDb)); if(error)throw error; _cd('hr:emp'); },
+  // 엑셀 왕복 저장 — id 가 있으면 그 사람을 고치고, 없으면 새로 만든다.
+  // 전부 insert 하면 받아서 고쳐 올릴 때 같은 사람이 한 번 더 생겨 명부가 두 배가 된다.
+  async saveEmployeesBulk(rows){
+    const upd=rows.filter(r=>r.id), ins=rows.filter(r=>!r.id);
+    if(upd.length){ const {error}=await SB.from('hr_employees').upsert(upd.map(empToDb)); if(error)throw error; }
+    if(ins.length){ const {error}=await SB.from('hr_employees').insert(ins.map(empToDb)); if(error)throw error; }
+    _cd('hr:emp');
+    return {수정:upd.length, 추가:ins.length};
+  },
 
   async getQuota(){
     const k='hr:quota';
@@ -4370,7 +4389,8 @@ async function deleteQuota(){
 
 // ── 엑셀 일괄 입력 ──────────────────────────────────────────
 // 전 직원을 한 명씩 넣는 건 현실적이지 않다. 시트 두 장(직원·정원)으로 받는다.
-// 직원 시트: 현소속·성명·사원번호·직급·직렬·생년월일·주소·전공
+// 직원 시트: id·현소속·성명·사원번호·직급·직렬·생년월일·주소·전공
+// id 는 다운로드본에만 채워져 있다 — 그 줄은 새로 만들지 않고 그 사람을 고친다.
 // 엑셀은 날짜를 시리얼 숫자로 주기도 한다 — 그대로 저장하면 date 컬럼이 거부한다
 function _xlDate(v){
   if(v==null||v==='') return null;
@@ -4380,24 +4400,38 @@ function _xlDate(v){
   return /^\d{4}-\d{1,2}-\d{1,2}$/.test(t) ? t.replace(/-(\d)(?=-|$)/g,'-0$1') : null;
 }
 
+// 엑셀은 두 갈래다.
+//  · 빈 양식   — 처음 채워 넣을 때. 예시 두 줄만 들어 있다.
+//  · 다운로드  — 지금 등록된 내용을 그대로. 고쳐서 다시 올리면 반영된다.
+// 다운로드에는 id 를 함께 싣는다. 그게 없으면 고쳐 올릴 때 같은 사람이 한 번 더
+// 만들어져 명부가 두 배가 된다. 사용자가 지우지 않도록 첫 칸에 두고 안내한다.
+const HR_EMP_COLS=['id','현소속','성명','사원번호','직급','직렬','생년월일','주소','전공'];
+function _empToRow(e){
+  return {id:e.id, 현소속:e.시설명, 성명:e.성명, 사원번호:e.사원번호, 직급:e.직급,
+          직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공};
+}
+function _hrWorkbook(empRows,quoRows){
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(empRows,{header:HR_EMP_COLS}),'직원');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quoRows),'정원');
+  return wb;
+}
+
 function downloadHrTemplate(){
-  const emp=[{성명:'홍길동',사원번호:'091111',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',
-    직렬:'행정',직급:'6급',전공:'행정학',현소속:'울주군립야영장'},
-    {성명:'김철수',사원번호:'091112',생년월일:'1978-07-20',주소:'울산광역시 남구 …',
-     직렬:'',직급:'4급',전공:'토목공학',현소속:'본부장'}];
+  const emp=[{id:'',현소속:'울주군립야영장',성명:'홍길동',사원번호:'091111',직급:'6급',
+              직렬:'행정',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',전공:'행정학'},
+             {id:'',현소속:'본부장',성명:'김철수',사원번호:'091112',직급:'4급',
+              직렬:'',생년월일:'1978-07-20',주소:'울산광역시 남구 …',전공:'토목공학'}];
   const quo=[{시설명:'울주군립야영장',직렬:'행정',직급:'6급',정원:2,비고:''},
              {시설명:'본부장',직렬:'',직급:'4급',정원:1,비고:'4급 이상은 직렬을 비워둡니다'}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(emp),'직원');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(quo),'정원');
-  // 지금 등록된 직원이 있으면 예시 대신 실제 데이터를 담아 내려준다(수정 후 재업로드용)
-  if(_hrEmps.length){
-    const rows=_hrEmps.map(e=>({성명:e.성명,사원번호:e.사원번호,생년월일:e.생년월일,주소:e.주소,
-      직렬:e.직렬,직급:e.직급,전공:e.전공,현소속:e.시설명}));
-    wb.Sheets['직원']=XLSX.utils.json_to_sheet(rows);
-  }
-  if(_hrQuota.length) wb.Sheets['정원']=XLSX.utils.json_to_sheet(_hrQuota.map(q=>({시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,비고:q.비고})));
-  XLSX.writeFile(wb,`인사정보_${today()}.xlsx`);
+  XLSX.writeFile(_hrWorkbook(emp,quo),'인사정보_양식.xlsx');
+}
+
+function downloadHrExcel(){
+  if(!_hrEmps.length && !_hrQuota.length){ toast('내려받을 자료가 없습니다. 빈 양식을 받아 채우세요.','error'); return; }
+  const emp=_hrEmps.map(_empToRow);
+  const quo=_hrQuota.map(q=>({시설명:q.시설명,직렬:q.직렬,직급:q.직급,정원:q.정원,비고:q.비고}));
+  XLSX.writeFile(_hrWorkbook(emp,quo),`인사정보_${today()}.xlsx`);
 }
 
 async function uploadHrExcel(ev){
@@ -4410,6 +4444,7 @@ async function uploadHrExcel(ev){
     const emps=empSheet?XLSX.utils.sheet_to_json(empSheet):[];
     const quos=quoSheet?XLSX.utils.sheet_to_json(quoSheet):[];
     const empRows=emps.map(r=>({
+      id:String(r.id||'').trim()||undefined,      // 다운로드본을 고쳐 올린 경우
       성명:String(r.성명||'').trim(),
       사원번호:String(r.사원번호||'').trim(),
       생년월일:_xlDate(r.생년월일),
@@ -4425,12 +4460,17 @@ async function uploadHrExcel(ev){
       직급:String(r.직급||'').trim(), 정원:parseInt(r.정원)||0, 비고:String(r.비고||'').trim()
     })).filter(r=>r.시설명&&r.직급&&(isSeniorRank(r.직급)||r.직렬));   // 4급 이상은 직렬이 없어도 받는다
     if(!empRows.length&&!quoRows.length){ alert('읽을 수 있는 행이 없습니다. 성명(직원) 또는 시설명·직렬·직급(정원)이 채워져 있어야 합니다.'); return; }
-    // 이름이 겹쳐도 다른 사람일 수 있어 자동 병합하지 않는다 — 추가만 하고 정리는 사람이 판단한다
-    if(!confirm(`직원 ${empRows.length}명, 정원 ${quoRows.length}건을 추가합니다.\n\n직원은 기존 명부에 덧붙습니다(같은 이름이 있어도 합치지 않습니다).\n정원은 시설·직렬·직급이 같으면 덮어씁니다.\n\n계속할까요?`)) return;
-    if(empRows.length) await DB.insertEmployees(empRows);
+    // id 가 있으면 그 사람을 고치고, 없으면 새로 만든다. 이름만으로는 합치지 않는다 —
+    // 동명이인이 있을 수 있고, 잘못 합치면 되돌리기 어렵다.
+    const willUpd=empRows.filter(r=>r.id).length, willIns=empRows.length-willUpd;
+    if(!confirm(`직원 ${willIns}명 추가${willUpd?`, ${willUpd}명 수정`:''}, 정원 ${quoRows.length}건.\n\n`
+      + `id 칸이 있는 줄은 그 직원을 고치고, 비어 있으면 새로 만듭니다.\n`
+      + `정원은 시설·직렬·직급이 같으면 덮어씁니다.\n\n계속할까요?`)) return;
+    let r={수정:0,추가:0};
+    if(empRows.length) r=await DB.saveEmployeesBulk(empRows);
     if(quoRows.length) await DB.insertQuotas(quoRows);
     await renderHrPage();
-    alert(`완료했습니다.\n직원 ${empRows.length}명, 정원 ${quoRows.length}건`);
+    alert(`완료했습니다.\n직원 추가 ${r.추가}명 · 수정 ${r.수정}명, 정원 ${quoRows.length}건`);
   }catch(e){ console.error('[hr upload]',e); alert('엑셀 처리 중 오류: '+e.message); }
 }
 
