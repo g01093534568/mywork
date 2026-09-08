@@ -349,6 +349,15 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .hr-table tr:hover td{background:rgba(255,255,255,0.02);}
 .hr-scroll{overflow-x:auto;}
 .hr-num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+/* 정원표는 숫자를 맞춰 보는 표라 가운데로 세운다.
+   시설 이름 칸만 왼쪽에 둔다 — 하위시설을 들여쓰기로 보이므로 가운데로 밀면 계층이 무너진다. */
+.hr-table.hr-center th,
+.hr-table.hr-center td{text-align:center;vertical-align:middle;}
+.hr-table.hr-center .hr-num{text-align:center;}
+.hr-table.hr-center th.hr-facility,
+.hr-table.hr-center td.hr-facility{text-align:left;}
+/* 직렬로 갈리는 직급(5급·6급·무기)의 소계 칸 — 낱개 값과 구별되게 옅게 깔아 준다 */
+.hr-table .hr-subtot{background:rgba(255,255,255,0.035);font-weight:700;}
 .hr-over{color:var(--red);font-weight:700;}
 .hr-under{color:var(--blue);font-weight:700;}
 .hr-fit{color:var(--green);font-weight:700;}
@@ -4348,33 +4357,42 @@ function renderQuotaMatrix(cont){
   const num=n=>n?`<td class="hr-num">${n}</td>`:'<td class="hr-num" style="color:var(--t3)">·</td>';
   const rowSum=f=>used.reduce((a,c)=>a+val(f,c),0);
   const colSum=c=>facs.reduce((a,f)=>a+val(f,c),0);
-  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table">
+  // 직렬로 갈리는 직급(5급·6급·무기)만 소계를 세운다. 임원·2~4급은 열이 하나라 소계가 곧 그 값이다.
+  const isSplit=g=>!(g.cols.length===1&&!g.cols[0].직렬);
+  const subSum=(f,g)=>g.cols.reduce((a,c)=>a+val(f,c),0);
+  const subTotal=g=>facs.reduce((a,f)=>a+subSum(f,g),0);
+  const subCell=n=>`<td class="hr-num hr-subtot">${n?`<b>${n}</b>`:'<span style="color:var(--t3)">·</span>'}</td>`;
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table hr-center">
     <thead>
       <tr>
-        <th rowspan="2">시설</th><th rowspan="2" class="hr-num">계</th>
-        ${groups.map(g=>g.cols.length===1&&!g.cols[0].직렬
-          ? `<th rowspan="2" class="hr-num">${esc(g.직급)}</th>`
-          : `<th colspan="${g.cols.length}" style="text-align:center">${esc(g.직급)}</th>`).join('')}
+        <th rowspan="2" class="hr-facility">시설</th><th rowspan="2" class="hr-num">계</th>
+        ${groups.map(g=>isSplit(g)
+          ? `<th colspan="${g.cols.length+1}">${esc(g.직급)}</th>`
+          : `<th rowspan="2" class="hr-num">${esc(g.직급)}</th>`).join('')}
       </tr>
       <tr>
-        ${groups.filter(g=>!(g.cols.length===1&&!g.cols[0].직렬))
-          .flatMap(g=>g.cols.map(c=>`<th class="hr-num" style="font-size:10px">${esc(c.직렬)}</th>`)).join('')}
+        ${groups.filter(isSplit).flatMap(g=>[
+          `<th class="hr-num hr-subtot" style="font-size:10px">소계</th>`,
+          ...g.cols.map(c=>`<th class="hr-num" style="font-size:10px">${esc(c.직렬)}</th>`)
+        ]).join('')}
       </tr>
     </thead>
     <tbody>
       ${facs.map(f=>`<tr>
-        <td style="white-space:nowrap">${_facIndent(f)}${esc(f)}</td>
+        <td class="hr-facility" style="white-space:nowrap">${_facIndent(f)}${esc(f)}</td>
         <td class="hr-num"><b>${rowSum(f)}</b></td>
-        ${used.map(c=>num(val(f,c))).join('')}
+        ${groups.map(g=>(isSplit(g)?subCell(subSum(f,g)):'')+g.cols.map(c=>num(val(f,c))).join('')).join('')}
       </tr>`).join('')}
       <tr style="background:var(--bg2)">
-        <td><b>합계</b></td>
+        <td class="hr-facility"><b>합계</b></td>
         <td class="hr-num"><b>${facs.reduce((a,f)=>a+rowSum(f),0)}</b></td>
-        ${used.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')}
+        ${groups.map(g=>(isSplit(g)?`<td class="hr-num hr-subtot"><b>${subTotal(g)}</b></td>`:'')
+          +g.cols.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')).join('')}
       </tr>
     </tbody></table></div>
     <div style="font-size:11px;color:var(--t3);margin-top:8px">
-      정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 과부족은 <b>📋 과부족</b> 보기에서 확인하세요.
+      정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 5급·6급·무기계약은 직렬을 합한 <b>소계</b>를 함께 보여줍니다.
+      과부족은 <b>📋 과부족</b> 보기에서 확인하세요.
     </div>`;
 }
 
@@ -4409,21 +4427,21 @@ function renderQuota(){
     ? `<div class="hr-warn" style="margin:0 0 12px">현소속이 비어 있는 직원 <b>${noPlace}명</b>은 현원에 세어지지 않습니다.</div>`
     : '';
   const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
-  cont.innerHTML=note+`<div class="hr-scroll"><table class="hr-table">
-    <thead><tr><th>시설</th><th>직렬</th><th>직급</th><th class="hr-num">정원</th><th class="hr-num">현원</th><th class="hr-num">과부족</th><th>비고</th><th style="width:60px"></th></tr></thead>
+  cont.innerHTML=note+`<div class="hr-scroll"><table class="hr-table hr-center">
+    <thead><tr><th class="hr-facility">시설</th><th>직렬</th><th>직급</th><th class="hr-num">정원</th><th class="hr-num">현원</th><th class="hr-num">과부족</th><th>비고</th><th style="width:60px"></th></tr></thead>
     <tbody>${rows.map(r=>{
       const d=r.과부족;
       const cls=d>0?'hr-over':d<0?'hr-under':'hr-fit';
       const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
       return `<tr>
-        <td>${_facIndent(r.시설명)}${esc(r.시설명)||'—'}</td>
+        <td class="hr-facility">${_facIndent(r.시설명)}${esc(r.시설명)||'—'}</td>
         <td>${isSeniorRank(r.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(r.직렬)||'—')}</td><td>${esc(r.직급)||'—'}</td>
         ${head(r.정원)}${head(r.현원)}
         <td class="hr-num ${cls}">${txt}</td>
         <td style="font-size:12px;color:var(--t3)">${esc(r.비고)||''}</td>
         <td>${r.id?`<button class="btn btn-ghost btn-sm" onclick="openQuotaModal('${r.id}')">✏️</button>`:'<span style="font-size:11px;color:var(--t3)">정원 미등록</span>'}</td>
       </tr>`;}).join('')}
-      <tr style="background:var(--bg2)"><td colspan="3"><b>합계</b></td>
+      <tr style="background:var(--bg2)"><td colspan="3" class="hr-facility"><b>합계</b></td>
         ${head(`<b>${sum('정원')}</b>`)}${head(`<b>${sum('현원')}</b>`)}
         <td class="hr-num"><b>${sum('현원')-sum('정원')>0?'+':''}${sum('현원')-sum('정원')}</b></td><td colspan="2"></td></tr>
     </tbody></table></div>`;
