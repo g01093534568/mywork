@@ -4347,32 +4347,64 @@ function setQuotaView(v){
 
 // 원본 정원표와 같은 행렬. 시설이 행이고 직급·직렬이 열이며, 머리글이 2단이다.
 // 숫자만 늘어놓은 목록보다 이쪽이 원본과 대조하기 쉽다.
-function renderQuotaMatrix(cont){
+// 정원표와 과부족표는 같은 꼴을 쓴다 — 시설(세로) × 직급·직렬(가로).
+// 다른 것은 칸에 무엇을 넣느냐뿐이라 한 함수로 두고 mode 로만 가른다.
+//   'quota' → 정원
+//   'gap'   → 현원 − 정원 (초과 +, 부족 −)
+function renderRankMatrix(cont, mode){
+  const isGap = mode==='gap';
   const cols=quotaColumns();
-  const facs=[];
-  // 조직도 순서대로 세우되, 정원이 등록된 시설만 보여준다(빈 줄이 스무 개 깔리면 읽기 어렵다)
-  [...new Set(_hrQuota.map(q=>q.시설명))].forEach(f=>facs.push(f));
+  // 조직도 순서대로 세우되 값이 있는 시설만 보여준다(빈 줄이 스무 개 깔리면 읽기 어렵다).
+  // 과부족에서는 정원이 없어도 사람이 배치된 시설을 빠뜨리면 안 된다 — 그게 바로 초과다.
+  const names=new Set(_hrQuota.map(q=>q.시설명));
+  if(isGap) _hrEmps.forEach(e=>{ if(e.시설명) names.add(e.시설명); });
+  const facs=[...names];
   facs.sort((a,b)=>{ const oa=_facOrder(a),ob=_facOrder(b); return oa!==ob?oa-ob:(a||'').localeCompare(b||'','ko'); });
   if(!facs.length){
     cont.innerHTML='<div class="empty-state"><div class="icon">🧮</div><p>등록된 정원이 없습니다. 시설별 일괄 입력이나 엑셀 업로드로 채우세요.</p></div>';
     return;
   }
-  const val=(f,c)=>{ const q=_hrQuota.find(x=>x.시설명===f&&x.직급===c.직급&&x.직렬===c.직렬); return q?q.정원:0; };
+  const quotaOf=(f,c)=>{ const q=_hrQuota.find(x=>x.시설명===f&&x.직급===c.직급&&x.직렬===c.직렬); return q?q.정원:0; };
+  const headOf =(f,c)=>_hrEmps.filter(e=>e.시설명===f&&e.직급===c.직급&&e.직렬===c.직렬).length;
+  const inUse  =(f,c)=>quotaOf(f,c)>0||(isGap&&headOf(f,c)>0);
+  const val    =(f,c)=>isGap?headOf(f,c)-quotaOf(f,c):quotaOf(f,c);
+
   // 아무 시설에서도 안 쓰는 열은 접는다 — 20열을 다 펼치면 가로로 너무 길다
-  const used=cols.filter(c=>facs.some(f=>val(f,c)>0));
+  const used=cols.filter(c=>facs.some(f=>inUse(f,c)));
   const groups=[];   // 2단 머리글: 직급으로 묶고, 직렬이 갈리는 직급만 아래 단을 갖는다
   used.forEach(c=>{
     const g=groups[groups.length-1];
     if(g && g.직급===c.직급) g.cols.push(c); else groups.push({직급:c.직급, cols:[c]});
   });
-  const num=n=>n?`<td class="hr-num">${n}</td>`:'<td class="hr-num" style="color:var(--t3)">·</td>';
+
+  const gapCls=d=>d>0?'hr-over':d<0?'hr-under':'hr-fit';
+  const signed=d=>`${d>0?'+':''}${d}`;
+  const dot='<span style="color:var(--t3)">·</span>';
+  // 과부족은 0 도 뜻이 있다(적정). 그래서 "쓰이지 않는 칸"과 0 을 구분해서 그린다.
+  const cell=(f,c)=>{
+    if(!isGap){ const v=quotaOf(f,c); return `<td class="hr-num">${v?v:dot}</td>`; }
+    if(!inUse(f,c)) return `<td class="hr-num">${dot}</td>`;
+    const d=val(f,c);
+    return `<td class="hr-num ${gapCls(d)}">${signed(d)}</td>`;
+  };
+  const bold=(v,cls)=>`<td class="hr-num${cls?' '+cls:''}">${v}</td>`;
+  // live=false 는 "그 자리가 아예 없다"는 뜻. 과부족에서 0 은 '적정'이라는 뜻이므로
+  // 빈 자리를 0 으로 적으면 정원이 딱 맞는 것처럼 읽힌다 — 그때는 · 로 둔다.
+  const sumCell=(v,extra,live=true)=>isGap
+    ? bold(live?`<b class="${gapCls(v)}">${signed(v)}</b>`:dot, extra)
+    : bold(v?`<b>${v}</b>`:dot, extra);
+
   const rowSum=f=>used.reduce((a,c)=>a+val(f,c),0);
   const colSum=c=>facs.reduce((a,f)=>a+val(f,c),0);
   // 직렬로 갈리는 직급(5급·6급·무기)만 소계를 세운다. 임원·2~4급은 열이 하나라 소계가 곧 그 값이다.
   const isSplit=g=>!(g.cols.length===1&&!g.cols[0].직렬);
   const subSum=(f,g)=>g.cols.reduce((a,c)=>a+val(f,c),0);
   const subTotal=g=>facs.reduce((a,f)=>a+subSum(f,g),0);
-  const subCell=n=>`<td class="hr-num hr-subtot">${n?`<b>${n}</b>`:'<span style="color:var(--t3)">·</span>'}</td>`;
+
+  const note=isGap
+    ? '정원이 있거나 사람이 배치된 칸만 보여줍니다. 숫자는 <b>현원 − 정원</b>이며 <span class="hr-over">+는 초과</span>, <span class="hr-under">−는 부족</span>, <span class="hr-fit">0은 적정</span>입니다. 정원을 고치려면 아래 상세 표의 ✏️ 를 누르세요.'
+    : '정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 5급·6급·무기계약은 직렬을 합한 <b>소계</b>를 함께 보여줍니다.';
+
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table hr-center">
     <thead>
       <tr>
@@ -4392,21 +4424,20 @@ function renderQuotaMatrix(cont){
     <tbody>
       <tr class="hr-totalrow" style="background:var(--bg2)">
         <td><b>합계</b></td>
-        <td class="hr-num"><b>${facs.reduce((a,f)=>a+rowSum(f),0)}</b></td>
-        ${groups.map(g=>(isSplit(g)?`<td class="hr-num hr-subtot"><b>${subTotal(g)}</b></td>`:'')
-          +g.cols.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')).join('')}
+        ${sumCell(facs.reduce((a,f)=>a+rowSum(f),0))}
+        ${groups.map(g=>(isSplit(g)?sumCell(subTotal(g),'hr-subtot'):'')
+          +g.cols.map(c=>sumCell(colSum(c))).join('')).join('')}
       </tr>
       ${facs.map(f=>`<tr>
         <td style="white-space:nowrap">${_facMark(f)}${esc(f)}</td>
-        <td class="hr-num"><b>${rowSum(f)}</b></td>
-        ${groups.map(g=>(isSplit(g)?subCell(subSum(f,g)):'')+g.cols.map(c=>num(val(f,c))).join('')).join('')}
+        ${sumCell(rowSum(f),'',used.some(c=>inUse(f,c)))}
+        ${groups.map(g=>(isSplit(g)?sumCell(subSum(f,g),'hr-subtot',g.cols.some(c=>inUse(f,c))):'')+g.cols.map(c=>cell(f,c)).join('')).join('')}
       </tr>`).join('')}
     </tbody></table></div>
-    <div style="font-size:11px;color:var(--t3);margin-top:8px">
-      정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 5급·6급·무기계약은 직렬을 합한 <b>소계</b>를 함께 보여줍니다.
-      과부족은 <b>📋 과부족</b> 보기에서 확인하세요.
-    </div>`;
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${note}</div>`;
 }
+
+function renderQuotaMatrix(cont){ return renderRankMatrix(cont,'quota'); }
 
 // 정원과 현원을 같은 표에서 맞춰 본다. 현원은 직원 명부를 세어 구하므로 따로 저장하지 않는다.
 function renderQuota(){
@@ -4439,6 +4470,12 @@ function renderQuota(){
     ? `<div class="hr-warn" style="margin:0 0 12px">현소속이 비어 있는 직원 <b>${noPlace}명</b>은 현원에 세어지지 않습니다.</div>`
     : '';
   const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
+
+  // 정원표와 똑같은 서식(시설 × 직급·직렬)으로 과부족을 먼저 보여준다.
+  // 그 아래에 상세 표를 둔다 — 정원을 고치는 ✏️ 는 상세 표에만 있다.
+  const 매트릭스=document.createElement('div');
+  renderRankMatrix(매트릭스,'gap');
+
   // 정원표와 같은 꼴로 맞춘다 — 위 단은 구분, 아래 단에 시설·직렬·직급.
   // 합계는 머리글 바로 아래에 두고 밑줄로 시설 줄과 가른다.
   const 합계행=`<tr class="hr-totalrow" style="background:var(--bg2)">
@@ -4446,7 +4483,9 @@ function renderQuota(){
     ${head(`<b>${sum('정원')}</b>`)}${head(`<b>${sum('현원')}</b>`)}
     <td class="hr-num"><b>${sum('현원')-sum('정원')>0?'+':''}${sum('현원')-sum('정원')}</b></td>
     <td colspan="2"></td></tr>`;
-  cont.innerHTML=note+`<div class="hr-scroll"><table class="hr-table hr-center">
+  cont.innerHTML=note+매트릭스.innerHTML+`
+    <div class="section-title" style="margin:22px 0 10px">📋 상세 (정원·현원)</div>
+    <div class="hr-scroll"><table class="hr-table hr-center">
     <thead>
       <tr>
         <th colspan="3">구분</th>
