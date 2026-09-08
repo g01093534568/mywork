@@ -349,13 +349,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .hr-table tr:hover td{background:rgba(255,255,255,0.02);}
 .hr-scroll{overflow-x:auto;}
 .hr-num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
-/* 정원표는 숫자를 맞춰 보는 표라 가운데로 세운다.
-   시설 이름 칸만 왼쪽에 둔다 — 하위시설을 들여쓰기로 보이므로 가운데로 밀면 계층이 무너진다. */
+/* 정원표는 숫자를 맞춰 보는 표라 시설 이름까지 전부 가운데로 세운다.
+   하위시설은 공백 들여쓰기 대신 _facMark 의 └ 로 나타낸다(가운데 정렬에서는
+   공백이 양쪽으로 밀려 계층을 보여주지 못한다). */
 .hr-table.hr-center th,
 .hr-table.hr-center td{text-align:center;vertical-align:middle;}
 .hr-table.hr-center .hr-num{text-align:center;}
-.hr-table.hr-center th.hr-facility,
-.hr-table.hr-center td.hr-facility{text-align:left;}
 /* 직렬로 갈리는 직급(5급·6급·무기)의 소계 칸 — 낱개 값과 구별되게 옅게 깔아 준다 */
 .hr-table .hr-subtot{background:rgba(255,255,255,0.035);font-weight:700;}
 .hr-over{color:var(--red);font-weight:700;}
@@ -3598,12 +3597,22 @@ const DB = {
     const {error}=await SB.from('users').insert(withOrder); if(error)throw error; _cd('users');
   },
 
-  async getOrg(){
+  // strict=true 면 조회 실패를 그대로 던진다. 홈 목표체계처럼 "실패했으면 다시
+  // 시도해야 하는" 자리에서 쓴다. 나머지 화면은 예전처럼 기본값으로 넘어간다 —
+  // 모달 하나 때문에 화면 전체가 멈추는 편이 더 나쁘다.
+  async getOrg(strict){
     const k='org';
     if(_cg(k)) return _cg(k);
-    try {
-      const {data,error}=await SB.from('org_goals').select('*').eq('id',1).limit(1); if(error||!data||!data.length)return _cs(k,{...DEFAULT_ORG}); const d=data[0]; return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
-    } catch(e){ console.error('[DB.getOrg]',e); return {...DEFAULT_ORG}; }
+    let res;
+    try { res=await SB.from('org_goals').select('*').eq('id',1).limit(1); }
+    catch(e){ console.error('[DB.getOrg]',e); if(strict) throw e; return {...DEFAULT_ORG}; }
+    const {data,error}=res;
+    // 조회 실패와 "아직 등록 안 됨"은 다르다. 실패를 캐시에 넣으면 그 세션 내내,
+    // 그리고 sessionStorage 를 타고 다음 세션까지 기본값이 눌러앉는다.
+    if(error){ console.error('[DB.getOrg]',error); if(strict) throw error; return {...DEFAULT_ORG}; }
+    if(!data||!data.length) return _cs(k,{...DEFAULT_ORG});
+    const d=data[0];
+    return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
   },
   async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; _cd('org'); },
 
@@ -4365,12 +4374,13 @@ function renderQuotaMatrix(cont){
   cont.innerHTML=`<div class="hr-scroll"><table class="hr-table hr-center">
     <thead>
       <tr>
-        <th rowspan="2" class="hr-facility">시설</th><th rowspan="2" class="hr-num">계</th>
+        <th colspan="2">구분</th>
         ${groups.map(g=>isSplit(g)
           ? `<th colspan="${g.cols.length+1}">${esc(g.직급)}</th>`
           : `<th rowspan="2" class="hr-num">${esc(g.직급)}</th>`).join('')}
       </tr>
       <tr>
+        <th>시설</th><th class="hr-num">계</th>
         ${groups.filter(isSplit).flatMap(g=>[
           `<th class="hr-num hr-subtot" style="font-size:10px">소계</th>`,
           ...g.cols.map(c=>`<th class="hr-num" style="font-size:10px">${esc(c.직렬)}</th>`)
@@ -4379,12 +4389,12 @@ function renderQuotaMatrix(cont){
     </thead>
     <tbody>
       ${facs.map(f=>`<tr>
-        <td class="hr-facility" style="white-space:nowrap">${_facIndent(f)}${esc(f)}</td>
+        <td style="white-space:nowrap">${_facMark(f)}${esc(f)}</td>
         <td class="hr-num"><b>${rowSum(f)}</b></td>
         ${groups.map(g=>(isSplit(g)?subCell(subSum(f,g)):'')+g.cols.map(c=>num(val(f,c))).join('')).join('')}
       </tr>`).join('')}
       <tr style="background:var(--bg2)">
-        <td class="hr-facility"><b>합계</b></td>
+        <td><b>합계</b></td>
         <td class="hr-num"><b>${facs.reduce((a,f)=>a+rowSum(f),0)}</b></td>
         ${groups.map(g=>(isSplit(g)?`<td class="hr-num hr-subtot"><b>${subTotal(g)}</b></td>`:'')
           +g.cols.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')).join('')}
@@ -4428,20 +4438,20 @@ function renderQuota(){
     : '';
   const sum=(f)=>rows.reduce((a,r)=>a+r[f],0);
   cont.innerHTML=note+`<div class="hr-scroll"><table class="hr-table hr-center">
-    <thead><tr><th class="hr-facility">시설</th><th>직렬</th><th>직급</th><th class="hr-num">정원</th><th class="hr-num">현원</th><th class="hr-num">과부족</th><th>비고</th><th style="width:60px"></th></tr></thead>
+    <thead><tr><th>시설</th><th>직렬</th><th>직급</th><th class="hr-num">정원</th><th class="hr-num">현원</th><th class="hr-num">과부족</th><th>비고</th><th style="width:60px"></th></tr></thead>
     <tbody>${rows.map(r=>{
       const d=r.과부족;
       const cls=d>0?'hr-over':d<0?'hr-under':'hr-fit';
       const txt=d>0?`+${d} 초과`:d<0?`${d} 부족`:'적정';
       return `<tr>
-        <td class="hr-facility">${_facIndent(r.시설명)}${esc(r.시설명)||'—'}</td>
+        <td>${_facMark(r.시설명)}${esc(r.시설명)||'—'}</td>
         <td>${isSeniorRank(r.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(r.직렬)||'—')}</td><td>${esc(r.직급)||'—'}</td>
         ${head(r.정원)}${head(r.현원)}
         <td class="hr-num ${cls}">${txt}</td>
         <td style="font-size:12px;color:var(--t3)">${esc(r.비고)||''}</td>
         <td>${r.id?`<button class="btn btn-ghost btn-sm" onclick="openQuotaModal('${r.id}')">✏️</button>`:'<span style="font-size:11px;color:var(--t3)">정원 미등록</span>'}</td>
       </tr>`;}).join('')}
-      <tr style="background:var(--bg2)"><td colspan="3" class="hr-facility"><b>합계</b></td>
+      <tr style="background:var(--bg2)"><td colspan="3"><b>합계</b></td>
         ${head(`<b>${sum('정원')}</b>`)}${head(`<b>${sum('현원')}</b>`)}
         <td class="hr-num"><b>${sum('현원')-sum('정원')>0?'+':''}${sum('현원')-sum('정원')}</b></td><td colspan="2"></td></tr>
     </tbody></table></div>`;
@@ -4882,18 +4892,31 @@ async function renderHome(){
   // 캐시 초기화 → Supabase에서 fresh 데이터 강제 re-fetch
   _cd(k_org, k_fg, k_pg);
 
-  try {
-    await renderOrgGoals();
-    if(_sessionSubTab.home==='personal') await renderHomePersonalGoals();
-  } catch(e) {
-    console.error('[renderHome]', e);
-    // 캐시로 이미 뭔가 보이고 있으면 굳이 지우지 않는다. 아무것도 못 그렸을 때만
-    // 빈 화면 대신 이유를 보여준다 — 예전엔 3초 뒤 조용히 다시 시도만 했다.
-    if(!painted && currentPage==='home'){
-      paintOrgGoals('<div class="empty-state"><div class="icon">⚠️</div>'
-        + '<p>목표체계를 불러오지 못했습니다</p>'
-        + '<button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="renderHome()">다시 시도</button></div>');
+  // 로그인 직후엔 실시간 구독·이전 마이그레이션·브리핑이 한꺼번에 붙어서
+  // 조회 하나가 실패하는 일이 있다. 한 번 실패했다고 포기하면 화면이 빈 채로 남는다.
+  // 짧게 두 번까지 더 시도하고, 그래도 안 되면 이유를 화면에 적는다.
+  let lastErr=null;
+  for(let attempt=0; attempt<3; attempt++){
+    if(attempt) await new Promise(r=>setTimeout(r, attempt*500));
+    if(currentPage!=='home') return;
+    try {
+      await renderOrgGoals();
+      if(_sessionSubTab.home==='personal') await renderHomePersonalGoals();
+      return;
+    } catch(e) {
+      lastErr=e;
+      console.error('[renderHome] 시도 '+(attempt+1)+'/3 실패', e);
+      _cd(k_org, k_fg, k_pg);   // 실패한 값이 캐시에 남지 않게
     }
+  }
+
+  // 세 번 다 실패했다. 캐시로 뭔가 보이고 있으면 그건 남겨 둔다.
+  if(!painted && currentPage==='home'){
+    const msg=(lastErr&&(lastErr.message||lastErr.hint||lastErr.code))||'알 수 없는 오류';
+    paintOrgGoals('<div class="empty-state"><div class="icon">⚠️</div>'
+      + '<p>목표체계를 불러오지 못했습니다</p>'
+      + `<p style="font-size:11px;color:var(--t3);margin-top:4px">${esc(String(msg))}</p>`
+      + '<button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="renderHome()">다시 시도</button></div>');
   }
 }
 
@@ -5120,7 +5143,7 @@ function renderOrgGoalsFromCache(){
 }
 
 async function renderOrgGoals(){
-  const [org, facilityGoals, personalGoals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명), DB.getPersonalGoals(currentUser.사원번호)]);
+  const [org, facilityGoals, personalGoals]=await Promise.all([DB.getOrg(true), DB.getFacilityGoals(currentUser.시설명), DB.getPersonalGoals(currentUser.사원번호)]);
   paintOrgGoals(buildOrgGoalsHtml(org, facilityGoals, personalGoals));
 }
 
@@ -13545,6 +13568,14 @@ function _facIndent(name, base = 0) {
     const v = _facOrderMap.get(name);
     const d = v ? Math.max(0, v.depth - base) : 0;
     return d ? '\u00A0'.repeat(d * 3) + '└ ' : '';
+}
+
+// 가운데 정렬한 표(정원표)에서 쓰는 계층 표시. 공백 들여쓰기는 가운데로 밀리면
+// 의미가 사라지므로, 하위시설임을 └ 로만 나타낸다.
+function _facMark(name, base = 0) {
+    const v = _facOrderMap.get(name);
+    const d = v ? Math.max(0, v.depth - base) : 0;
+    return d ? '└ '.repeat(Math.min(d, 2)) : '';
 }
 
 // 볼 수 있는 시설만 남긴 조직도 순서 목록. 상위가 목록에서 빠지면 들여쓰기도 그만큼
