@@ -357,6 +357,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .hr-table.hr-center .hr-num{text-align:center;}
 /* 직렬로 갈리는 직급(5급·6급·무기)의 소계 칸 — 낱개 값과 구별되게 옅게 깔아 준다 */
 .hr-table .hr-subtot{background:rgba(255,255,255,0.035);font-weight:700;}
+/* 합계 줄이 머리글 바로 아래로 올라오면 시설 줄과 묻힌다 — 밑줄로 갈라 준다 */
+.hr-table .hr-totalrow td{border-bottom:2px solid var(--border);}
 .hr-over{color:var(--red);font-weight:700;}
 .hr-under{color:var(--blue);font-weight:700;}
 .hr-fit{color:var(--green);font-weight:700;}
@@ -4388,17 +4390,17 @@ function renderQuotaMatrix(cont){
       </tr>
     </thead>
     <tbody>
-      ${facs.map(f=>`<tr>
-        <td style="white-space:nowrap">${_facMark(f)}${esc(f)}</td>
-        <td class="hr-num"><b>${rowSum(f)}</b></td>
-        ${groups.map(g=>(isSplit(g)?subCell(subSum(f,g)):'')+g.cols.map(c=>num(val(f,c))).join('')).join('')}
-      </tr>`).join('')}
-      <tr style="background:var(--bg2)">
+      <tr class="hr-totalrow" style="background:var(--bg2)">
         <td><b>합계</b></td>
         <td class="hr-num"><b>${facs.reduce((a,f)=>a+rowSum(f),0)}</b></td>
         ${groups.map(g=>(isSplit(g)?`<td class="hr-num hr-subtot"><b>${subTotal(g)}</b></td>`:'')
           +g.cols.map(c=>`<td class="hr-num"><b>${colSum(c)}</b></td>`).join('')).join('')}
       </tr>
+      ${facs.map(f=>`<tr>
+        <td style="white-space:nowrap">${_facMark(f)}${esc(f)}</td>
+        <td class="hr-num"><b>${rowSum(f)}</b></td>
+        ${groups.map(g=>(isSplit(g)?subCell(subSum(f,g)):'')+g.cols.map(c=>num(val(f,c))).join('')).join('')}
+      </tr>`).join('')}
     </tbody></table></div>
     <div style="font-size:11px;color:var(--t3);margin-top:8px">
       정원이 등록된 시설과, 값이 하나라도 있는 칸만 보여줍니다. 5급·6급·무기계약은 직렬을 합한 <b>소계</b>를 함께 보여줍니다.
