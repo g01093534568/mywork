@@ -3314,6 +3314,34 @@ const DEFAULT_ORG = {
 function _ownerId(){ return currentUser?.id || '_none'; }
 
 // ═══════════════════════════════════════════════
+// 권한 (CAPS / can)
+// ═══════════════════════════════════════════════
+// 역할(admin / facility-admin / user)을 코드 곳곳에서 직접 비교하던 것을 한곳에 모았다.
+// 할 수 있는 일에 이름을 붙여 두면 "누가 무엇을 할 수 있는가"를 한눈에 보고 고칠 수 있다.
+//
+// 여기(파일 맨 위)에 두는 이유: 세션 복원이 스크립트 파싱 도중 enterApp() → 홈 렌더를
+// 부른다. 홈 렌더가 can() 을 쓰므로 CAPS 가 그보다 아래에 const 로 있으면 TDZ 로 죽는다.
+const CAPS = {
+  'goals.org':        { label:'조직목표 설정',      roles:['admin'] },
+  'goals.facility':   { label:'시설목표 관리',      roles:['admin','facility-admin'] },
+  'org.edit':         { label:'조직도 편집',        roles:['admin'] },
+  'users.manage':     { label:'사용자 관리',        roles:['admin'] },
+  'hr.manage':        { label:'인사정보 관리',      roles:['admin'] },
+  'perm.view':        { label:'권한 현황 보기',      roles:['admin'] },
+  'energy.manage':    { label:'에너지·차량 관리',   roles:['admin','facility-admin'] },
+  'knowledge.manage': { label:'AI 지식자료 관리',   roles:['admin','facility-admin'] },
+  'google.connect':   { label:'Google 계정 연동',   roles:['admin','facility-admin','user'] },
+  'exercise.view':    { label:'개인 운동 기록',      roles:['admin'] },
+};
+const ROLE_LABELS={admin:'본사관리자','facility-admin':'시설관리자',user:'사용자'};
+
+function can(cap, role){
+  const c=CAPS[cap];
+  if(!c) return false;                       // 없는 권한 이름은 막는다(오타로 열리면 안 된다)
+  return c.roles.includes(role || currentUser?.role);
+}
+
+// ═══════════════════════════════════════════════
 // DATA CONVERTERS (App <-> Supabase)
 // ═══════════════════════════════════════════════
 function todoToDb(todo, 사원번호) {
@@ -3846,9 +3874,15 @@ async function doLogin(){
     if(loginError) throw loginError;
     const user = loginResult;
     if(!user){ toast('입력 정보가 일치하지 않습니다','error'); return; }
-    // 이전 사용자 캐시 선제 초기화
-    DB.clearCache();
-    Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')).forEach(k=>sessionStorage.removeItem(k));
+    // 다른 사람이 들어오면 이전 사용자 캐시를 반드시 지운다.
+    // 같은 사람이 다시 들어오는 경우까지 지우면, 로그인할 때마다 목표체계가
+    // 네트워크를 기다리며 비어 있게 된다 — 그래서 사용자가 바뀔 때만 비운다.
+    const _prevOwner = sessionStorage.getItem('_wlc_owner');
+    if(_prevOwner !== user.id){
+      DB.clearCache();
+      Object.keys(sessionStorage).filter(k=>k.startsWith('_wlc_')).forEach(k=>sessionStorage.removeItem(k));
+      sessionStorage.setItem('_wlc_owner', user.id);
+    }
     currentUser = user;
     sessionStorage.setItem('wl_session', JSON.stringify(user));
     enterApp();
@@ -4809,9 +4843,7 @@ async function savePerfActuals(){
 async function renderHome(){
   const d = today();
   document.getElementById('home-subtitle').textContent=`${d.replace(/-/g,'.')} (${dayLabel(d)}) · ${currentUser.시설명}`;
-  showHomeBriefing();
   switchHomeTab(_sessionSubTab.home || 'goals');
-  const loadingHtml = '<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
   const k_org='org', k_fg=`fg:${currentUser.시설명}`, k_pg=`pg:${_ownerId()}`;
 
   // 새로고침 시 sessionStorage → _C 복원 (즉시 렌더링용)
@@ -4819,10 +4851,15 @@ async function renderHome(){
   if(!_C[k_fg])  try{ const s=sessionStorage.getItem('_wlc_'+k_fg);  if(s) _C[k_fg] =JSON.parse(s); }catch(e){}
   if(!_C[k_pg])  try{ const s=sessionStorage.getItem('_wlc_'+k_pg);  if(s) _C[k_pg] =JSON.parse(s); }catch(e){}
 
-  if(!_cg(k_org)) document.getElementById('org-goals-display').innerHTML=loadingHtml;
+  // 캐시가 있으면 await 없이 지금 그린다. 여기서 await 를 하나라도 걸면
+  // 세션 복원 경로(스크립트 파싱 중 호출)에서는 남은 스크립트가 전부 파싱된 뒤에야
+  // 화면에 나오므로, 목표체계가 몇 초씩 비어 보였다.
+  const painted = renderOrgGoalsFromCache();
+  if(!painted) paintOrgGoals('<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>');
 
-  // sessionStorage 캐시가 있으면 즉시 렌더 (stale)
-  if(_cg(k_org)||_cg(k_fg)||_cg(k_pg)) await renderOrgGoals();
+  // AI 브리핑은 Gemini 를 부른다 — 느리고 실패하기도 한다.
+  // 목표체계를 그린 다음에 시작해 첫 화면을 붙잡지 않게 한다.
+  setTimeout(showHomeBriefing, 0);
 
   // 캐시 초기화 → Supabase에서 fresh 데이터 강제 re-fetch
   _cd(k_org, k_fg, k_pg);
@@ -4832,7 +4869,13 @@ async function renderHome(){
     if(_sessionSubTab.home==='personal') await renderHomePersonalGoals();
   } catch(e) {
     console.error('[renderHome]', e);
-    if(currentPage === 'home') setTimeout(() => renderHome(), 3000);
+    // 캐시로 이미 뭔가 보이고 있으면 굳이 지우지 않는다. 아무것도 못 그렸을 때만
+    // 빈 화면 대신 이유를 보여준다 — 예전엔 3초 뒤 조용히 다시 시도만 했다.
+    if(!painted && currentPage==='home'){
+      paintOrgGoals('<div class="empty-state"><div class="icon">⚠️</div>'
+        + '<p>목표체계를 불러오지 못했습니다</p>'
+        + '<button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="renderHome()">다시 시도</button></div>');
+    }
   }
 }
 
@@ -4904,9 +4947,12 @@ async function renderHomePersonalGoals(){
 
 async function renderFacilityGoals(){ /* rendered inside renderOrgGoals */ }
 
-async function renderOrgGoals(){
-  const [org, facilityGoals, personalGoals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명), DB.getPersonalGoals(currentUser.사원번호)]);
-  if(!org||!org.mission){ document.getElementById('org-goals-display').innerHTML='<div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 설정하면 여기에 표시됩니다</p></div>'; return; }
+// 목표체계 HTML 을 만드는 순수 함수 — 네트워크도 await 도 없다.
+// 렌더에서 떼어낸 이유: 캐시가 있을 때 await 없이 그대로 그리기 위해서다.
+// await 를 한 번이라도 거치면 그 뒤는 마이크로태스크로 밀리고, 세션 복원은
+// 스크립트 파싱 도중에 홈을 그리므로 남은 수천 줄이 다 파싱된 뒤에야 화면에 나타난다.
+function buildOrgGoalsHtml(org, facilityGoals, personalGoals){
+  if(!org||!org.mission) return '<div class="empty-state"><div class="icon">🎯</div><p>관리자가 조직 목표를 설정하면 여기에 표시됩니다</p></div>';
   let html=`<div class="goal-hierarchy">
     <div class="goal-level"><div class="goal-card mission"><div class="goal-card-label">Mission</div><div class="goal-card-text">${esc(org.mission)}</div></div></div>
     <div class="goal-arrow">↓</div>
@@ -5037,7 +5083,27 @@ async function renderOrgGoals(){
     html+=`</div>`;
   }
   html+=`</div>`;
-  document.getElementById('org-goals-display').innerHTML=html;
+  return html;
+}
+
+function paintOrgGoals(html){
+  const el=document.getElementById('org-goals-display');
+  if(el) el.innerHTML=html;
+}
+
+// 캐시에 세 가지가 다 있으면 await 없이 즉시 그린다. 그렸으면 true.
+// 새로고침하면 목표체계가 먼저 보이고, 신선한 값은 뒤에 조용히 덮어쓴다.
+function renderOrgGoalsFromCache(){
+  if(!currentUser) return false;
+  const org=_cg('org'), fg=_cg(`fg:${currentUser.시설명}`), pg=_cg(`pg:${_ownerId()}`);
+  if(!org||!fg||!pg) return false;
+  try{ paintOrgGoals(buildOrgGoalsHtml(org,fg,pg)); return true; }
+  catch(e){ console.error('[renderOrgGoalsFromCache]',e); return false; }
+}
+
+async function renderOrgGoals(){
+  const [org, facilityGoals, personalGoals]=await Promise.all([DB.getOrg(), DB.getFacilityGoals(currentUser.시설명), DB.getPersonalGoals(currentUser.사원번호)]);
+  paintOrgGoals(buildOrgGoalsHtml(org, facilityGoals, personalGoals));
 }
 
 async function renderPersonalGoals(){
@@ -9785,32 +9851,8 @@ function importUsersCSV(e){
 }
 
 // ── 권한 ────────────────────────────────────────────────────
-// 지금까지는 역할(admin / facility-admin / user)을 코드 곳곳에서 직접 비교했다.
-// 33곳에 흩어져 있어 "누가 무엇을 할 수 있는가"를 한눈에 볼 수도, 바꿀 수도 없었다.
-// 할 수 있는 일에 이름을 붙여 여기 한 곳에 모은다 — 나중에 '권한 관리' 화면에서
-// 이 표를 고치면 앱 전체가 따라오게 하기 위한 준비다.
-//
-// 아직은 역할별 고정값이다. 화면에서 조정하려면 이 표를 DB에 저장하고
-// 읽어오도록 바꾸면 되고, can() 을 쓰는 쪽은 손대지 않아도 된다.
-const CAPS = {
-  'goals.org':        { label:'조직목표 설정',      roles:['admin'] },
-  'goals.facility':   { label:'시설목표 관리',      roles:['admin','facility-admin'] },
-  'org.edit':         { label:'조직도 편집',        roles:['admin'] },
-  'users.manage':     { label:'사용자 관리',        roles:['admin'] },
-  'hr.manage':        { label:'인사정보 관리',      roles:['admin'] },
-  'perm.view':        { label:'권한 현황 보기',      roles:['admin'] },
-  'energy.manage':    { label:'에너지·차량 관리',   roles:['admin','facility-admin'] },
-  'knowledge.manage': { label:'AI 지식자료 관리',   roles:['admin','facility-admin'] },
-  'google.connect':   { label:'Google 계정 연동',   roles:['admin','facility-admin','user'] },
-  'exercise.view':    { label:'개인 운동 기록',      roles:['admin'] },
-};
-const ROLE_LABELS={admin:'본사관리자','facility-admin':'시설관리자',user:'사용자'};
-
-function can(cap, role){
-  const c=CAPS[cap];
-  if(!c) return false;                       // 없는 권한 이름은 막는다(오타로 열리면 안 된다)
-  return c.roles.includes(role || currentUser?.role);
-}
+// 권한표(CAPS)·can() 은 파일 위쪽으로 옮겼다 — 세션 복원이 스크립트 파싱 중에
+// 홈 화면을 그리므로, 그때 이미 초기화돼 있어야 TDZ 로 죽지 않는다.
 
 // 역할 × 권한 표. 지금은 CAPS 를 그대로 보여준다 — 나중에 DB 에서 읽어오면
 // 이 함수는 그대로 두고 CAPS 를 채우는 쪽만 바꾸면 된다.
