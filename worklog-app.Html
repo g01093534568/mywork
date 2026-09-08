@@ -1918,7 +1918,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
         <div id="hr-panel-quota" style="display:none">
           <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="openQuotaModal()">+ 정원 추가</button>
+            <button class="btn btn-primary btn-sm" onclick="openQuotaSheet()">📋 시설별 일괄 입력</button>
+            <button class="btn btn-secondary btn-sm" onclick="openQuotaModal()">+ 한 건 추가</button>
             <span style="font-size:11px;color:var(--t3)">현원은 직원 명부를 세어 자동으로 나옵니다</span>
           </div>
           <div id="hr-quota-list"></div>
@@ -2696,6 +2697,20 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <button class="btn btn-danger" id="hr-emp-del" style="display:none" onclick="deleteEmployee()">삭제</button>
       <button class="btn btn-secondary" onclick="closeModal('hr-emp-modal')">취소</button>
       <button class="btn btn-primary" onclick="saveEmployee()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 인사관리 — 정원 일괄 입력 (정원표 한 줄과 같은 모양) -->
+<div class="modal-overlay" id="hr-sheet-modal">
+  <div class="modal" style="max-width:760px">
+    <h3>시설별 정원 일괄 입력</h3>
+    <div class="form-group"><label>시설 *</label><select id="hr-sheet-facility" onchange="loadQuotaSheet()"></select></div>
+    <div id="hr-sheet-body"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;align-items:center">
+      <span id="hr-sheet-sum" style="margin-right:auto;font-size:13px;font-weight:700;color:var(--accent)"></span>
+      <button class="btn btn-secondary" onclick="closeModal('hr-sheet-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveQuotaSheet()">저장</button>
     </div>
   </div>
 </div>
@@ -4194,8 +4209,19 @@ async function renderHrPage(){
 // "4급"·"3급"은 상위, "5급"·"6급"은 하위다.
 // 숫자로 적힌 것만 판정한다 — "부장"·"과장" 같은 표기는 기관마다 달라 넘겨짚지 않는다.
 // (그런 표기를 쓰신다면 아래 정규식에 덧붙이면 된다)
+// 정원표의 직급 체계. 임원과 4급 이상은 직렬을 나누지 않고, 5·6급만 직렬로 갈린다.
+// 무기계약직은 급수가 아니라 사업인력/일반인력으로 나뉜다.
+// '행정·기술' 처럼 묶인 칸은 그 직렬 중 누구로도 채울 수 있는 통합정원이다.
+const QUOTA_RANKS=['임원','2급','3급','4급','5급','6급','무기'];
+const SERIES_GENERAL=['행정','기술','복지','체육','행정·기술','행정·기술·복지·체육'];
+const QUOTA_SERIES={ '5급':SERIES_GENERAL, '6급':SERIES_GENERAL, '무기':['사업인력','일반인력'] };
+// 그 직급이 직렬로 갈리는가. 갈리지 않으면 빈 문자열 하나로 저장한다.
+function seriesFor(rank){ return QUOTA_SERIES[rank] || []; }
+
 function isSeniorRank(rank){
-  const m=String(rank||'').match(/(\d+)\s*급/);
+  const r=String(rank||'').trim();
+  if(r==='임원') return true;                 // 임원도 직렬을 나누지 않는다
+  const m=r.match(/(\d+)\s*급/);
   return m ? parseInt(m[1],10)<=4 : false;
 }
 
@@ -4348,6 +4374,76 @@ async function deleteEmployee(){
   if(!await confirmDialog('이 직원의 인사정보를 삭제하시겠습니까?')) return;
   try{ await DB.deleteEmployee(id); closeModal('hr-emp-modal'); await renderHrPage(); toast('삭제했습니다'); }
   catch(e){ toast('삭제 실패: '+e.message,'error'); }
+}
+
+// ── 정원 일괄 입력 ──────────────────────────────────────────
+// 정원표는 시설 한 줄에 직급·직렬이 최대 16칸이다. 한 칸씩 따로 추가하면
+// 150명 정원에 100번 넘게 창을 열어야 한다. 표와 같은 모양으로 한 시설을
+// 한 번에 채운다.
+async function openQuotaSheet(){
+  await _getFacilityOrderMap();
+  fillFacilitySelect(document.getElementById('hr-sheet-facility'), await getOrgFacilityOptions(null), '시설을 고르세요');
+  document.getElementById('hr-sheet-body').innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 0">시설을 고르면 입력칸이 나옵니다.</div>';
+  document.getElementById('hr-sheet-sum').textContent='';
+  openModal('hr-sheet-modal');
+}
+
+function loadQuotaSheet(){
+  const fac=document.getElementById('hr-sheet-facility').value;
+  const body=document.getElementById('hr-sheet-body');
+  if(!fac){ body.innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 0">시설을 고르면 입력칸이 나옵니다.</div>'; document.getElementById('hr-sheet-sum').textContent=''; return; }
+  // 이미 넣어둔 값을 그대로 띄운다 — 일괄 입력이 곧 수정 화면이기도 하다
+  const cur={};
+  _hrQuota.filter(q=>q.시설명===fac).forEach(q=>{ cur[`${q.직급}|${q.직렬}`]=q.정원; });
+  const cell=(rank,ser)=>{
+    const k=`${rank}|${ser}`;
+    return `<input type="number" min="0" class="q-cell" data-k="${esc(k)}" value="${cur[k]||''}"
+      placeholder="0" oninput="sumQuotaSheet()" style="width:64px;text-align:right;font-size:12px;padding:5px 6px" />`;
+  };
+  body.innerHTML=`<div class="hr-scroll"><table class="hr-table"><tbody>
+    ${QUOTA_RANKS.map(rank=>{
+      const ss=seriesFor(rank);
+      return `<tr>
+        <td style="width:70px;white-space:nowrap"><b>${rank}</b></td>
+        <td>${ss.length
+          ? `<div style="display:flex;gap:10px;flex-wrap:wrap">${ss.map(x=>
+              `<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)">${esc(x)}${cell(rank,x)}</label>`).join('')}</div>`
+          : `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t3)">직렬 구분 없음${cell(rank,'')}</label>`}</td>
+      </tr>`;}).join('')}
+  </tbody></table></div>
+  <div style="font-size:11px;color:var(--t3);margin-top:8px;line-height:1.7">
+    비워두거나 0으로 두면 그 칸의 정원은 등록되지 않습니다(이미 있던 값은 지워집니다).<br>
+    '행정·기술' 처럼 묶인 칸은 그 직렬 중 누구로도 채울 수 있는 통합정원입니다.
+  </div>`;
+  sumQuotaSheet();
+}
+
+// 정원표에는 시설마다 '계'가 있다. 입력하면서 그 값과 맞춰볼 수 있게 합을 보여준다.
+function sumQuotaSheet(){
+  let n=0;
+  document.querySelectorAll('.q-cell').forEach(el=>{ n+=parseInt(el.value)||0; });
+  const el=document.getElementById('hr-sheet-sum');
+  if(el) el.textContent=`계 ${n}명`;
+}
+
+async function saveQuotaSheet(){
+  const fac=document.getElementById('hr-sheet-facility').value;
+  if(!fac){ toast('시설을 고르세요','error'); return; }
+  const put=[], del=[];
+  document.querySelectorAll('.q-cell').forEach(el=>{
+    const [직급,직렬]=el.dataset.k.split('|');
+    const n=parseInt(el.value)||0;
+    const had=_hrQuota.find(q=>q.시설명===fac&&q.직급===직급&&q.직렬===직렬);
+    if(n>0) put.push({시설명:fac,직렬,직급,정원:n});
+    else if(had) del.push(had.id);      // 0으로 바꾼 칸은 줄 자체를 지운다
+  });
+  try{
+    if(put.length) await DB.insertQuotas(put);
+    for(const id of del) await DB.deleteQuota(id);
+    closeModal('hr-sheet-modal');
+    await renderHrPage();
+    toast(`${fac} 정원을 저장했습니다 (${put.length}칸${del.length?`, ${del.length}칸 삭제`:''})`);
+  }catch(e){ console.error('[quota sheet]',e); toast('저장 실패: '+e.message,'error'); }
 }
 
 // ── 정원 추가·수정 ──────────────────────────────────────────
