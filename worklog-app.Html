@@ -2707,6 +2707,11 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
     <div class="form-group"><label>주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
     <div class="form-group"><label>전공</label><input type="text" id="hr-f-major" list="hr-major-list" placeholder="예: 행정학" /><datalist id="hr-major-list"></datalist></div>
+    <div class="form-group">
+      <label>최근 인사이동 시설</label>
+      <div style="font-size:11px;color:var(--t3);margin:-2px 0 6px">1번이 가장 최근입니다. 현소속 이전에 근무한 곳을 순서대로 고르세요.</div>
+      <div id="hr-f-moves" style="display:grid;gap:6px"></div>
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-danger" id="hr-emp-del" style="display:none" onclick="deleteEmployee()">삭제</button>
       <button class="btn btn-secondary" onclick="closeModal('hr-emp-modal')">취소</button>
@@ -3378,10 +3383,29 @@ function dbToPg(r) {
 // 평정·수상은 여러 건이라 jsonb 배열로 담는다. 배열이 아닌 값이 들어오면 빈 배열로
 // 되돌린다 — 엑셀 업로드처럼 바깥에서 들어오는 경로가 있어서다.
 function _arr(v){ return Array.isArray(v) ? v : []; }
+// 최근 인사이동 시설을 몇 칸까지 받는가. 배치 시뮬레이션에서 "직전에 어디 있었나"를
+// 보려고 둔다. 1번이 가장 최근이다.
+const HR_MOVE_SLOTS=5;
+
+// 이동이력 컬럼(supabase_hr_move.sql)을 아직 안 만든 데이터베이스에서도 직원 저장이
+// 통째로 막히지 않게 한다. 그 칸만 빼고 다시 저장하고, 무엇이 빠졌는지 알린다.
+let _movesColumnMissing=false;
+async function _empWrite(run, rows){
+  const strip=r=>{ const {이동이력, ...rest}=r; return rest; };
+  let {error} = await run(_movesColumnMissing ? rows.map(strip) : rows);
+  if(error && /이동이력/.test(error.message||'')){
+    _movesColumnMissing=true;
+    ({error} = await run(rows.map(strip)));
+    if(!error) toast('최근 인사이동은 저장되지 않았습니다 — supabase_hr_move.sql 을 먼저 실행하세요','error');
+  }
+  if(error) throw error;
+  _cd('hr:emp');
+}
 function empToDb(e){
   const o={ 성명:(e.성명||'').trim(), 생년월일:e.생년월일||null, 주소:e.주소||'',
     직급:e.직급||'', 직렬:e.직렬||'', 전공:e.전공||'', 시설명:e.시설명||'', 사원번호:e.사원번호||'',
     입사일:e.입사일||null, 평정:_arr(e.평정), 수상:_arr(e.수상), 메모:e.메모||'',
+    이동이력:_arr(e.이동이력).slice(0,HR_MOVE_SLOTS),
     updated_at:new Date().toISOString() };
   if(e.id) o.id=e.id;
   return o;
@@ -3389,7 +3413,8 @@ function empToDb(e){
 function dbToEmp(r){
   return { id:r.id, 성명:r.성명||'', 생년월일:r.생년월일||'', 주소:r.주소||'',
     직급:r.직급||'', 직렬:r.직렬||'', 전공:r.전공||'', 시설명:r.시설명||'', 사원번호:r.사원번호||'',
-    입사일:r.입사일||'', 평정:_arr(r.평정), 수상:_arr(r.수상), 메모:r.메모||'' };
+    입사일:r.입사일||'', 평정:_arr(r.평정), 수상:_arr(r.수상), 메모:r.메모||'',
+    이동이력:_arr(r.이동이력) };
 }
 function quotaToDb(q){
   const o={ 시설명:(q.시설명||'').trim(), 직렬:(q.직렬||'').trim(), 직급:(q.직급||'').trim(),
@@ -3522,9 +3547,9 @@ const DB = {
     if(error){ console.error('[hr]',error); return []; }
     return _cs(k,(data||[]).map(dbToEmp));
   },
-  async upsertEmployee(e){ const {error}=await SB.from('hr_employees').upsert(empToDb(e)); if(error)throw error; _cd('hr:emp'); },
+  async upsertEmployee(e){ await _empWrite(rows=>SB.from('hr_employees').upsert(rows), [empToDb(e)]); },
   async deleteEmployee(id){ const {error}=await SB.from('hr_employees').delete().eq('id',id); if(error)throw error; _cd('hr:emp'); },
-  async insertEmployees(rows){ if(!rows.length)return; const {error}=await SB.from('hr_employees').insert(rows.map(empToDb)); if(error)throw error; _cd('hr:emp'); },
+  async insertEmployees(rows){ if(!rows.length)return; await _empWrite(r=>SB.from('hr_employees').insert(r), rows.map(empToDb)); },
   // 엑셀 왕복 저장 — id 가 있으면 그 사람을 고치고, 없으면 새로 만든다.
   // 전부 insert 하면 받아서 고쳐 올릴 때 같은 사람이 한 번 더 생겨 명부가 두 배가 된다.
   async saveEmployeesBulk(rows){
@@ -4366,7 +4391,8 @@ function renderEmployees(){
         <td>${esc(e.직급)||'—'}</td>
         <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
         <td>${esc(e.전공)||'—'}</td>
-        <td>${_facIndentDepth(depthOf.get(e.시설명)||0)}${esc(e.시설명)||'—'}</td>
+        <td>${_facIndentDepth(depthOf.get(e.시설명)||0)}${esc(e.시설명)||'—'}
+          ${_arr(e.이동이력).length?`<div style="font-size:11px;color:var(--t3);margin-top:2px">← ${_arr(e.이동이력).map(esc).join(' ← ')}</div>`:''}</td>
         <td>${e.생년월일?esc(e.생년월일)+`<div style="font-size:11px;color:var(--t3)">${_empAge(e.생년월일)}</div>`:'—'}</td>
         <td style="max-width:260px;word-break:keep-all;font-size:12px;color:var(--t2)">${esc(e.주소)||'—'}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="openEmpModal('${e.id}')">✏️</button></td>
@@ -4610,6 +4636,25 @@ async function openEmpModal(id){
   document.getElementById('hr-f-empno').value=e?e.사원번호:'';
   document.getElementById('hr-f-addr').value=e?e.주소:'';
   document.getElementById('hr-f-facility').value=e?e.시설명:'';
+
+  // 최근 인사이동 시설 — 현소속과 같은 조직도 목록에서 고르게 한다.
+  // 자유 입력으로 두면 표기가 갈려 시뮬레이션에서 같은 시설로 안 묶인다.
+  const _opts=await getOrgFacilityOptions(null);
+  const _moves=_arr(e&&e.이동이력);
+  const _wrap=document.getElementById('hr-f-moves');
+  if(_wrap){
+    _wrap.innerHTML=Array.from({length:HR_MOVE_SLOTS},(_,i)=>
+      `<div style="display:flex;align-items:center;gap:8px">
+         <span style="font-size:11px;color:var(--t3);width:14px;text-align:right">${i+1}</span>
+         <select id="hr-f-move-${i}" style="flex:1"></select>
+       </div>`).join('');
+    for(let i=0;i<HR_MOVE_SLOTS;i++){
+      const sel=document.getElementById('hr-f-move-'+i);
+      fillFacilitySelect(sel,_opts,'—');
+      sel.value=_moves[i]||'';
+    }
+  }
+
   document.getElementById('hr-emp-del').style.display=e?'inline-flex':'none';
   // 화면에서 뺀 값(사원번호·입사일·평정·수상 등)은 건드리지 않고 그대로 다시 저장한다 —
   // 칸을 없앴다고 이미 넣어둔 데이터까지 지워지면 안 된다
@@ -4634,7 +4679,10 @@ async function saveEmployee(){
     직렬:isSeniorRank(document.getElementById('hr-f-rank').value) ? '' : document.getElementById('hr-f-series').value.trim(),
     전공:document.getElementById('hr-f-major').value.trim(),
     시설명:document.getElementById('hr-f-facility').value,
-    주소:document.getElementById('hr-f-addr').value.trim()
+    주소:document.getElementById('hr-f-addr').value.trim(),
+    // 빈 칸은 걸러내고 순서만 남긴다 — 2번을 비우고 3번만 골라도 순서가 앞으로 당겨진다
+    이동이력:Array.from({length:HR_MOVE_SLOTS},(_,i)=>
+      (document.getElementById('hr-f-move-'+i)?.value||'').trim()).filter(Boolean)
   };
   try{ await DB.upsertEmployee(data); closeModal('hr-emp-modal'); await renderHrPage(); toast('저장했습니다'); }
   catch(e){ toast('저장 실패: '+e.message,'error'); console.error(e); }
@@ -4772,10 +4820,15 @@ function _xlDate(v){
 //  · 다운로드  — 지금 등록된 내용을 그대로. 고쳐서 다시 올리면 반영된다.
 // 다운로드에는 id 를 함께 싣는다. 그게 없으면 고쳐 올릴 때 같은 사람이 한 번 더
 // 만들어져 명부가 두 배가 된다. 사용자가 지우지 않도록 첫 칸에 두고 안내한다.
-const HR_EMP_COLS=['id','현소속','성명','사원번호','직급','직렬','생년월일','주소','전공'];
+// 이동1~이동5 = 최근 인사이동 시설. 1번이 가장 최근이다.
+const HR_MOVE_COLS=Array.from({length:HR_MOVE_SLOTS},(_,i)=>'이동'+(i+1));
+const HR_EMP_COLS=['id','현소속','성명','사원번호','직급','직렬','생년월일','주소','전공',...HR_MOVE_COLS];
 function _empToRow(e){
-  return {id:e.id, 현소속:e.시설명, 성명:e.성명, 사원번호:e.사원번호, 직급:e.직급,
-          직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공};
+  const o={id:e.id, 현소속:e.시설명, 성명:e.성명, 사원번호:e.사원번호, 직급:e.직급,
+           직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공};
+  const mv=_arr(e.이동이력);
+  HR_MOVE_COLS.forEach((c,i)=>{ o[c]=mv[i]||''; });
+  return o;
 }
 function _hrWorkbook(empRows,quoRows,quoHeader){
   const wb=XLSX.utils.book_new();
@@ -4809,9 +4862,11 @@ async function _quotaMatrix(){
 
 async function downloadHrTemplate(){
   const emp=[{id:'',현소속:'울주군립야영장',성명:'홍길동',사원번호:'091111',직급:'6급',
-              직렬:'행정',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',전공:'행정학'},
+              직렬:'행정',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',전공:'행정학',
+              이동1:'문화체육센터',이동2:'본부'},
              {id:'',현소속:'본부장',성명:'김철수',사원번호:'091112',직급:'4급',
-              직렬:'',생년월일:'1978-07-20',주소:'울산광역시 남구 …',전공:'토목공학'}];
+              직렬:'',생년월일:'1978-07-20',주소:'울산광역시 남구 …',전공:'토목공학',
+              이동1:'울주군립야영장'}];
   // 정원 양식은 조직도의 모든 시설을 행으로 깔아 준다 — 숫자만 채우면 된다
   const {rows,header}=await _quotaMatrix();
   XLSX.writeFile(_hrWorkbook(emp,rows,header),'인사정보_양식.xlsx');
@@ -4841,7 +4896,8 @@ async function uploadHrExcel(ev){
       직급:String(r.직급||'').trim(),
       직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
       전공:String(r.전공||'').trim(),
-      시설명:String(r.현소속||r.배치시설||r.시설명||'').trim()
+      시설명:String(r.현소속||r.배치시설||r.시설명||'').trim(),
+      이동이력:HR_MOVE_COLS.map(c=>String(r[c]||'').trim()).filter(Boolean)
     })).filter(r=>r.성명);
     // 정원 시트는 두 모양을 다 받는다:
     //  · 행렬 — 시설이 행, '5급-행정' 같은 열. 지금 내려주는 모양.
