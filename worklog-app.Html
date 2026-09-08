@@ -1422,7 +1422,62 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <div class="personal-tab active" id="daily-subtab-work" onclick="switchDailyTab('work')">📔 일일업무</div>
         <div class="personal-tab" id="daily-subtab-perf" onclick="switchDailyTab('perf')">📈 경영실적 입력</div>
         <div class="personal-tab" id="daily-subtab-energy" onclick="switchDailyTab('energy')">⚡ 에너지관리</div>
+        <div class="personal-tab" id="daily-subtab-place" style="display:none" onclick="switchDailyTab('place')">🧩 인사배치</div>
       </div>
+      <div id="daily-sub-place" style="display:none">
+        <div class="hr-warn" id="place-warn" style="display:none;margin-bottom:12px"></div>
+
+        <div class="em-tabs" style="margin-bottom:14px">
+          <button class="em-tab active" id="place-tab-fix" onclick="switchPlaceTab('fix')">1️⃣ 사전 배치</button>
+          <button class="em-tab" id="place-tab-sim" onclick="switchPlaceTab('sim')">2️⃣ 시뮬레이션</button>
+        </div>
+
+        <!-- 1. 사전 배치 -->
+        <div id="place-pane-fix">
+          <div class="section-title">관리자 지정 배치</div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:12px;line-height:1.7">
+            먼저 정해 둘 사람을 여기서 붙박아 둡니다. 여기 지정한 사람은 시뮬레이션이 건드리지 않고,
+            그 자리를 이미 찬 것으로 보고 나머지를 채웁니다.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <input type="text" id="place-fix-search" placeholder="이름·사원번호·직급으로 찾기"
+                   oninput="renderPlaceFix()" style="flex:1;min-width:200px" />
+            <span id="place-fix-count" style="font-size:12px;color:var(--t3)"></span>
+            <button class="btn btn-sm btn-secondary" onclick="clearAllFixed()">전체 해제</button>
+          </div>
+          <div id="place-fix-list"></div>
+        </div>
+
+        <!-- 2. 시뮬레이션 -->
+        <div id="place-pane-sim" style="display:none">
+          <div class="section-title">배치 시뮬레이션</div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:12px;line-height:1.7">
+            정원의 빈자리를 남은 직원으로 채웁니다. <b>직급과 직렬은 반드시 맞아야</b> 하고,
+            그 안에서 아래 무게에 따라 점수가 높은 짝부터 자리를 잡습니다.
+          </div>
+          <div class="hr-sub" style="margin-bottom:12px">
+            <div class="form-row">
+              <div class="form-group"><label>거주지 근접 <span id="place-w-dist-v" style="color:var(--accent)"></span></label>
+                <input type="range" id="place-w-dist" min="0" max="100" value="50" oninput="renderPlaceWeights()" /></div>
+              <div class="form-group"><label>이전 근무지 회피 <span id="place-w-hist-v" style="color:var(--accent)"></span></label>
+                <input type="range" id="place-w-hist" min="0" max="100" value="50" oninput="renderPlaceWeights()" /></div>
+              <div class="form-group"><label>현 소속 유임 <span id="place-w-stay-v" style="color:var(--accent)"></span></label>
+                <input type="range" id="place-w-stay" min="0" max="100" value="20" oninput="renderPlaceWeights()" /></div>
+            </div>
+            <div style="font-size:11px;color:var(--t3);line-height:1.7">
+              <b>거주지 근접</b>은 직원 주소와 시설 주소의 행정구역이 얼마나 겹치는지로 봅니다(같은 읍·면·동 &gt; 같은 시·군·구 &gt; 같은 시·도).
+              직원 주소에는 좌표가 없어 실제 도로 거리는 쓰지 않습니다.<br>
+              <b>이전 근무지 회피</b>는 최근 인사이동 시설로 다시 보내지 않으려는 쪽으로 점수를 깎습니다. 최근일수록 많이 깎습니다.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="runPlacement()">시뮬레이션 실행</button>
+            <button class="btn btn-secondary" id="place-xls" style="display:none" onclick="downloadPlacementExcel()">엑셀로 내려받기</button>
+          </div>
+          <div id="place-result"></div>
+        </div>
+      </div>
+
       <div id="daily-sub-work">
       <div class="daily-date-bar">
         <button class="btn btn-secondary btn-sm" onclick="changeDate(-1)">◀ 이전</button>
@@ -2683,6 +2738,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group"><label id="org-rn-label">새 이름 *</label><input type="text" id="org-rn-new" placeholder="조직 이름"
       onkeydown="if(event.key==='Enter')saveOrgRename()" /></div>
     <div class="form-group" id="org-rn-parent-row" style="display:none"><label>상위 조직</label><select id="org-rn-parent"></select></div>
+    <div id="org-rn-loc-row" style="display:none">
+      <div class="form-group"><label>시설 위치(주소)</label>
+        <input type="text" id="org-rn-addr" placeholder="예: 울산광역시 울주군 상북면 등억알프스리 …" />
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">인사배치에서 직원 거주지와의 거리를 가늠하는 데 씁니다.</div></div>
+      <div class="form-row">
+        <div class="form-group"><label>위도</label><input type="text" id="org-rn-lat" placeholder="예: 35.5684 (선택)" /></div>
+        <div class="form-group"><label>경도</label><input type="text" id="org-rn-lng" placeholder="예: 129.1120 (선택)" /></div>
+      </div>
+      <div id="org-rn-loc-warn" style="display:none;font-size:11px;color:var(--red);margin:-4px 0 8px"></div>
+    </div>
     <div id="org-rn-note" style="font-size:11px;color:var(--t3);line-height:1.7"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-danger" id="org-rn-del" style="display:none" onclick="deleteOrgNode()">조직 삭제</button>
@@ -3389,16 +3454,26 @@ function _arr(v){ return Array.isArray(v) ? v : []; }
 // 보려고 둔다. 1번이 가장 최근이다.
 const HR_MOVE_SLOTS=5;
 
-// 이동이력 컬럼(supabase_hr_move.sql)을 아직 안 만든 데이터베이스에서도 직원 저장이
-// 통째로 막히지 않게 한다. 그 칸만 빼고 다시 저장하고, 무엇이 빠졌는지 알린다.
-let _movesColumnMissing=false;
+// 아직 안 만든 칸(이동이력·배치고정) 때문에 직원 저장이 통째로 막히지 않게 한다.
+// 그 칸만 빼고 다시 저장하고, 무엇이 빠졌는지 알린다.
+const HR_OPTIONAL_COLS={ 이동이력:'supabase_hr_move.sql', 배치고정:'supabase_placement_setup.sql' };
+const _hrMissingCols=new Set();
+let _orgLocMissing=false;          // users 의 위치 칸이 아직 없는가
+let _movesColumnMissing=false;     // 이동이력 — 화면 안내에서 본다
+let _fixedColumnMissing=false;     // 배치고정 — 인사배치 화면에서 본다
+function _syncMissingFlags(){
+  _movesColumnMissing=_hrMissingCols.has('이동이력');
+  _fixedColumnMissing=_hrMissingCols.has('배치고정');
+}
 async function _empWrite(run, rows){
-  const strip=r=>{ const {이동이력, ...rest}=r; return rest; };
-  let {error} = await run(_movesColumnMissing ? rows.map(strip) : rows);
-  if(error && /이동이력/.test(error.message||'')){
-    _movesColumnMissing=true;
+  const strip=r=>{ const o={...r}; _hrMissingCols.forEach(c=>delete o[c]); return o; };
+  let {error} = await run(_hrMissingCols.size ? rows.map(strip) : rows);
+  // PostgREST 는 없는 칸 이름을 오류 문구에 담아 준다. 그 칸만 빼고 한 번 더 보낸다.
+  const hit = error && Object.keys(HR_OPTIONAL_COLS).filter(c=>!_hrMissingCols.has(c) && (error.message||'').includes(c));
+  if(hit && hit.length){
+    hit.forEach(c=>_hrMissingCols.add(c)); _syncMissingFlags();
     ({error} = await run(rows.map(strip)));
-    if(!error) toast('최근 인사이동은 저장되지 않았습니다 — supabase_hr_move.sql 을 먼저 실행하세요','error');
+    if(!error) toast(`${hit.join('·')} 은(는) 저장되지 않았습니다 — ${[...new Set(hit.map(c=>HR_OPTIONAL_COLS[c]))].join(', ')} 을 먼저 실행하세요`,'error');
   }
   if(error) throw error;
   _cd('hr:emp');
@@ -3408,6 +3483,7 @@ function empToDb(e){
     직급:e.직급||'', 직렬:e.직렬||'', 전공:e.전공||'', 시설명:e.시설명||'', 사원번호:e.사원번호||'',
     입사일:e.입사일||null, 평정:_arr(e.평정), 수상:_arr(e.수상), 메모:e.메모||'',
     이동이력:_arr(e.이동이력).slice(0,HR_MOVE_SLOTS),
+    배치고정:(e.배치고정&&typeof e.배치고정==='object'&&!Array.isArray(e.배치고정))?e.배치고정:{},
     updated_at:new Date().toISOString() };
   if(e.id) o.id=e.id;
   return o;
@@ -3416,7 +3492,8 @@ function dbToEmp(r){
   return { id:r.id, 성명:r.성명||'', 생년월일:r.생년월일||'', 주소:r.주소||'',
     직급:r.직급||'', 직렬:r.직렬||'', 전공:r.전공||'', 시설명:r.시설명||'', 사원번호:r.사원번호||'',
     입사일:r.입사일||'', 평정:_arr(r.평정), 수상:_arr(r.수상), 메모:r.메모||'',
-    이동이력:_arr(r.이동이력) };
+    이동이력:_arr(r.이동이력),
+    배치고정:(r.배치고정&&typeof r.배치고정==='object'&&!Array.isArray(r.배치고정))?r.배치고정:{} };
 }
 function quotaToDb(q){
   const o={ 시설명:(q.시설명||'').trim(), 직렬:(q.직렬||'').trim(), 직급:(q.직급||'').trim(),
@@ -3467,7 +3544,21 @@ const DB = {
   async getUsers(){
     const k='users';
     if(_cg(k)) return _cg(k);
-    const {data,error}=await SB.from('users').select('id,성명,시설명,사원번호,role,created_at,parent_facility,sort_order'); if(error){console.error(error);return[];} return _cs(k,data||[]);
+    // 위치 칸(시설주소·위도·경도)은 supabase_placement_setup.sql 로 만든다. 아직 없으면
+    // 조회가 통째로 실패하므로, 실패하면 위치 없이 한 번 더 읽는다.
+    const BASE='id,성명,시설명,사원번호,role,created_at,parent_facility,sort_order';
+    if(!_orgLocMissing){
+      const r=await SB.from('users').select(BASE+',시설주소,위도,경도');
+      if(!r.error) return _cs(k,r.data||[]);
+      _orgLocMissing=true;
+      console.warn('[users] 위치 칸 없음 — supabase_placement_setup.sql 미실행');
+    }
+    const {data,error}=await SB.from('users').select(BASE); if(error){console.error(error);return[];} return _cs(k,data||[]);
+  },
+  // 시설 위치 전용 — 이름·권한은 손대지 않는다
+  async updateOrgLocation(id, loc){
+    const {error}=await SB.from('users').update({시설주소:loc.시설주소||null, 위도:loc.위도, 경도:loc.경도}).eq('id',id);
+    if(error) throw error; _cd('users');
   },
   // 조직 이동 전용 — 상위와 순서만 바꾼다(패스워드·성명·권한은 손대지 않는다)
   async updateUserOrg(id, parent, order){
@@ -3549,7 +3640,10 @@ const DB = {
     if(error){ console.error('[hr]',error); return []; }
     // 이동이력 컬럼을 아직 안 만들었는지 여기서 미리 안다 — 저장이 조용히 반쪽만
     // 되는 것보다, 넣기 전에 화면에서 말해 주는 편이 낫다.
-    if(data && data.length) _movesColumnMissing = !('이동이력' in data[0]);
+    if(data && data.length){
+      Object.keys(HR_OPTIONAL_COLS).forEach(c=>{ if(c in data[0]) _hrMissingCols.delete(c); else _hrMissingCols.add(c); });
+      _syncMissingFlags();
+    }
     return _cs(k,(data||[]).map(dbToEmp));
   },
   async upsertEmployee(e){ await _empWrite(rows=>SB.from('hr_employees').upsert(rows), [empToDb(e)]); },
@@ -3964,6 +4058,8 @@ async function enterApp(){
   document.getElementById('admin-tab-energy').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
   document.getElementById('admin-tab-knowledge').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
   // 개인 세션 중 증권&환율·운동 탭은 관리자(admin)만 노출
+  const _tabPlace = document.getElementById('daily-subtab-place');
+  if(_tabPlace) _tabPlace.style.display = can('hr.manage') ? '' : 'none';
   const _tabStock = document.getElementById('personal-tab-stock');
   const _tabExercise = document.getElementById('personal-tab-exercise');
   if(_tabStock) _tabStock.style.display = isAdmin ? '' : 'none';
@@ -4239,17 +4335,23 @@ function navigate(page){
 
 // 업무 하위 탭: 일일업무 / 에너지관리
 function switchDailyTab(tab){
-  if(!['work','perf','energy'].includes(tab)) tab='work';
+  // 인사배치는 인사정보를 다루므로 그 권한이 있는 사람에게만 보인다
+  const tabs=['work','perf','energy',...(can('hr.manage')?['place']:[])];
+  if(!tabs.includes(tab)) tab='work';
   _sessionSubTab.daily = tab;
-  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],['energy','daily-subtab-energy']].forEach(([t,id])=>{
+  [['work','daily-subtab-work'],['perf','daily-subtab-perf'],
+   ['energy','daily-subtab-energy'],['place','daily-subtab-place']].forEach(([t,id])=>{
     const el=document.getElementById(id); if(el) el.classList.toggle('active', tab===t);
   });
   const work=document.getElementById('daily-sub-work');
   const perf=document.getElementById('daily-sub-perf');
+  const place=document.getElementById('daily-sub-place');
   const energy=document.getElementById('page-energy');
   if(work)   work.style.display   = tab==='work'   ? '' : 'none';
   if(perf)   perf.style.display   = tab==='perf'   ? '' : 'none';
+  if(place)  place.style.display  = tab==='place'  ? '' : 'none';
   if(energy) energy.style.display = tab==='energy' ? 'block' : 'none';
+  if(tab==='place'){ stopGcalAutoRefresh(); renderPlacePage(); return; }
   if(tab==='work'){
     renderDailyPage();
     startGcalAutoRefresh();
@@ -4590,6 +4692,359 @@ function renderQuota(){
         <td>${r.id?`<button class="btn btn-ghost btn-sm" onclick="openQuotaModal('${r.id}')">✏️</button>`:'<span style="font-size:11px;color:var(--t3)">정원 미등록</span>'}</td>
       </tr>`;}).join('')}
     </tbody></table></div>`;
+}
+
+
+// ═══════════════════════════════════════════════
+// 인사배치 시뮬레이션
+// ═══════════════════════════════════════════════
+// 두 단계로 나눈다.
+//   1) 사전 배치 — 관리자가 "이 사람은 여기 관장" 하고 붙박아 둔다. 시뮬레이션은
+//      이 자리를 이미 찬 것으로 보고 건드리지 않는다.
+//   2) 시뮬레이션 — 남은 정원을 남은 사람으로 채운다. 직급·직렬은 반드시 맞아야
+//      하고(정원표가 그 단위로 잡혀 있다), 그 안에서 점수가 높은 짝부터 앉힌다.
+//
+// 점수는 셋을 섞는다. 무게는 화면에서 조절한다.
+//   · 거주지 근접  — 주소의 행정구역이 얼마나 겹치는가
+//   · 이전 근무지  — 최근에 있던 곳으로 되돌리지 않으려는 쪽
+//   · 현 소속 유임 — 지금 있는 곳에 그대로 두려는 쪽
+//
+// 왜 헝가리안 같은 최적해법을 쓰지 않는가: 결과를 사람이 납득해야 하는 자료다.
+// "점수 높은 짝부터 앉혔다"는 설명이 되지만 "전체 합이 최대"는 한 줄로 설명되지 않는다.
+
+const PLACE_ROLES=['관장','팀장','직원'];
+let _placeResult=null;      // 마지막 시뮬레이션 결과
+let _placeTab='fix';
+
+// 주소를 시·도 / 시·군·구 / 읍·면·동 으로 가른다. 못 가르면 null.
+function _addrParts(addr){
+  const toks=String(addr||'').trim().split(/\s+/).filter(Boolean);
+  if(!toks.length) return null;
+  const sido=toks[0];
+  let i=1, sigungu='';
+  while(i<toks.length){ if(/(시|군|구)$/.test(toks[i])){ sigungu=toks[i]; i++; break; } i++; }
+  if(!sigungu) i=1;                                  // 세종처럼 시·군·구가 없는 곳도 있다
+  let emd='';
+  for(let j=i;j<toks.length;j++){ if(/(읍|면|동|리|가)$/.test(toks[j])){ emd=toks[j]; break; } }
+  return {sido,sigungu,emd};
+}
+
+// 두 주소가 얼마나 가까운가(0~100). 한쪽이라도 주소를 모르면 null — 점수를 매기지 않는다.
+function _regionScore(a,b){
+  const A=_addrParts(a), B=_addrParts(b);
+  if(!A||!B) return null;
+  if(A.sido!==B.sido) return 0;
+  if(!A.sigungu||!B.sigungu||A.sigungu!==B.sigungu) return 35;
+  if(A.emd&&B.emd&&A.emd===B.emd) return 100;
+  return 70;
+}
+
+// 이전 근무지 점수(0~100). 가 본 적 없으면 100, 직전 근무지면 0.
+function _histScore(emp, fac){
+  const mv=_arr(emp.이동이력);
+  const i=mv.indexOf(fac);
+  if(i<0) return 100;
+  return Math.max(0, 100 - Math.round(100*(mv.length-i)/mv.length));
+}
+
+// 정원 한 칸의 직렬이 그 사람의 직렬을 받아들이는가.
+// '행정·기술' 처럼 묶인 자리는 어느 쪽이든 받는다. 직렬이 없는 자리(4급 이상)는 무관.
+function _seriesMatches(slotSeries, empSeries){
+  const sl=String(slotSeries||'').trim();
+  if(!sl) return true;
+  return sl.split('·').map(x=>x.trim()).includes(String(empSeries||'').trim());
+}
+
+function _placeWeights(){
+  const g=id=>parseInt(document.getElementById(id)?.value ?? '50',10);
+  return { dist:g('place-w-dist'), hist:g('place-w-hist'), stay:g('place-w-stay') };
+}
+function renderPlaceWeights(){
+  const w=_placeWeights();
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('place-w-dist-v',w.dist); set('place-w-hist-v',w.hist); set('place-w-stay-v',w.stay);
+}
+
+// 시설 주소는 조직도(users)에 있다. 이름으로 찾을 수 있게 만들어 둔다.
+let _facAddr=new Map();
+function _facAddrOf(name){ return _facAddr.get(name)||''; }
+
+async function renderPlacePage(){
+  const [emps,quota,users]=await Promise.all([DB.getEmployees(),DB.getQuota(),DB.getUsers(),_getFacilityOrderMap()]);
+  _hrEmps=emps; _hrQuota=quota;
+  _facAddr=new Map(users.filter(u=>u.시설명).map(u=>[u.시설명,u.시설주소||'']));
+
+  // 준비가 덜 된 것을 먼저 말해 준다 — 돌려 보고 나서 "왜 다 미배정이지" 하지 않도록
+  const miss=[];
+  if(_fixedColumnMissing) miss.push('사전 배치를 저장할 칸(배치고정)');
+  if(_orgLocMissing)      miss.push('시설 위치 칸(시설주소·위도·경도)');
+  const warn=document.getElementById('place-warn');
+  if(warn){
+    warn.style.display=miss.length?'':'none';
+    warn.innerHTML=miss.length
+      ? `⚠️ <b>${miss.join(' 과(와) ')}이 데이터베이스에 없습니다.</b> `
+        + 'Supabase → SQL Editor 에서 <code>supabase_placement_setup.sql</code> 을 실행하세요. '
+        + '실행 전에는 사전 배치가 저장되지 않고, 거주지 근접 점수도 매겨지지 않습니다.'
+      : '';
+  }
+  renderPlaceWeights();
+  switchPlaceTab(_placeTab);
+}
+
+function switchPlaceTab(t){
+  _placeTab=(t==='sim')?'sim':'fix';
+  document.getElementById('place-tab-fix')?.classList.toggle('active',_placeTab==='fix');
+  document.getElementById('place-tab-sim')?.classList.toggle('active',_placeTab==='sim');
+  const f=document.getElementById('place-pane-fix'), m=document.getElementById('place-pane-sim');
+  if(f) f.style.display=_placeTab==='fix'?'':'none';
+  if(m) m.style.display=_placeTab==='sim'?'':'none';
+  if(_placeTab==='fix') renderPlaceFix(); else renderPlaceResult();
+}
+
+// ── 1. 사전 배치 ────────────────────────────────────────────
+function renderPlaceFix(){
+  const cont=document.getElementById('place-fix-list'); if(!cont) return;
+  const q=(document.getElementById('place-fix-search')?.value||'').trim().toLowerCase();
+  const list=_hrEmps.filter(e=>!q||[e.성명,e.사원번호,e.직급,e.직렬,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
+  const sorted=list.slice().sort((a,b)=>{
+    const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
+    if(oa!==ob) return oa-ob;
+    const ra=_rankOrder(a.직급), rb=_rankOrder(b.직급);
+    if(ra!==rb) return ra-rb;
+    return (a.사원번호||'').localeCompare(b.사원번호||'','ko',{numeric:true});
+  });
+  const fixedN=_hrEmps.filter(e=>e.배치고정&&e.배치고정.시설명).length;
+  const cnt=document.getElementById('place-fix-count');
+  if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명 · 지정 ${fixedN}명`;
+
+  if(!sorted.length){
+    cont.innerHTML='<div class="empty-state"><div class="icon">🧩</div><p>직원이 없습니다. 인사관리에서 먼저 등록하세요.</p></div>';
+    return;
+  }
+  const opts=[...new Set(_hrQuota.map(x=>x.시설명))].sort((a,b)=>_facOrder(a)-_facOrder(b));
+  const depthOf=_facDepthMap(sorted.map(e=>e.시설명));
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table hr-center">
+    <thead><tr><th>현소속</th><th>성명</th><th>직급</th><th>직렬</th><th>지정 시설</th><th>역할</th><th style="width:60px"></th></tr></thead>
+    <tbody>${sorted.map(e=>{
+      const fx=e.배치고정||{};
+      const on=!!fx.시설명;
+      return `<tr${on?' style="background:rgba(59,201,138,0.07)"':''}>
+        <td class="hr-fac" style="white-space:nowrap;padding-left:${12+(depthOf.get(e.시설명)||0)*20}px">${esc(e.시설명)||'—'}</td>
+        <td><b>${esc(e.성명)}</b>${e.사원번호?`<div style="font-size:11px;color:var(--t3)">${esc(e.사원번호)}</div>`:''}</td>
+        <td>${esc(e.직급)||'—'}</td>
+        <td>${isSeniorRank(e.직급)?'<span style="color:var(--t3);font-size:12px">해당없음</span>':(esc(e.직렬)||'—')}</td>
+        <td><select onchange="setFixed('${e.id}','fac',this.value)" style="min-width:150px">
+          <option value="">— 지정 안 함</option>
+          ${opts.map(f=>`<option value="${esc(f)}"${fx.시설명===f?' selected':''}>${esc(f)}</option>`).join('')}
+        </select></td>
+        <td><select onchange="setFixed('${e.id}','role',this.value)" ${on?'':'disabled'} style="min-width:90px">
+          ${PLACE_ROLES.map(r=>`<option value="${r}"${(fx.역할||'직원')===r?' selected':''}>${r}</option>`).join('')}
+        </select></td>
+        <td>${on?`<button class="btn btn-ghost btn-sm" onclick="setFixed('${e.id}','fac','')" title="지정 해제">✕</button>`:''}</td>
+      </tr>`;}).join('')}
+    </tbody></table></div>`;
+}
+
+async function setFixed(id, what, value){
+  const e=_hrEmps.find(x=>x.id===id); if(!e) return;
+  const fx={...(e.배치고정||{})};
+  if(what==='fac'){
+    if(value) { fx.시설명=value; fx.역할=fx.역할||'직원'; }
+    else { delete fx.시설명; delete fx.역할; }
+  } else fx.역할=value;
+  try{
+    await DB.upsertEmployee({...e, 배치고정:fx});
+    _cd('hr:emp');
+    _hrEmps=await DB.getEmployees();
+    _placeResult=null;                       // 전제가 바뀌었으니 지난 결과는 버린다
+    renderPlaceFix();
+  }catch(err){ console.error('[fix]',err); toast('저장 실패: '+err.message,'error'); }
+}
+
+async function clearAllFixed(){
+  const on=_hrEmps.filter(e=>e.배치고정&&e.배치고정.시설명);
+  if(!on.length){ toast('지정된 사람이 없습니다'); return; }
+  if(!await confirmDialog(`사전 배치 ${on.length}건을 모두 해제하시겠습니까?`)) return;
+  try{
+    for(const e of on) await DB.upsertEmployee({...e, 배치고정:{}});
+    _cd('hr:emp'); _hrEmps=await DB.getEmployees(); _placeResult=null;
+    renderPlaceFix(); toast(`${on.length}건을 해제했습니다`);
+  }catch(err){ console.error('[fix clear]',err); toast('해제 실패: '+err.message,'error'); }
+}
+
+// ── 2. 시뮬레이션 ───────────────────────────────────────────
+// 정원 한 줄(정원 N)을 N개의 자리로 편다. 자리 하나에 사람 하나가 앉는다.
+function _buildSlots(){
+  const out=[];
+  _hrQuota.forEach(q=>{
+    const n=parseInt(q.정원,10)||0;
+    for(let i=0;i<n;i++) out.push({시설명:q.시설명, 직급:q.직급, 직렬:q.직렬, key:`${q.시설명}|${q.직급}|${q.직렬}|${i}`});
+  });
+  return out.sort((a,b)=>{
+    const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
+    if(oa!==ob) return oa-ob;
+    return _rankOrder(a.직급)-_rankOrder(b.직급) || (a.직렬||'').localeCompare(b.직렬||'','ko');
+  });
+}
+
+function _fits(emp, slot){
+  return rankKey(emp.직급)===rankKey(slot.직급) && _seriesMatches(slot.직렬, emp.직렬);
+}
+
+function _scorePair(emp, slot, w){
+  const region=_regionScore(emp.주소, _facAddrOf(slot.시설명));
+  const dist = region===null ? 50 : region;      // 주소를 모르면 중간값 — 벌도 상도 주지 않는다
+  const hist = _histScore(emp, slot.시설명);
+  const stay = emp.시설명===slot.시설명 ? 100 : 0;
+  const tot = w.dist+w.hist+w.stay;
+  const score = tot ? (w.dist*dist + w.hist*hist + w.stay*stay)/tot : 0;
+  return {score, dist, hist, stay, distKnown:region!==null};
+}
+
+function runPlacement(){
+  const w=_placeWeights();
+  const slots=_buildSlots();
+  if(!slots.length){ toast('정원이 없습니다. 인사관리에서 먼저 정원을 넣으세요','error'); return; }
+
+  const taken=new Set();          // 이미 찬 자리
+  const placed=new Map();         // empId → {slot, 역할, why}
+  const notes=[];
+
+  // (1) 사전 배치 먼저 — 관리자가 정한 것은 무조건 지킨다
+  _hrEmps.filter(e=>e.배치고정&&e.배치고정.시설명).forEach(e=>{
+    const fac=e.배치고정.시설명, role=e.배치고정.역할||'직원';
+    const slot=slots.find(s=>!taken.has(s.key) && s.시설명===fac && _fits(e,s));
+    if(slot){ taken.add(slot.key); placed.set(e.id,{emp:e, slot, 역할:role, fixed:true, why:null}); }
+    else {
+      // 자리가 없어도 관리자의 지정은 지킨다. 대신 정원을 넘겼다고 알린다.
+      placed.set(e.id,{emp:e, slot:{시설명:fac, 직급:e.직급, 직렬:e.직렬, key:'over:'+e.id}, 역할:role, fixed:true, over:true, why:null});
+      notes.push(`${e.성명}(${e.직급}${e.직렬?'·'+e.직렬:''}) — ${fac}에 맞는 빈 정원이 없어 정원을 넘겨 배치했습니다`);
+    }
+  });
+
+  // (2) 남은 사람 × 남은 자리 — 조건에 맞는 짝만 점수를 매겨 높은 순으로 앉힌다
+  const rest=_hrEmps.filter(e=>!placed.has(e.id));
+  const pairs=[];
+  rest.forEach(e=>slots.forEach(s=>{
+    if(taken.has(s.key) || !_fits(e,s)) return;
+    pairs.push({emp:e, slot:s, ...(_scorePair(e,s,w))});
+  }));
+  pairs.sort((a,b)=> b.score-a.score
+    || _facOrder(a.slot.시설명)-_facOrder(b.slot.시설명)
+    || (a.emp.사원번호||'').localeCompare(b.emp.사원번호||'','ko',{numeric:true}));
+  pairs.forEach(pr=>{
+    if(placed.has(pr.emp.id) || taken.has(pr.slot.key)) return;
+    taken.add(pr.slot.key);
+    placed.set(pr.emp.id,{emp:pr.emp, slot:pr.slot, 역할:'직원', fixed:false, why:pr});
+  });
+
+  _placeResult={
+    when:new Date(), weights:w, slots, taken, placed, notes,
+    unplaced:_hrEmps.filter(e=>!placed.has(e.id)),
+    empty:slots.filter(s=>!taken.has(s.key)),
+  };
+  renderPlaceResult();
+  const btn=document.getElementById('place-xls'); if(btn) btn.style.display='';
+  toast(`배치 ${placed.size}명 · 미배치 ${_placeResult.unplaced.length}명 · 빈자리 ${_placeResult.empty.length}`);
+}
+
+function renderPlaceResult(){
+  const cont=document.getElementById('place-result'); if(!cont) return;
+  const r=_placeResult;
+  if(!r){
+    cont.innerHTML='<div class="empty-state"><div class="icon">🧩</div><p>시뮬레이션 실행을 누르면 결과가 여기에 나옵니다.</p></div>';
+    const b=document.getElementById('place-xls'); if(b) b.style.display='none';
+    return;
+  }
+  const byFac=new Map();
+  [...r.placed.values()].forEach(p=>{
+    if(!byFac.has(p.slot.시설명)) byFac.set(p.slot.시설명,[]);
+    byFac.get(p.slot.시설명).push(p);
+  });
+  r.empty.forEach(s=>{ if(!byFac.has(s.시설명)) byFac.set(s.시설명,[]); });
+  const facs=[...byFac.keys()].sort((a,b)=>_facOrder(a)-_facOrder(b));
+  const depthOf=_facDepthMap(facs);
+  const roleBadge=p=>p.fixed
+    ? `<span class="section-badge section-badge-green" style="font-size:10px">지정 ${esc(p.역할)}</span>`
+    : '';
+  const why=p=>{
+    if(p.fixed) return '<span style="color:var(--t3)">관리자 지정</span>';
+    const w=p.why; if(!w) return '';
+    return `<span style="color:var(--t3)">거주지 ${w.distKnown?w.dist:'?'} · 이전근무 ${w.hist} · 유임 ${w.stay}</span>`;
+  };
+
+  cont.innerHTML=`
+    <div class="hr-sub" style="margin-bottom:14px">
+      <b>${r.placed.size}명 배치</b> · 미배치 <b class="${r.unplaced.length?'hr-over':''}">${r.unplaced.length}명</b>
+      · 빈자리 <b class="${r.empty.length?'hr-under':''}">${r.empty.length}</b>
+      <span style="color:var(--t3);font-size:11px;margin-left:8px">
+        무게 거주지 ${r.weights.dist} · 이전근무 ${r.weights.hist} · 유임 ${r.weights.stay}
+        · ${r.when.toLocaleTimeString('ko-KR')}</span>
+    </div>
+    ${r.notes.length?`<div class="hr-warn" style="margin-bottom:12px">${r.notes.map(esc).join('<br>')}</div>`:''}
+    ${facs.map(f=>{
+      const rows=byFac.get(f).sort((a,b)=>_rankOrder(a.slot.직급)-_rankOrder(b.slot.직급)
+        || (a.slot.직렬||'').localeCompare(b.slot.직렬||'','ko'));
+      const empty=r.empty.filter(s=>s.시설명===f);
+      return `<div style="margin-bottom:18px">
+        <div class="section-title" style="margin-bottom:8px">
+          ${'&nbsp;'.repeat((depthOf.get(f)||0)*3)}${esc(f)}
+          <span style="font-size:11px;color:var(--t3);font-weight:400"> · 배치 ${rows.length}명${empty.length?` · 빈자리 ${empty.length}`:''}</span>
+        </div>
+        <div class="hr-scroll"><table class="hr-table hr-center">
+          <thead><tr><th>직급</th><th>직렬</th><th>성명</th><th>현소속</th><th>거주지</th><th>근거</th></tr></thead>
+          <tbody>
+            ${rows.map(p=>`<tr${p.over?' style="background:rgba(255,107,107,0.08)"':''}>
+              <td>${esc(p.slot.직급)}</td>
+              <td>${esc(p.slot.직렬)||'—'}</td>
+              <td><b>${esc(p.emp.성명)}</b> ${roleBadge(p)}${p.over?'<span class="hr-over" style="font-size:10px"> 정원초과</span>':''}</td>
+              <td>${esc(p.emp.시설명)||'—'}${p.emp.시설명===f?' <span class="hr-fit" style="font-size:10px">유임</span>':''}</td>
+              <td style="font-size:11px;color:var(--t3);max-width:200px;word-break:keep-all">${esc(p.emp.주소)||'—'}</td>
+              <td style="font-size:11px">${why(p)}</td>
+            </tr>`).join('')}
+            ${empty.map(s=>`<tr style="opacity:0.55">
+              <td>${esc(s.직급)}</td><td>${esc(s.직렬)||'—'}</td>
+              <td colspan="4" class="hr-under">빈자리 — 조건에 맞는 남은 직원이 없습니다</td>
+            </tr>`).join('')}
+          </tbody></table></div>
+      </div>`;}).join('')}
+    ${r.unplaced.length?`
+      <div class="section-title" style="margin-bottom:8px">미배치 ${r.unplaced.length}명</div>
+      <div class="hr-scroll"><table class="hr-table hr-center">
+        <thead><tr><th>성명</th><th>직급</th><th>직렬</th><th>현소속</th><th>왜 못 앉았나</th></tr></thead>
+        <tbody>${r.unplaced.map(e=>{
+          const fitAny=r.slots.some(s=>_fits(e,s));
+          return `<tr>
+            <td><b>${esc(e.성명)}</b></td><td>${esc(e.직급)||'—'}</td>
+            <td>${isSeniorRank(e.직급)?'해당없음':(esc(e.직렬)||'—')}</td>
+            <td>${esc(e.시설명)||'—'}</td>
+            <td style="font-size:12px;color:var(--t3)">${fitAny
+              ? '맞는 자리는 있으나 다른 사람이 먼저 앉았습니다(정원 부족)'
+              : `이 직급·직렬(${esc(e.직급)||'?'}${e.직렬?'·'+esc(e.직렬):''})의 정원이 어디에도 없습니다`}</td>
+          </tr>`;}).join('')}
+        </tbody></table></div>`:''}`;
+}
+
+function downloadPlacementExcel(){
+  const r=_placeResult; if(!r){ toast('먼저 시뮬레이션을 실행하세요','error'); return; }
+  const rows=[...r.placed.values()]
+    .sort((a,b)=>_facOrder(a.slot.시설명)-_facOrder(b.slot.시설명)
+      || _rankOrder(a.slot.직급)-_rankOrder(b.slot.직급))
+    .map(p=>({
+      배치시설:p.slot.시설명, 직급:p.slot.직급, 직렬:p.slot.직렬||'',
+      성명:p.emp.성명, 사원번호:p.emp.사원번호||'', 역할:p.역할,
+      현소속:p.emp.시설명||'', 구분:p.fixed?(p.over?'관리자 지정(정원초과)':'관리자 지정'):'자동',
+      거주지근접:p.why?(p.why.distKnown?p.why.dist:''):'',
+      이전근무:p.why?p.why.hist:'', 유임:p.why?p.why.stay:'',
+      종합점수:p.why?Math.round(p.why.score):'', 주소:p.emp.주소||'',
+    }));
+  const left=r.unplaced.map(e=>({성명:e.성명, 사원번호:e.사원번호||'', 직급:e.직급||'', 직렬:e.직렬||'', 현소속:e.시설명||''}));
+  const empty=r.empty.map(s=>({시설:s.시설명, 직급:s.직급, 직렬:s.직렬||''}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'배치결과');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(left.length?left:[{성명:'(없음)'}]),'미배치');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(empty.length?empty:[{시설:'(없음)'}]),'빈자리');
+  XLSX.writeFile(wb,`인사배치_시뮬레이션_${today()}.xlsx`);
 }
 
 // ── 직원 추가·수정 ──────────────────────────────────────────
@@ -9560,6 +10015,13 @@ function _orgModalMode(add){
   document.getElementById('org-rn-parent-row').style.display = add ? '' : 'none';
   document.getElementById('org-rn-del').style.display = add ? 'none' : 'inline-flex';
   document.getElementById('org-rn-save').textContent = add ? '추가' : '변경';
+  // 위치는 이미 있는 조직에만 붙인다 — 추가할 때는 이름과 상위만 정한다
+  document.getElementById('org-rn-loc-row').style.display = add ? 'none' : '';
+  const w=document.getElementById('org-rn-loc-warn');
+  if(w){
+    w.style.display=(!add && _orgLocMissing)?'':'none';
+    w.textContent='데이터베이스에 위치 칸이 없어 저장되지 않습니다 — supabase_placement_setup.sql 을 실행하세요.';
+  }
 }
 
 async function openOrgAdd(){
@@ -9583,6 +10045,9 @@ async function openOrgRename(id){
   document.getElementById('org-rn-id').value=id;
   document.getElementById('org-rn-old').value=u.시설명;
   document.getElementById('org-rn-new').value=u.시설명;
+  document.getElementById('org-rn-addr').value=u.시설주소||'';
+  document.getElementById('org-rn-lat').value=(u.위도??'')===null?'':(u.위도??'');
+  document.getElementById('org-rn-lng').value=(u.경도??'')===null?'':(u.경도??'');
   // 무엇이 함께 바뀌는지 미리 알린다 — 이름이 여러 표에 흩어져 있어 되돌리기 번거롭다
   document.getElementById('org-rn-note').innerHTML=
     `바꾸면 이 이름을 쓰는 자료가 함께 옮겨집니다 — ${kids?`하위 조직 <b>${kids}개</b>의 상위 이름, `:''}`
@@ -9590,6 +10055,24 @@ async function openOrgRename(id){
   _orgModalMode(false);
   openModal('org-rename-modal');
   setTimeout(()=>{ const el=document.getElementById('org-rn-new'); el?.focus(); el?.select(); },50);
+}
+
+// 위치 칸을 읽어 검사한다. 형식이 틀리면 null 을 돌려주고 안내를 띄운다.
+// 좌표는 선택이라 비어 있으면 null 로 저장한다(0 이 아니다 — 0,0 은 아프리카 앞바다다).
+function _readOrgLocFields(){
+  const raw=v=>String(v||'').trim();
+  const 시설주소=raw(document.getElementById('org-rn-addr')?.value);
+  const parse=(v,lo,hi,name)=>{
+    const t=raw(v); if(!t) return null;
+    const n=Number(t);
+    if(!Number.isFinite(n)||n<lo||n>hi){ toast(`${name}는 ${lo}~${hi} 사이의 숫자여야 합니다`,'error'); return undefined; }
+    return n;
+  };
+  const 위도=parse(document.getElementById('org-rn-lat')?.value,-90,90,'위도');
+  if(위도===undefined) return null;
+  const 경도=parse(document.getElementById('org-rn-lng')?.value,-180,180,'경도');
+  if(경도===undefined) return null;
+  return {시설주소, 위도, 경도};
 }
 
 async function deleteOrgNode(){
@@ -9632,9 +10115,20 @@ async function saveOrgRename(){
     }catch(e){ console.error('[org add]',e); toast('추가 실패: '+e.message,'error'); }
     return;
   }
-  if(newName===oldName){ closeModal('org-rename-modal'); return; }
+  // 이름은 그대로 두고 위치만 고칠 수도 있다
+  const _loc=_readOrgLocFields();
+  if(_loc===null) return;                       // 좌표 형식이 틀렸다 — 안내는 안에서 띄웠다
+  if(newName===oldName){
+    try{ if(!_orgLocMissing) await DB.updateOrgLocation(id,_loc); }
+    catch(e){ console.error('[org loc]',e); toast('위치 저장 실패: '+e.message,'error'); return; }
+    closeModal('org-rename-modal');
+    await renderAdminUsers();
+    toast(_orgLocMissing?'위치 칸이 없어 저장하지 못했습니다':'위치를 저장했습니다', _orgLocMissing?'error':undefined);
+    return;
+  }
   try{
     await DB.renameFacility(oldName,newName);
+    if(!_orgLocMissing) await DB.updateOrgLocation(id,_loc);
     // 내 소속이 바뀌었으면 이 세션의 값도 맞춰야 이후 조회가 어긋나지 않는다
     if(currentUser?.시설명===oldName){
       currentUser.시설명=newName;
