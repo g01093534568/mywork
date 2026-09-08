@@ -4197,7 +4197,9 @@ function switchHrTab(t){
 }
 
 async function renderHrPage(){
-  const [emps,quota]=await Promise.all([DB.getEmployees(),DB.getQuota()]);
+  // 시설 순서·들여쓰기는 조직도 순번표(_facOrderMap)를 본다. 이걸 채우지 않으면
+  // _facOrder 가 전부 Infinity 를 돌려줘 조직도 순서가 아니라 가나다순으로 떨어진다.
+  const [emps,quota]=await Promise.all([DB.getEmployees(),DB.getQuota(),_getFacilityOrderMap()]);
   _hrEmps=emps; _hrQuota=quota;
   // 직급·직렬은 쓰는 말이 기관마다 달라 고정 목록을 두지 않는다. 이미 입력한 값을
   // 모아 자동완성으로 제안하면 표기가 저절로 통일된다.
