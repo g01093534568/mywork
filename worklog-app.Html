@@ -4049,12 +4049,10 @@ async function enterApp(){
   document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
 
   const isAdmin = currentUser.role === 'admin';
-  const isFacilityAdmin = currentUser.role === 'facility-admin';
-  document.getElementById('admin-tab-goals').style.display = isAdmin ? '' : 'none';
-  document.getElementById('admin-tab-facility').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
-  document.getElementById('admin-tab-users').style.display = isAdmin ? '' : 'none';
-  document.getElementById('admin-tab-energy').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
-  document.getElementById('admin-tab-knowledge').style.display = (isAdmin || isFacilityAdmin) ? '' : 'none';
+  // 설정 페이지 탭 표시는 admin-nav-main/adminAllowedTabs()가 role 기준으로 그린다
+  // (예전엔 admin-tab-* 고정 DOM을 직접 껐다 켰다 했는데, 그 탭들이 동적 렌더로
+  //  바뀌면서 이 id들이 사라졌다. 없는 요소를 찾아 .style를 건드리다 매번 예외가
+  //  나서, 그 아래 홈 목표체계 렌더까지 통째로 멈췄었다.)
   // 개인 세션 중 증권&환율·운동 탭은 관리자(admin)만 노출
   const _tabPlace = document.getElementById('daily-subtab-place');
   if(_tabPlace) _tabPlace.style.display = can('hr.manage') ? '' : 'none';
