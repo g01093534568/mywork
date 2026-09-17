@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     if (store && !/^\d+$/.test(store)) return res.status(400).json({ ok: false, error: '잘못된 기록 번호' });
     if (store) {
       // 이 고객번호의 시설·상하수도 기록에만 붙인다
-      const q = new URLSearchParams({ select: 'id', id: `eq.${store}`, facility_name: `eq.${facilityName}`, energy_type: 'eq.상하수도' });
+      const q = new URLSearchParams({ select: 'id', id: `eq.${store}`, facility_name: `eq.${facilityName}`, energy_type: 'in.(상하수도,상하수도료)' });
       const chk = await fetch(`${SB_URL}/rest/v1/energy_records?${q}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
       if (!chk.ok || !(await chk.json()).length) return res.status(404).json({ ok: false, error: '이 시설의 상하수도 기록이 아닙니다' });
     }

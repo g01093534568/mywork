@@ -49,7 +49,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 async function monthRecords(facility, month) {
   const months = [month, shiftMonth(month, -1), shiftMonth(month, -12)];
   const rows = await sb(`energy_records?select=id,billing_month,start_date,end_date,usage_amount,usage_cost`
-    + `&facility_name=eq.${enc(facility)}&energy_type=eq.${enc(TYPE)}&billing_month=in.(${months.join(',')})&order=id`);
+    + `&facility_name=eq.${enc(facility)}&energy_type=in.(${enc(TYPE)},${enc(TYPE + '료')})&billing_month=in.(${months.join(',')})&order=id`);
   const pick = (m) => rows.find(r => r.billing_month === m);
   return { current: pick(months[0]), prev: pick(months[1]), lastYear: pick(months[2]) };
 }

@@ -417,13 +417,17 @@ async function runTool(name, input, ctx) {
       } else {
         path += `&facility_name=eq.${q(user.시설명)}`;
       }
-      if (input.energyType) path += `&energy_type=eq.${q(input.energyType)}`;
+      // 옛 이관 자료는 '전기료'처럼 '료'가 붙어 있다
+      if (input.energyType) {
+        const t = input.energyType.replace(/료$/, '');
+        path += `&energy_type=in.(${[t, t + '료'].map(v => `"${v}"`).join(',')})`;
+      }
       if (input.month) path += `&billing_month=eq.${q(input.month)}`;
       const rows = (await sb(path)) || [];
       if (!rows.length) return '해당 조건의 에너지 기록이 없습니다';
       const byType = {};
       for (const r of rows) {
-        const k = r.energy_type || '기타';
+        const k = (r.energy_type || '기타').replace(/료$/, '');
         byType[k] = byType[k] || { usage: 0, cost: 0, n: 0 };
         byType[k].usage += parseFloat(r.usage_amount) || 0;
         byType[k].cost += parseFloat(r.usage_cost) || 0;

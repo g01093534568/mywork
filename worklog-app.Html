@@ -13281,7 +13281,7 @@ function _emRoleDisplay(role) {
 
 // DB 행 변환 헬퍼
 function _rowToRecord(r) {
-  return { id: r.id, facilityName: r.facility_name, billingMonth: r.billing_month, startDate: r.start_date, endDate: r.end_date, energyType: r.energy_type, usageAmount: r.usage_amount, usageCost: r.usage_cost, bankName: r.bank_name || '', virtualAccount: r.virtual_account || '', customerNumber: r.customer_number || '' };
+  return { id: r.id, facilityName: r.facility_name, billingMonth: r.billing_month, startDate: r.start_date, endDate: r.end_date, energyType: _parseEnergyType(r.energy_type) || r.energy_type, usageAmount: r.usage_amount, usageCost: r.usage_cost, bankName: r.bank_name || '', virtualAccount: r.virtual_account || '', customerNumber: r.customer_number || '' };
 }
 function _rowToInfo(r) {
   return { id: r.id, facilityName: r.facility_name, energyType: r.energy_type, customerNumber: r.customer_number || '', bankName: r.bank_name || '', accountNumber: r.account_number || '' };
@@ -13336,7 +13336,8 @@ async function _emEnergyQuery(filters = {}) {
     q = q.in('facility_name', filterFacilities);
   }
 
-  if (filters.energyType) q = q.eq('energy_type', filters.energyType);
+  // 옛 이관 자료는 '전기료'처럼 '료'가 붙어 저장되어 있어 두 이름을 함께 찾는다
+  if (filters.energyType) q = q.in('energy_type', [filters.energyType, filters.energyType + '료']);
 
   // billing_month(항상 존재)로 날짜 범위 필터 — start_date는 null일 수 있어 제외
   if (filters.startDate) {
@@ -13673,7 +13674,7 @@ async function _emMonthRecords(facility, type, month) {
   const months = BR ? [month, BR.shiftMonth(month, -1), BR.shiftMonth(month, -12)] : [month];
   const { data, error } = await SB.from('energy_records')
     .select('id,billing_month,start_date,end_date,usage_amount,usage_cost')
-    .eq('facility_name', facility).eq('energy_type', type).in('billing_month', months).order('id');
+    .eq('facility_name', facility).in('energy_type', [type, type + '료']).in('billing_month', months).order('id');
   if (error) throw error;
   const pick = (m) => m && data.find(r => r.billing_month === m);
   return { current: pick(months[0]), prev: pick(months[1]), lastYear: pick(months[2]) };
