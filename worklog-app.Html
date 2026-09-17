@@ -13469,28 +13469,98 @@ async function _buPdfText(buf) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-// 울산 상수도 고지서 글자에서 값 뽑기 (api/_lib/water-bill.js 의 parseBill 과 같은 규칙)
-function _buParseUlsanWater(text) {
-  // 사이트에서 직접 인쇄한 PDF 는 웹폰트 탓에 글자마다 공백이 끼어 나온다("고 지 금 액").
-  // 한글 사이 공백만 지운다 — 숫자 사이 공백은 사용내역 표의 칸 구분이라 남겨야 한다.
-  text = text.replace(/(?<=[가-힣])\s+(?=[가-힣])/g, '');
+// ── 글자가 들어 있는 PDF 고지서를 규칙으로 읽기 ──
+// 양식을 확인한 회사만 규칙을 둔다. 맞는 규칙이 없거나 값을 다 못 찾으면 null → AI 로 넘긴다.
+// 입력 기준은 기존 기록에 맞췄다: 상수도·전기는 고지(청구) 월, 도시가스는 사용월.
+const _buNum = s => Number(String(s).replace(/,/g, ''));
+const _buYM = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
+
+function _buNormalize(text) {
+  return text
+    .replace(/[　 ]/g, ' ')             // 한전 청구서의 전각 공백("기본　요금")
+    .replace(/\s+/g, ' ')
+    // 웹폰트로 찍힌 PDF 는 글자마다 공백이 낀다("고 지 금 액"). 한글 사이 공백만 지운다 —
+    // 숫자 사이 공백은 표의 칸 구분이라 남겨야 한다.
+    .replace(/(?<=[가-힣])\s+(?=[가-힣])/g, '')
+    .trim();
+}
+
+// 울산 상수도사업본부 (api/_lib/water-bill.js 의 parseBill 과 같은 규칙)
+function _buRuleUlsanWater(text) {
   if (!/하수도요금/.test(text) || !/전자수용가번호/.test(text)) return null;
   const ym = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/);
   const p = text.match(/사용기간\s*(\d{2})\.(\d{2})\.(\d{2})\s*~\s*(\d{2})\.(\d{2})\.(\d{2})/);
   const amt = text.match(/고지금액\s*([\d,]+)\s*원/);
   const cust = text.match(/고객번호\s*(\d{10})/);
   const use = text.match(/전년동월조정량\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
-  if (!ym || !p || !amt) return null;
-  return [{
+  if (!ym || !p || !amt || !use) return null;
+  return {
     energy_type: '상하수도',
     customer_number: cust ? cust[1] : '',
-    billing_month: `${ym[1]}-${ym[2].padStart(2, '0')}`,
+    billing_month: _buYM(ym[1], ym[2]),
     start_date: `20${p[1]}-${p[2]}-${p[3]}`,
     end_date: `20${p[4]}-${p[5]}-${p[6]}`,
-    usage_amount: use ? Number(use[3].replace(/,/g, '')) : null,
-    usage_cost: Number(amt[1].replace(/,/g, '')),
-    note: '',
-  }];
+    usage_amount: _buNum(use[3]),
+    usage_cost: _buNum(amt[1]),
+  };
+}
+
+// 한국전력 전기요금 이메일 청구서 (사이버지점 화면을 PDF 로 인쇄한 것)
+function _buRuleKepco(text) {
+  if (!/전기요금/.test(text) || !/전력량요금/.test(text)) return null;
+  const ym = text.match(/고객님의\s*(\d{4})\s*년\s*(\d{1,2})\s*월/);
+  const cust = text.match(/(?<![\d-])(\d{2})[-\s](\d{4})[-\s](\d{4})(?![\d-])/);
+  const p = text.match(/(\d{2})\.(\d{2})\s*~\s*(\d{2})\.(\d{2})\s*일까지/);   // "01.11 ~ 02.10 일까지"
+  const use = text.match(/([\d,]+)\s*kWh/);    // 사용량 비교의 첫 값이 당월
+  const amt = text.match(/당월요금계\s*([\d,]+)/) || text.match(/청구금액\s*([\d,]+)/);
+  if (!ym || !cust || !p || !use || !amt) return null;
+  // 사용기간에 연도가 없다 — 청구월 기준으로 붙이고, 해를 넘기면 한 해 뺀다
+  const by = Number(ym[1]), bm = Number(ym[2]);
+  const ey = Number(p[3]) > bm ? by - 1 : by;
+  const sy = Number(p[1]) > Number(p[3]) ? ey - 1 : ey;
+  return {
+    energy_type: '전기',
+    customer_number: `${cust[1]}-${cust[2]}-${cust[3]}`,
+    billing_month: _buYM(by, bm),
+    start_date: `${sy}-${p[1]}-${p[2]}`,
+    end_date: `${ey}-${p[3]}-${p[4]}`,
+    usage_amount: _buNum(use[1]),
+    usage_cost: _buNum(amt[1]),
+  };
+}
+
+// 경동도시가스 이메일 요금 명세서
+// 기존 기록은 사용월(사용기간 시작 월)과 계량기 사용량(보정 전)으로 들어가 있다.
+function _buRuleKyungdongGas(text) {
+  if (!/도시가스요금명세서/.test(text)) return null;
+  const billed = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*청구분/);
+  const cust = text.match(/납부번호\s*(\d{6,})/);
+  const p = text.match(/사용기간\s*(\d{4})-(\d{2})-(\d{2})\s*~\s*(\d{4})-(\d{2})-(\d{2})/);
+  const use = text.match(/(?<!조정)사용량\s+([\d,]+(?:\.\d+)?)/);
+  const amt = text.match(/당월금액\s*([\d,]+)\s*원/) || text.match(/청구금액\s*([\d,]+)\s*원/)
+    || text.match(/입금하실금액은\s*([\d,]+)\s*원/);
+  if (!p || !use || !amt) return null;
+  return {
+    energy_type: '도시가스',
+    customer_number: cust ? cust[1] : '',
+    billing_month: _buYM(p[1], p[2]),
+    start_date: `${p[1]}-${p[2]}-${p[3]}`,
+    end_date: `${p[4]}-${p[5]}-${p[6]}`,
+    usage_amount: Math.round(_buNum(use[1]) * 10000) / 10000,
+    usage_cost: _buNum(amt[1]),
+    note: billed ? `사용월 기준 (${_buYM(billed[1], billed[2])} 청구분)` : '사용월 기준',
+  };
+}
+
+const _BU_RULES = [_buRuleUlsanWater, _buRuleKepco, _buRuleKyungdongGas];
+
+function _buParseText(raw) {
+  const text = _buNormalize(raw);
+  for (const rule of _BU_RULES) {
+    const bill = rule(text);
+    if (bill) return [{ note: '', ...bill }];
+  }
+  return null;
 }
 
 // 사진은 긴 변 2000px JPEG 로 줄여 보낸다 (휴대폰 원본은 수 MB 라 요청이 무거워진다)
@@ -13525,10 +13595,10 @@ const _BU_PROMPT = `첨부한 한국 공공요금 고지서(청구서)에서 값
 한 파일에 고지서가 여러 건(여러 고객번호·회선)이면 bills 배열에 각각 넣으세요.
 
 - energy_type: "전기"(한국전력 전기요금), "상하수도"(수도·하수도요금), "도시가스", "통신"(인터넷·전화·휴대폰 등 통신요금) 중 하나
-- customer_number: 고객번호(전기), 수용가번호·고객번호(수도), 고객번호·사용자번호(가스), 고객번호·청구번호·계약번호(통신). 인쇄된 그대로 적으세요
-- billing_month: 이 고지서의 청구(고지) 연월 "YYYY-MM". "2026년 8월분", "2026.08 청구" 등
+- customer_number: 고객번호(전기), 수용가번호·고객번호(수도), 납부번호·고객번호(가스), 명세서번호(KT 등 통신 — "명세서번호는 76040847053 입니다"). 인쇄된 그대로 적으세요
+- billing_month: "YYYY-MM". 전기·수도·통신은 청구(고지) 연월("2026년 02월" 청구서, "1월 명세서" → 그 해 01). 도시가스만 사용기간이 속한 사용월("2025년 12월 청구분", 사용기간 2025-11-01~11-30 → 2025-11)
 - start_date, end_date: 사용기간 "YYYY-MM-DD". 사용월만 있으면 그 달 1일과 말일. 연도가 두 자리면 20을 붙이세요. 없으면 null
-- usage_amount: 당월 사용량 숫자만. 전기는 kWh, 수도는 ㎥(톤), 도시가스는 ㎥(없으면 MJ). 통신은 0. 없으면 null
+- usage_amount: 당월 사용량 숫자만. 전기는 kWh, 수도는 ㎥(톤), 도시가스는 보정 전 사용량 ㎥(조정사용량·청구량 MJ 아님). 통신은 0. 없으면 null
 - usage_cost: 이번 달 청구금액(당월요금 합계) 원 단위 숫자. 미납·연체금이 더해진 총액과 당월분이 따로 있으면 당월분
 - facility_hint: 고객명·사용장소 주소 (시설 확인용)
 - note: 읽기 어려웠거나 확실하지 않은 항목이 있으면 짧게. 없으면 ""
@@ -13579,8 +13649,8 @@ async function _buRead(file) {
     if (file.size > 15 * 1024 * 1024) throw new Error('PDF가 15MB를 넘습니다');
     const buf = await file.arrayBuffer();
     const text = await _buPdfText(buf).catch(() => '');
-    const water = _buParseUlsanWater(text);
-    if (water) return { bills: water, how: '규칙' };
+    const ruled = text && _buParseText(text);
+    if (ruled) return { bills: ruled, how: '규칙' };
     return { bills: await _buAskAI({ mimeType: 'application/pdf', data: _buBase64(buf) }), how: 'AI' };
   }
   if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) {
