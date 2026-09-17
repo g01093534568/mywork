@@ -9,6 +9,7 @@
 // 주의: 당월 요금은 9일 이후에 나온다. 그 전에는 요청한 월이 아니라 전월 고지서를 돌려주므로
 //       고지서 제목의 월이 요청한 월과 같은지 반드시 확인한다.
 
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const SITE = 'https://water.ulsan.go.kr';
@@ -131,9 +132,12 @@ export async function launchBrowser() {
     return puppeteer.launch({ executablePath: process.env.CHROME_PATH, headless: true });
   }
   const chromium = (await import('@sparticuz/chromium')).default;
-  const fontDir = path.join(process.cwd(), 'fonts');
-  await chromium.font(path.join(fontDir, 'NanumGothic-Regular.ttf'));
-  await chromium.font(path.join(fontDir, 'NanumGothic-Bold.ttf'));
+  // 이 크롬의 fontconfig 는 /tmp/fonts 를 읽는다 (chromium.font() 는 v14x 에서 없어졌다)
+  const src = path.join(process.cwd(), 'fonts');
+  await fs.mkdir('/tmp/fonts', { recursive: true });
+  for (const f of ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf']) {
+    await fs.copyFile(path.join(src, f), path.join('/tmp/fonts', f));
+  }
   return puppeteer.launch({
     args: chromium.args,
     executablePath: await chromium.executablePath(),
