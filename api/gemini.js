@@ -3,6 +3,8 @@
 //  · 우회로: Gemini가 429(무료 한도 초과)면 Claude(Claude_API)로 자동 폴백
 // 환경변수: GEMINI_API_KEY, Claude_API (Vercel → Environment Variables)
 
+import { requireUser } from './_lib/auth.js';
+
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const CLAUDE_MODEL = 'claude-sonnet-5';
 // effort: 이 앱은 "도구 하나 고르고 한국어 한두 문장" 수준 — medium이면 충분하고 토큰·지연이 줄어든다.
@@ -129,6 +131,8 @@ async function callClaude(payload) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: { message: 'POST only' } }); return; }
+  // 키 사용료가 드는 곳이라 로그인한 사람만 (토큰 로그인이 켜진 뒤부터)
+  if (!(await requireUser(req, res))) return;
   try {
     const { action, model, payload } = req.body || {};
     const key = geminiKey();

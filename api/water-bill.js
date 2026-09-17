@@ -2,6 +2,7 @@
 //
 //   GET /api/water-bill?customer=2015601258&month=2026-09            → 사용량·기간·금액 JSON
 //   GET /api/water-bill?customer=2015601258&month=2026-09&format=pdf → 고지서 PDF
+//   GET /api/water-bill?customer=...&month=...&store=123             → PDF 를 기록 123 의 고지서로 보관
 //
 // 에너지 정보에 상하수도로 등록된 고객번호만 받는다. 상수도 사이트 자체는 공개 조회지만
 // PDF 는 크롬을 띄우는 무거운 일이라 아무 번호로나 부르지 못하게 막아 둔다.
@@ -9,6 +10,8 @@
 // 필요한 환경변수: SUPABASE_SERVICE_ROLE_KEY (energy_info 조회)
 
 import { fetchBill, isWaterCustomerNo, launchBrowser, renderPdf, pdfFileName } from './_lib/water-bill.js';
+import { requireUser } from './_lib/auth.js';
+import { putObject } from './_lib/storage.js';
 
 const SB_URL = process.env.SUPABASE_URL || 'https://zbcnfixbkqtrjxvatvss.supabase.co';
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -32,6 +35,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'GET 만 받습니다' });
   if (!SB_KEY) return res.status(500).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY 가 없습니다' });
+  if (!(await requireUser(req, res))) return;
 
   const customer = String(req.query.customer || '').trim();
   const month = String(req.query.month || '').trim();
@@ -45,7 +49,15 @@ export default async function handler(req, res) {
     const r = await fetchBill(customer, month);
     if (!r.ok) return res.status(404).json({ ok: false, error: r.reason });
 
-    if (req.query.format !== 'pdf') {
+    const store = String(req.query.store || '');
+    if (store && !/^\d+$/.test(store)) return res.status(400).json({ ok: false, error: '잘못된 기록 번호' });
+    if (store) {
+      // 이 고객번호의 시설·상하수도 기록에만 붙인다
+      const q = new URLSearchParams({ select: 'id', id: `eq.${store}`, facility_name: `eq.${facilityName}`, energy_type: 'eq.상하수도' });
+      const chk = await fetch(`${SB_URL}/rest/v1/energy_records?${q}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+      if (!chk.ok || !(await chk.json()).length) return res.status(404).json({ ok: false, error: '이 시설의 상하수도 기록이 아닙니다' });
+    }
+    if (req.query.format !== 'pdf' && !store) {
       return res.status(200).json({ ok: true, facilityName, bill: r.bill });
     }
 
@@ -53,6 +65,11 @@ export default async function handler(req, res) {
     let pdf;
     try { pdf = await renderPdf(browser, r.printHtml); }
     finally { await browser.close(); }
+
+    if (store) {
+      await putObject(`records/${store}`, pdf, 'application/pdf');
+      return res.status(200).json({ ok: true, facilityName, bill: r.bill, stored: Number(store) });
+    }
 
     const name = pdfFileName(month, facilityName);
     res.setHeader('Content-Type', 'application/pdf');

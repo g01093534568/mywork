@@ -1,0 +1,6 @@
+# 빌드 없이 폴더를 그대로 올리는 프로젝트라, 여기 없는 파일은 전부 웹에서 받아갈 수 있다.
+# 앱·서버 함수에 필요 없는 것만 뺀다. (fonts/, bill-rules.js 는 서버·앱이 쓰므로 남긴다)
+tests/
+scripts/
+*.sql
+PROJECT_PLAN.md

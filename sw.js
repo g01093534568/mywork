@@ -7,7 +7,8 @@
 //  2) 모든 요청이 캐시 우선이었다. 1번을 고치면 이번엔 HTML이 캐시에 박혀
 //     배포해도 옛 화면이 계속 보이게 된다. 그래서 화면은 네트워크 우선으로 바꾼다.
 
-const CACHE = 'worklog-v3';   // 이 값을 올리면 옛 캐시는 activate에서 전부 지워진다
+const CACHE = 'worklog-v4';   // 이 값을 올리면 옛 캐시는 activate에서 전부 지워진다
+// v4: 앱이 쓰는 JS 모듈(bill-rules.js)을 네트워크 우선에 넣었다 — 캐시 우선이면 배포해도 옛 규칙이 남는다.
 // v3: 아이콘을 PNG로 바꿨다. manifest.json 이 캐시 우선이라 값을 올리지 않으면
 //     옛 manifest 가 계속 나가서 아이폰 홈 화면 아이콘이 그대로 깨진다.
 
@@ -74,7 +75,8 @@ self.addEventListener('fetch', e => {
   if (url.pathname.startsWith('/api/')) return;      // 서버 함수 응답은 캐시 대상이 아니다
 
   const isDocument =
-    req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.Html');
+    req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.Html')
+    || url.pathname.endsWith('.js');   // 앱 코드도 항상 최신으로 (sw.js 자신은 브라우저가 따로 확인한다)
 
   if (isDocument) {
     // 네트워크 우선 — 배포한 내용이 바로 보여야 한다.

@@ -9,7 +9,8 @@
 //   MCP_EMPNO        필수. 이 비밀값이 대신할 사원번호 (6자리)
 //   MCP_FACILITY     같은 사원번호가 여러 시설에 있을 때 필수. 로그인할 때 쓰는 시설명
 //   SUPABASE_URL     선택. 기본값은 앱이 쓰는 것과 동일
-//   SUPABASE_KEY     선택. 없으면 앱의 anon 키를 쓴다. RLS를 정리한 뒤에는 service_role 키를 넣는다
+//   SUPABASE_SERVICE_ROLE_KEY  이 키로 조회한다 (RLS 를 닫은 뒤에는 anon 으로는 아무것도 안 보인다)
+//   SUPABASE_KEY     선택. 따로 줄 때만. 둘 다 없으면 앱의 anon 키를 쓴다
 //
 // 삭제 도구는 일부러 없다 — 되돌리기 어려운 작업은 앱에서 직접 하도록 남겨둔다.
 
@@ -18,8 +19,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 const SB_URL = process.env.SUPABASE_URL || 'https://zbcnfixbkqtrjxvatvss.supabase.co';
-// 앱 HTML에 이미 공개돼 있는 anon 키 — service_role로 올리기 전까지의 기본값
-const SB_KEY = process.env.SUPABASE_KEY ||
+// 앱 HTML에 이미 공개돼 있는 anon 키 — 서버 키가 없을 때의 마지막 기본값
+const SB_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpiY25maXhia3F0cmp4dmF0dnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODM1MjYsImV4cCI6MjA5NTk1OTUyNn0.r2W70mUhk0EaCVJaVZDHE3Yop_S66aLjPknWdpvdlDY';
 
 const SB_TIMEOUT_MS = 15000;

@@ -11,6 +11,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { parseBillText } from '../../bill-rules.js';
 
 const SITE = 'https://water.ulsan.go.kr';
 const PAGE = `${SITE}/us/service/homeCharge.do`;
@@ -44,30 +45,17 @@ function sliceDiv(html, id) {
 }
 
 const strip = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-const num = (s) => Number(String(s || '').replace(/[^\d.-]/g, '')) || 0;
 
-// 고지서 조각에서 WorkLog 사용량입력에 넣을 값을 뽑는다
+// 고지서 조각에서 WorkLog 사용량입력에 넣을 값을 뽑는다 — 앱의 인쇄 PDF 읽기와 같은 규칙(bill-rules.js)
 export function parseBill(fragment) {
-  const text = strip(fragment);
-  const ym = text.match(/(\d{4})년\s*(\d{1,2})월/);
-  const period = text.match(/사용기간\s*(\d{2})\.(\d{2})\.(\d{2})\s*~\s*(\d{2})\.(\d{2})\.(\d{2})/);
-  const amount = text.match(/고지금액\s*([\d,]+)\s*원/);
-  const cust = text.match(/고객번호\s*(\d{10})/);
-  const due = text.match(/납부기한\s*(\d{4}-\d{2}-\d{2})/);
-
-  // 사용내역 표: 당월지침, 전월지침, 사용량, 조정량, ... — 세 번째 칸이 사용량
-  const tbody = fragment.match(/<tbody>([\s\S]*?)<\/tbody>/i);
-  const tds = tbody ? [...tbody[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => strip(m[1])) : [];
-
-  if (!ym || !period || !amount) return null;
+  const bill = parseBillText(strip(fragment))?.[0];
+  if (!bill || bill.energy_type !== '상하수도') return null;
   return {
-    billingMonth: `${ym[1]}-${ym[2].padStart(2, '0')}`,
-    customerNumber: cust ? cust[1] : '',
-    startDate: `20${period[1]}-${period[2]}-${period[3]}`,
-    endDate: `20${period[4]}-${period[5]}-${period[6]}`,
-    usageAmount: tds.length >= 3 ? num(tds[2]) : 0,
-    usageCost: num(amount[1]),
-    dueDate: due ? due[1] : '',
+    billingMonth: bill.billing_month,
+    startDate: bill.start_date,
+    endDate: bill.end_date,
+    usageAmount: bill.usage_amount,
+    usageCost: bill.usage_cost,
   };
 }
 
@@ -113,7 +101,7 @@ export async function fetchBill(customerNumber, month) {
 <base href="${SITE}/">
 ${links}
 <style>
-  body { background:#fff; margin:0; padding:20px; font-family:'NanumGothic', sans-serif; }
+  body { background:#fff; margin:0; padding:20px; }
   #homeCharge { width:980px; margin:0; }
 </style>
 </head><body>${fragment}</body></html>`;
@@ -122,8 +110,7 @@ ${links}
 }
 
 // ── PDF ──────────────────────────────────────────────────────────────
-// 서버리스 크롬(@sparticuz/chromium)에는 한글 글꼴이 없어 네모로 찍힌다.
-// 저장소의 fonts/ 에 넣어 둔 나눔고딕을 크롬 글꼴 폴더로 넣어 준다.
+// 서버리스 크롬(@sparticuz/chromium)에는 한글 글꼴이 없다 — 글꼴은 renderPdf 가 문서에 직접 넣는다.
 // 로컬에서 시험할 때는 CHROME_PATH 에 설치된 크롬 경로를 주면 그걸 쓴다.
 
 export async function launchBrowser() {
@@ -132,12 +119,6 @@ export async function launchBrowser() {
     return puppeteer.launch({ executablePath: process.env.CHROME_PATH, headless: true });
   }
   const chromium = (await import('@sparticuz/chromium')).default;
-  // 이 크롬의 fontconfig 는 /tmp/fonts 를 읽는다 (chromium.font() 는 v14x 에서 없어졌다)
-  const src = path.join(process.cwd(), 'fonts');
-  await fs.mkdir('/tmp/fonts', { recursive: true });
-  for (const f of ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf']) {
-    await fs.copyFile(path.join(src, f), path.join('/tmp/fonts', f));
-  }
   return puppeteer.launch({
     args: chromium.args,
     executablePath: await chromium.executablePath(),
@@ -147,7 +128,7 @@ export async function launchBrowser() {
 }
 
 // 사이트 CSS 는 'Pretendard GOV' 웹폰트를 쓰는데 서버 크롬에서는 글자가 통째로 비어 찍혔다.
-// 시스템 글꼴 설정에 기대지 않도록 나눔고딕을 문서 안에 data: URI 로 박고 모든 글자에 강제한다.
+// 시스템 글꼴 설정(fontconfig, /tmp/fonts)에 기대지 않도록 나눔고딕을 문서 안에 data: URI 로 박고 모든 글자에 강제한다.
 let fontCss = null;
 async function embeddedFontCss() {
   if (fontCss) return fontCss;
