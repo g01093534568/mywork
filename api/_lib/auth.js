@@ -15,7 +15,7 @@
 
 import crypto from 'node:crypto';
 
-const SECRET = process.env.SUPABASE_JWT_SECRET || '';
+const SECRET = process.env.SUPABASE_JWT_SECRET || process.env.supabase_jwt_secret || '';   // 대시보드에 소문자로 넣어도 읽는다
 const SB_URL = process.env.SUPABASE_URL || 'https://zbcnfixbkqtrjxvatvss.supabase.co';
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 export const TOKEN_TTL_SEC = 12 * 3600;
