@@ -13477,6 +13477,8 @@ const _buYM = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
 
 function _buNormalize(text) {
   return text
+    // 조합형(NFD) 한글·전각 숫자/쉼표/물결을 보통 글자로 (스캐너 OCR 글자 층에서 나온다)
+    .normalize('NFKC')
     .replace(/[　 ]/g, ' ')             // 한전 청구서의 전각 공백("기본　요금")
     .replace(/\s+/g, ' ')
     // 웹폰트로 찍힌 PDF 는 글자마다 공백이 낀다("고 지 금 액"). 한글 사이 공백만 지운다 —
@@ -13567,7 +13569,8 @@ function _buOcrBlobs(text) {
 }
 function _buRuleKtTelecom(text) {
   if (!/\bKT\b|케이티/.test(text)) return null;
-  const p = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*[~˜∼〜-]\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  // 기간 구분 물결은 OCR 이 자주 깨뜨린다 — 공백 아닌 글자 세 개까지 아무거나 허용
+  const p = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*\S{0,3}\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
   if (!p) return null;
 
   const counts = new Map();
@@ -13708,7 +13711,14 @@ async function _buRead(file) {
     const text = await _buPdfText(buf).catch(() => '');
     const ruled = text && _buParseText(text);
     if (ruled) return { bills: ruled, how: '규칙' };
-    return { bills: await _buAskAI({ mimeType: 'application/pdf', data: _buBase64(buf) }), how: 'AI' };
+    // 규칙이 못 읽은 PDF 는 원인을 볼 수 있게 글자를 콘솔에 남긴다
+    console.info('[고지서 업로드] 규칙 불일치:', file.name, text);
+    try {
+      return { bills: await _buAskAI({ mimeType: 'application/pdf', data: _buBase64(buf) }), how: 'AI' };
+    } catch (e) {
+      const why = text ? `규칙에 맞는 양식이 아님 (PDF 글자 ${text.length}자)` : 'PDF에 글자가 없음 (스캔본)';
+      throw new Error(`${why} → AI 읽기 실패: ${e.message}`);
+    }
   }
   if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) {
     throw new Error('PDF 또는 사진 파일만 올릴 수 있습니다');
