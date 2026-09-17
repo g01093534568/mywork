@@ -37,6 +37,21 @@ export async function authReady() {
       signal: AbortSignal.timeout(5000),
     });
     ready = res.ok && (await res.json()) === true;
+    // Supabase 가 이 비밀키로 서명한 토큰을 실제로 받아 주는지 시험한다.
+    // 받아 주지 않는데 토큰을 내주면 로그인한 사람에게 데이터가 하나도 안 보인다.
+    if (ready) {
+      const probe = await fetch(`${SB_URL}/rest/v1/rpc/wl_role`, {
+        method: 'POST',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${signToken({ id: '00000000-0000-0000-0000-000000000000', role: 'probe' }).token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(5000),
+      });
+      const who = probe.ok ? await probe.json() : null;
+      if (who !== 'probe') {
+        console.error('auth probe failed', probe.status, who ?? (await probe.text().catch(() => '')).slice(0, 200));
+        ready = false;
+      }
+    }
   } catch (_) { ready = false; }
   return ready;
 }
