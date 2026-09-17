@@ -13905,6 +13905,12 @@ function _downloadBlob(blob, filename) {
   URL.revokeObjectURL(url); document.body.removeChild(a);
 }
 
+// 기록의 부과월 → 'YYYY-MM' (부과월이 없는 옛 기록만 사용기간 시작일로)
+function _emBillYM(record) {
+  if (/^\d{4}-\d{2}/.test(record.billingMonth || '')) return record.billingMonth.slice(0, 7);
+  return (record.startDate || '').slice(0, 7);
+}
+
 // 공문(docx) 클라이언트 생성
 async function _generateDocxBlob(record) {
   const { Document, Packer, Paragraph, TextRun, AlignmentType } = window.docx;
@@ -14902,8 +14908,7 @@ window.generateDocument = async function(index) {
         const record = records[index];
         if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
         const blob = await _generateDocxBlob(record);
-        const d = new Date(record.startDate);
-        const filename = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${record.facilityName}-${record.energyType}-공문.docx`;
+        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.docx`;
         _downloadBlob(blob, filename);
         alert('공문이 생성되었습니다.');
     } catch (error) {
@@ -14919,8 +14924,7 @@ window.generateAttachment1 = async function(index) {
         if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
         const infos = await _emInfoQuery();
         const blob = await _generateAttachmentBlob(record, infos);
-        const d = new Date(record.startDate);
-        const filename = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${record.facilityName}-${record.energyType}-첨부1.xlsx`;
+        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-첨부1.xlsx`;
         _downloadBlob(blob, filename);
         alert('첨부1이 생성되었습니다.');
     } catch (error) {
@@ -15290,8 +15294,7 @@ function renderCharts(records) {
 
     // 연도 필터링 — 전체 연도 선택 시 현재 연도 기준으로 차트 표시
     const yearlyRecords = records.filter(r => {
-        const dateStr = r.startDate || r.billingMonth || '';
-        return dateStr.startsWith(selectedYear);
+        return _emBillYM(r).startsWith(selectedYear);
     });
 
     const typeConfigs = {
@@ -15304,8 +15307,7 @@ function renderCharts(records) {
     const getDataset = (type, dataField) => {
         const data = new Array(12).fill(0);
         yearlyRecords.filter(r => r.energyType === type).forEach(r => {
-            const dateStr = r.startDate || r.billingMonth || '';
-            const m = parseInt((dateStr.split('-')[1] || '1')) - 1;
+            const m = parseInt((_emBillYM(r).split('-')[1] || '1')) - 1;
             if (m >= 0 && m < 12) data[m] += parseFloat(r[dataField]) || 0;
         });
         return {
@@ -16153,10 +16155,7 @@ async function generateOfficialDocument(record) {
         console.log('공문 생성:', record);
 
         const blob = await _generateDocxBlob(record);
-        const startDate = new Date(record.startDate);
-        const year = startDate.getFullYear();
-        const month = String(startDate.getMonth() + 1).padStart(2, '0');
-        const filename = `${year}-${month}-${record.facilityName}-${record.energyType}-공문.docx`;
+        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.docx`;
         _downloadBlob(blob, filename);
         console.log('공문 생성 완료:', filename);
 
@@ -16419,9 +16418,9 @@ async function downloadDataAsExcel() {
         const typeToLabel = { '전기': '전기료', '상하수도': '상하수도료', '도시가스': '도시가스료', '통신': '통신료' };
 
         records.forEach(r => {
-            const sd = r.startDate ? new Date(r.startDate) : null;
-            const year = sd ? sd.getFullYear() + '년' : '';
-            const month = sd ? (sd.getMonth() + 1) + '월' : '';
+            const [by, bm] = _emBillYM(r).split('-');
+            const year = by ? by + '년' : '';
+            const month = bm ? parseInt(bm, 10) + '월' : '';
             wsData.push([
                 year,
                 month,
@@ -16558,21 +16557,23 @@ async function handleExcelUpload(event) {
             let startDate = startIdx >= 0 ? _excelDateToStr(row[startIdx]) : null;
             let endDate   = endIdx   >= 0 ? _excelDateToStr(row[endIdx])   : null;
 
-            // 날짜가 없으면 년도+월에서 생성
-            if (!startDate) {
-                const yearStr  = yearIdx  >= 0 ? String(row[yearIdx]).replace(/[^0-9]/g, '') : '';
-                const monthStr = monthIdx >= 0 ? String(row[monthIdx]).replace(/[^0-9]/g, '').padStart(2, '0') : '';
-                if (yearStr.length >= 4 && monthStr.length === 2) {
-                    startDate = `${yearStr.slice(0,4)}-${monthStr}-01`;
-                    const lastDay = new Date(parseInt(yearStr), parseInt(monthStr), 0).getDate();
-                    endDate = `${yearStr.slice(0,4)}-${monthStr}-${String(lastDay).padStart(2,'0')}`;
-                }
+            // 부과월: 엑셀의 년도+월 열 (사용기간은 보통 전월이라 부과월과 다름)
+            const yearStr  = yearIdx  >= 0 ? String(row[yearIdx]).replace(/[^0-9]/g, '').slice(0, 4) : '';
+            const monthNum = monthIdx >= 0 ? parseInt(String(row[monthIdx]).replace(/[^0-9]/g, ''), 10) : NaN;
+            const monthStr = monthNum >= 1 && monthNum <= 12 ? String(monthNum).padStart(2, '0') : '';
+            const billMonth = yearStr.length === 4 && monthStr ? `${yearStr}-${monthStr}` : null;
+
+            // 날짜가 없으면 부과월 한 달로 채움
+            if (!startDate && billMonth) {
+                startDate = `${billMonth}-01`;
+                const lastDay = new Date(parseInt(yearStr), monthNum, 0).getDate();
+                endDate = `${billMonth}-${String(lastDay).padStart(2,'0')}`;
             }
             if (!startDate) continue;
             if (!endDate) endDate = startDate;
 
-            // billing_month: YYYY-MM
-            const bm = startDate.slice(0, 7);
+            // billing_month: YYYY-MM (년도·월 열이 없을 때만 시작일 기준)
+            const bm = billMonth || startDate.slice(0, 7);
 
             importedData.push({
                 facility_name: facilityIdx >= 0 ? String(row[facilityIdx]).trim() : '',
