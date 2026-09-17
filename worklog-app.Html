@@ -977,6 +977,28 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 #page-energy .wb-result li { padding: 4px 0; list-style: none; }
 #page-energy .wb-result .wb-fail { color: #e5484d; }
 
+/* 고지서 업로드 */
+#page-energy .bu-drop {
+  display: block; border: 2px dashed var(--border); border-radius: var(--r);
+  padding: 22px 16px; text-align: center; color: var(--t3); font-size: 13px;
+  cursor: pointer; transition: var(--tr); margin-bottom: 12px;
+}
+#page-energy .bu-drop:hover, #page-energy .bu-drop.over { border-color: var(--accent); color: var(--t2); }
+#page-energy .bu-drop input { display: none; }
+#page-energy .bu-table-wrap { overflow-x: auto; margin: 12px 0; }
+#page-energy .bu-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1180px; }
+#page-energy .bu-table th { text-align: left; color: var(--t2); font-weight: 700; padding: 6px 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+#page-energy .bu-table td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+#page-energy .bu-table input:not([type=checkbox]), #page-energy .bu-table select { width: 100%; min-width: 0; padding: 5px 6px; font-size: 12px; }
+#page-energy .bu-table select[data-f=facility] { min-width: 200px; }
+#page-energy .bu-table select[data-f=type] { min-width: 100px; }
+#page-energy .bu-table .bu-file { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-energy .bu-table .bu-state { font-size: 11px; min-width: 110px; }
+#page-energy .bu-state.ok { color: #30a46c; }
+#page-energy .bu-state.warn { color: #f5a623; }
+#page-energy .bu-state.fail { color: #e5484d; }
+#page-energy .bu-del { background: none; border: none; color: var(--t3); cursor: pointer; font-size: 14px; }
+
 /* 폼 그룹 — worklog 스타일 */
 #page-energy .em-form-group,
 .em-modal .em-form-group { margin-bottom: 16px; }
@@ -2325,6 +2347,28 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                 </div>
               </div>
               <div id="waterBillResult" class="wb-result"></div>
+            </div>
+            <div class="energy-section" id="billUploadPanel">
+              <h3>고지서 업로드</h3>
+              <p class="wb-note">전기·상하수도·도시가스·통신 고지서(PDF, 사진)를 올리면 값을 읽어 표로 보여줍니다. 확인하고 고친 뒤 저장하세요. 시설은 에너지 정보의 고객번호로 찾습니다.</p>
+              <label class="bu-drop" id="billUploadDrop">
+                <input type="file" id="billUploadInput" accept="application/pdf,image/*" multiple onchange="billUploadFiles(this.files); this.value='';">
+                <span>여기를 눌러 파일을 고르거나 끌어다 놓으세요 (여러 개 가능)</span>
+              </label>
+              <div id="billUploadStatus" class="wb-result"></div>
+              <div class="bu-table-wrap" id="billUploadTableWrap" hidden>
+                <table class="bu-table">
+                  <thead><tr>
+                    <th><input type="checkbox" id="billUploadAll" onchange="billUploadToggleAll(this.checked)" checked></th>
+                    <th>파일</th><th>시설명</th><th>종류</th><th>월</th><th>사용 시작</th><th>사용 종료</th><th>사용량</th><th>금액(원)</th><th>상태</th><th></th>
+                  </tr></thead>
+                  <tbody id="billUploadRows"></tbody>
+                </table>
+              </div>
+              <div class="wb-actions" id="billUploadActions" hidden>
+                <button type="button" class="search-btn" id="billUploadSaveBtn" onclick="billUploadSave()">선택한 항목 저장</button>
+                <button type="button" class="reset-btn reset-filter-btn" onclick="billUploadClear()">목록 비우기</button>
+              </div>
             </div>
           </div>
 
@@ -13404,6 +13448,311 @@ async function waterBillPdf() {
     return { text: `${t.facilityName}: PDF 저장` };
   });
 }
+
+// ── 고지서 업로드 → 읽기 → 확인 표 → 저장 ──
+// 울산 상수도 고지서 PDF(사이트 인쇄본·위 PDF 받기)는 글자가 들어 있어 규칙으로 바로 읽는다.
+// 나머지(전기·도시가스·통신, 사진·스캔본)는 AI(/api/gemini)가 읽는다 — 숫자를 잘못 읽을 수 있어
+// 반드시 표에서 확인한 뒤 저장한다.
+const BU_TYPES = ['전기', '상하수도', '도시가스', '통신'];
+let _buRows = [];     // { id, file, facility, type, month, start, end, usage, cost, state, stateCls, note }
+let _buSeq = 0;
+const _buDigits = s => String(s || '').replace(/\D/g, '');
+
+async function _buPdfText(buf) {
+  if (!window.pdfjsLib) throw new Error('PDF 라이브러리 로딩 중 — 잠시 후 다시 시도하세요');
+  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  let text = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+    const c = await (await pdf.getPage(i)).getTextContent();
+    text += c.items.map(it => it.str).join(' ') + '\n';
+  }
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+// 울산 상수도 고지서 글자에서 값 뽑기 (api/_lib/water-bill.js 의 parseBill 과 같은 규칙)
+function _buParseUlsanWater(text) {
+  // 사이트에서 직접 인쇄한 PDF 는 웹폰트 탓에 글자마다 공백이 끼어 나온다("고 지 금 액").
+  // 한글 사이 공백만 지운다 — 숫자 사이 공백은 사용내역 표의 칸 구분이라 남겨야 한다.
+  text = text.replace(/(?<=[가-힣])\s+(?=[가-힣])/g, '');
+  if (!/하수도요금/.test(text) || !/전자수용가번호/.test(text)) return null;
+  const ym = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/);
+  const p = text.match(/사용기간\s*(\d{2})\.(\d{2})\.(\d{2})\s*~\s*(\d{2})\.(\d{2})\.(\d{2})/);
+  const amt = text.match(/고지금액\s*([\d,]+)\s*원/);
+  const cust = text.match(/고객번호\s*(\d{10})/);
+  const use = text.match(/전년동월조정량\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
+  if (!ym || !p || !amt) return null;
+  return [{
+    energy_type: '상하수도',
+    customer_number: cust ? cust[1] : '',
+    billing_month: `${ym[1]}-${ym[2].padStart(2, '0')}`,
+    start_date: `20${p[1]}-${p[2]}-${p[3]}`,
+    end_date: `20${p[4]}-${p[5]}-${p[6]}`,
+    usage_amount: use ? Number(use[3].replace(/,/g, '')) : null,
+    usage_cost: Number(amt[1].replace(/,/g, '')),
+    note: '',
+  }];
+}
+
+// 사진은 긴 변 2000px JPEG 로 줄여 보낸다 (휴대폰 원본은 수 MB 라 요청이 무거워진다)
+async function _buImageData(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, fail) => {
+      const im = new Image();
+      im.onload = () => ok(im);
+      im.onerror = () => fail(new Error('이미지를 열 수 없습니다 (HEIC 사진이면 JPG로 저장해 올려 주세요)'));
+      im.src = url;
+    });
+    const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(img.naturalWidth * k);
+    cv.height = Math.round(img.naturalHeight * k);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    return { mimeType: 'image/jpeg', data: cv.toDataURL('image/jpeg', 0.88).split(',')[1] };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function _buBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const _BU_PROMPT = `첨부한 한국 공공요금 고지서(청구서)에서 값을 뽑아 JSON 으로만 답하세요.
+한 파일에 고지서가 여러 건(여러 고객번호·회선)이면 bills 배열에 각각 넣으세요.
+
+- energy_type: "전기"(한국전력 전기요금), "상하수도"(수도·하수도요금), "도시가스", "통신"(인터넷·전화·휴대폰 등 통신요금) 중 하나
+- customer_number: 고객번호(전기), 수용가번호·고객번호(수도), 고객번호·사용자번호(가스), 고객번호·청구번호·계약번호(통신). 인쇄된 그대로 적으세요
+- billing_month: 이 고지서의 청구(고지) 연월 "YYYY-MM". "2026년 8월분", "2026.08 청구" 등
+- start_date, end_date: 사용기간 "YYYY-MM-DD". 사용월만 있으면 그 달 1일과 말일. 연도가 두 자리면 20을 붙이세요. 없으면 null
+- usage_amount: 당월 사용량 숫자만. 전기는 kWh, 수도는 ㎥(톤), 도시가스는 ㎥(없으면 MJ). 통신은 0. 없으면 null
+- usage_cost: 이번 달 청구금액(당월요금 합계) 원 단위 숫자. 미납·연체금이 더해진 총액과 당월분이 따로 있으면 당월분
+- facility_hint: 고객명·사용장소 주소 (시설 확인용)
+- note: 읽기 어려웠거나 확실하지 않은 항목이 있으면 짧게. 없으면 ""
+고지서가 아니면 bills 를 빈 배열로 하세요.`;
+
+const _BU_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    bills: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          energy_type: { type: 'STRING', enum: BU_TYPES },
+          customer_number: { type: 'STRING' },
+          billing_month: { type: 'STRING' },
+          start_date: { type: 'STRING', nullable: true },
+          end_date: { type: 'STRING', nullable: true },
+          usage_amount: { type: 'NUMBER', nullable: true },
+          usage_cost: { type: 'NUMBER', nullable: true },
+          facility_hint: { type: 'STRING' },
+          note: { type: 'STRING' },
+        },
+        required: ['energy_type', 'customer_number', 'billing_month'],
+      },
+    },
+  },
+  required: ['bills'],
+};
+
+async function _buAskAI(inlineData) {
+  const model = await getGeminiModel();
+  const d = await geminiGenerate(model, {
+    contents: [{ role: 'user', parts: [{ inlineData }, { text: _BU_PROMPT }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: _BU_SCHEMA, temperature: 0 },
+  });
+  const text = (d?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+  // Claude 폴백은 스키마를 강제하지 않아 코드블록·설명이 섞일 수 있다 — 첫 { 부터 마지막 } 까지만
+  const json = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  let out;
+  try { out = JSON.parse(json); } catch (_) { throw new Error('AI 응답을 해석하지 못했습니다'); }
+  return Array.isArray(out.bills) ? out.bills : [];
+}
+
+async function _buRead(file) {
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (isPdf) {
+    if (file.size > 15 * 1024 * 1024) throw new Error('PDF가 15MB를 넘습니다');
+    const buf = await file.arrayBuffer();
+    const text = await _buPdfText(buf).catch(() => '');
+    const water = _buParseUlsanWater(text);
+    if (water) return { bills: water, how: '규칙' };
+    return { bills: await _buAskAI({ mimeType: 'application/pdf', data: _buBase64(buf) }), how: 'AI' };
+  }
+  if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) {
+    throw new Error('PDF 또는 사진 파일만 올릴 수 있습니다');
+  }
+  return { bills: await _buAskAI(await _buImageData(file)), how: 'AI' };
+}
+
+// 고객번호로 시설·종류를 찾고, 같은 시설·종류·월 기록이 이미 있는지 본다
+async function _buResolve(row, bill, infos) {
+  const cust = _buDigits(bill.customer_number);
+  const info = cust && infos.find(i => _buDigits(i.customerNumber) === cust
+    && (!bill.energy_type || i.energyType === bill.energy_type))
+    || (cust && infos.find(i => _buDigits(i.customerNumber) === cust));
+  row.facility = info ? info.facilityName : '';
+  row.type = info ? info.energyType : (BU_TYPES.includes(bill.energy_type) ? bill.energy_type : '');
+  row.month = /^\d{4}-\d{2}$/.test(bill.billing_month || '') ? bill.billing_month : '';
+  row.start = bill.start_date || '';
+  row.end = bill.end_date || '';
+  row.usage = row.type === '통신' ? 0 : (bill.usage_amount ?? '');
+  row.cost = bill.usage_cost ?? '';
+  row.note = [bill.note, !info && bill.customer_number ? `고객번호 ${bill.customer_number} 미등록${bill.facility_hint ? ` · ${bill.facility_hint}` : ''}` : '']
+    .filter(Boolean).join(' / ');
+  await _buCheck(row);
+}
+
+async function _buCheck(row) {
+  row.checked = false;
+  if (!row.facility || !row.type || !row.month) {
+    row.state = '시설·종류·월을 확인하세요'; row.stateCls = 'warn'; return;
+  }
+  const { data, error } = await SB.from('energy_records').select('id')
+    .eq('facility_name', row.facility).eq('energy_type', row.type).eq('billing_month', row.month).limit(1);
+  if (error) { row.state = '중복 확인 실패'; row.stateCls = 'fail'; return; }
+  if (data.length) { row.state = '이미 입력됨'; row.stateCls = 'warn'; return; }
+  row.state = '저장 가능'; row.stateCls = 'ok'; row.checked = true;
+}
+
+function _buRender() {
+  const facOpts = [...(document.getElementById('facilityNameSelect')?.options || [])]
+    .map(o => o.value).filter(Boolean);
+  const tbody = document.getElementById('billUploadRows');
+  tbody.innerHTML = _buRows.map(r => {
+    const facs = r.facility && !facOpts.includes(r.facility) ? [r.facility, ...facOpts] : facOpts;
+    const dis = r.pending || r.error || r.saved ? 'disabled' : '';
+    const state = r.pending ? '읽는 중…' : r.error || r.state || '';
+    const cls = r.pending ? '' : r.error ? 'fail' : r.stateCls || '';
+    return `<tr data-id="${r.id}">
+      <td><input type="checkbox" data-f="checked" ${r.checked ? 'checked' : ''} ${dis}></td>
+      <td class="bu-file" title="${esc(r.file)}">${esc(r.file)}${r.how ? ` <small>(${r.how})</small>` : ''}</td>
+      <td><select data-f="facility" ${dis}><option value="">선택</option>${facs.map(f => `<option ${f === r.facility ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></td>
+      <td><select data-f="type" ${dis}><option value="">선택</option>${BU_TYPES.map(t => `<option ${t === r.type ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td><input type="month" data-f="month" value="${esc(r.month || '')}" ${dis}></td>
+      <td><input type="date" data-f="start" value="${esc(r.start || '')}" ${dis}></td>
+      <td><input type="date" data-f="end" value="${esc(r.end || '')}" ${dis}></td>
+      <td><input type="text" inputmode="decimal" data-f="usage" value="${r.usage === '' || r.usage == null ? '' : Number(r.usage).toLocaleString()}" ${dis}></td>
+      <td><input type="text" inputmode="numeric" data-f="cost" value="${r.cost === '' || r.cost == null ? '' : Number(r.cost).toLocaleString()}" ${dis}></td>
+      <td class="bu-state ${cls}">${esc(state)}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}</td>
+      <td><button type="button" class="bu-del" data-del="${r.id}" title="목록에서 빼기">✕</button></td>
+    </tr>`;
+  }).join('');
+  const any = _buRows.length > 0;
+  document.getElementById('billUploadTableWrap').hidden = !any;
+  document.getElementById('billUploadActions').hidden = !any;
+}
+
+async function billUploadFiles(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+  const status = document.getElementById('billUploadStatus');
+  let infos = [];
+  try { infos = await _emInfoQuery(); } catch (e) { status.innerHTML = `<ul><li class="wb-fail">에너지 정보를 읽지 못했습니다: ${esc(e.message)}</li></ul>`; }
+
+  const placeholders = files.map(f => ({ id: ++_buSeq, file: f.name, pending: true }));
+  _buRows.push(...placeholders);
+  _buRender();
+  // AI 무료 한도를 한꺼번에 태우지 않도록 한 장씩 읽는다
+  for (let i = 0; i < files.length; i++) {
+    const ph = placeholders[i];
+    status.textContent = `읽는 중… (${i + 1}/${files.length}) ${files[i].name}`;
+    try {
+      const { bills, how } = await _buRead(files[i]);
+      if (!bills.length) throw new Error('고지서 내용을 찾지 못했습니다');
+      const rows = [];
+      for (const b of bills) {
+        const row = { id: ++_buSeq, file: ph.file, how };
+        await _buResolve(row, b, infos);
+        rows.push(row);
+      }
+      _buRows.splice(_buRows.indexOf(ph), 1, ...rows);
+    } catch (e) {
+      Object.assign(ph, { pending: false, error: e.message || '읽기 실패' });
+    }
+    _buRender();
+  }
+  status.textContent = '';
+}
+
+function billUploadToggleAll(on) {
+  _buRows.forEach(r => { if (!r.pending && !r.error && !r.saved) r.checked = on; });
+  _buRender();
+}
+
+function billUploadClear() {
+  _buRows = _buRows.filter(r => r.pending);
+  document.getElementById('billUploadStatus').textContent = '';
+  _buRender();
+}
+
+async function billUploadSave() {
+  const picked = _buRows.filter(r => r.checked && !r.pending && !r.error);
+  if (!picked.length) { alert('저장할 항목을 선택하세요.'); return; }
+  for (const r of picked) {
+    const where = `${r.file} (${r.facility || '시설 미선택'})`;
+    if (!r.facility || !r.type || !/^\d{4}-\d{2}$/.test(r.month)) { alert(`${where}: 시설·종류·월을 입력하세요.`); return; }
+    if (!r.start || !r.end) { alert(`${where}: 사용 기간을 입력하세요.`); return; }
+    if (r.start > r.end) { alert(`${where}: 종료일은 시작일 이후여야 합니다.`); return; }
+    if (!Number.isFinite(Number(r.cost)) || r.cost === '') { alert(`${where}: 금액을 확인하세요.`); return; }
+    if (r.type !== '통신' && (!Number.isFinite(Number(r.usage)) || r.usage === '')) { alert(`${where}: 사용량을 확인하세요.`); return; }
+  }
+  const btn = document.getElementById('billUploadSaveBtn');
+  btn.disabled = true;
+  let saved = 0;
+  try {
+    for (const r of picked) {
+      await _buCheck(r);    // 표를 띄운 뒤 다른 사람이 넣었을 수도 있다
+      if (r.state === '이미 입력됨') continue;
+      const { error } = await SB.from('energy_records').insert({
+        facility_name: r.facility,
+        energy_type: r.type,
+        billing_month: r.month,
+        start_date: r.start,
+        end_date: r.end,
+        usage_amount: r.type === '통신' ? Number(r.usage || 0) : Number(r.usage),
+        usage_cost: Number(r.cost),
+      });
+      if (error) { r.state = '저장 실패: ' + error.message; r.stateCls = 'fail'; r.checked = false; continue; }
+      r.state = '저장됨'; r.stateCls = 'ok'; r.checked = false; r.saved = true;
+      saved++;
+    }
+  } finally {
+    btn.disabled = false;
+    _buRender();
+  }
+  if (saved && typeof loadEnergyRecords === 'function') loadEnergyRecords();
+  document.getElementById('billUploadStatus').textContent = `${saved}건 저장했습니다.`;
+}
+
+// 표 편집·삭제·끌어다 놓기
+(function _buWire() {
+  const tbody = document.getElementById('billUploadRows');
+  const drop = document.getElementById('billUploadDrop');
+  if (!tbody || !drop) return;
+  tbody.addEventListener('change', async e => {
+    const tr = e.target.closest('tr'); const f = e.target.dataset.f;
+    const row = tr && _buRows.find(r => r.id === Number(tr.dataset.id));
+    if (!row || !f) return;
+    if (f === 'checked') { row.checked = e.target.checked; return; }
+    row[f] = (f === 'usage' || f === 'cost') ? e.target.value.replace(/,/g, '').trim() : e.target.value;
+    if (f === 'type' && row.type === '통신' && row.usage === '') row.usage = 0;
+    if (['facility', 'type', 'month'].includes(f) && !row.saved) { await _buCheck(row); _buRender(); }
+  });
+  tbody.addEventListener('click', e => {
+    const id = e.target.dataset?.del;
+    if (!id) return;
+    _buRows = _buRows.filter(r => r.id !== Number(id));
+    _buRender();
+  });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => billUploadFiles(e.dataTransfer.files));
+})();
 
 // 차량 정보 쿼리 (시설명 기준 권한 필터 — 에너지 정보와 동일)
 async function _emVehicleQuery() {

@@ -58,7 +58,12 @@ function geminiToClaude(payload) {
     let idx = 0;
     for (const part of (c.parts || [])) {
       if (part.text != null) content.push({ type: 'text', text: part.text });
-      else if (part.functionCall) {
+      else if (part.inlineData) {
+        // 고지서 업로드: 사진·PDF 를 그대로 넘긴다 (빠뜨리면 Claude 가 빈 요청을 받는다)
+        const { mimeType, data } = part.inlineData;
+        const source = { type: 'base64', media_type: mimeType, data };
+        content.push({ type: mimeType === 'application/pdf' ? 'document' : 'image', source });
+      } else if (part.functionCall) {
         content.push({ type: 'tool_use', id: 'call_' + (toolCounter++), name: part.functionCall.name, input: part.functionCall.args || {} });
       } else if (part.functionResponse) {
         const id = lastToolUseIds[idx] || ('call_' + toolCounter);
