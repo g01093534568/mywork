@@ -118,6 +118,19 @@ async function getUser(empno, facility) {
 }
 
 // 시설 관리자가 볼 수 있는 시설 = 본인 시설 + 그 시설을 상위로 둔 하위 시설
+// 통신 회선 이름이 붙은 시설명 → 조직도 시설명 (앱 worklog-app.Html 의 EM_FACILITY_ALIAS 와 같게 유지)
+const EM_FACILITY_ALIAS = {
+  '대운산야영장(ip이용료)': '대운산야영장',
+  '대운산야영장(IP이용료)': '대운산야영장',
+  '대운산야영장(인터넷)': '대운산야영장',
+};
+const withAliases = (names) => {
+  const out = new Set(names);
+  for (const [alias, target] of Object.entries(EM_FACILITY_ALIAS)) if (out.has(target)) out.add(alias);
+  return [...out];
+};
+const inList = (names) => `in.(${names.map(n => `"${n.replace(/"/g, '""')}"`).join(',')})`;
+
 async function managedFacilities(facility) {
   const [own, child] = await Promise.all([
     sb(`users?시설명=eq.${q(facility)}&select=시설명`),
@@ -412,10 +425,10 @@ async function runTool(name, input, ctx) {
       } else if (user.role === 'facility-admin') {
         const names = await managedFacilities(user.시설명);
         if (!names.length) return '관리 중인 시설이 없습니다';
-        path += `&facility_name=in.(${names.map(n => `"${n.replace(/"/g, '""')}"`).join(',')})`;
+        path += `&facility_name=${inList(withAliases(names))}`;
         scopeLabel = `${user.시설명} 외 ${names.length - 1}곳`;
       } else {
-        path += `&facility_name=eq.${q(user.시설명)}`;
+        path += `&facility_name=${inList(withAliases([user.시설명]))}`;
       }
       // 옛 이관 자료는 '전기료'처럼 '료'가 붙어 있다
       if (input.energyType) {

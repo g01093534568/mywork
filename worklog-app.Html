@@ -13279,9 +13279,23 @@ function _emRoleDisplay(role) {
   return '사용자';
 }
 
+// 통신 회선 이름이 붙은 시설명 → 조직도 시설명 (조회·표시는 조직도 시설로 묶는다)
+const EM_FACILITY_ALIAS = {
+  '대운산야영장(ip이용료)': '대운산야영장',
+  '대운산야영장(IP이용료)': '대운산야영장',
+  '대운산야영장(인터넷)': '대운산야영장',
+};
+function _emCanonFacility(name) { return EM_FACILITY_ALIAS[name] || name; }
+// 시설명 목록에 그 시설로 묶이는 별칭 이름을 더한다
+function _emWithAliases(names) {
+  const out = new Set(names);
+  for (const [alias, target] of Object.entries(EM_FACILITY_ALIAS)) if (out.has(target)) out.add(alias);
+  return [...out];
+}
+
 // DB 행 변환 헬퍼
 function _rowToRecord(r) {
-  return { id: r.id, facilityName: r.facility_name, billingMonth: r.billing_month, startDate: r.start_date, endDate: r.end_date, energyType: _parseEnergyType(r.energy_type) || r.energy_type, usageAmount: r.usage_amount, usageCost: r.usage_cost, bankName: r.bank_name || '', virtualAccount: r.virtual_account || '', customerNumber: r.customer_number || '' };
+  return { id: r.id, facilityName: _emCanonFacility(r.facility_name), rawFacilityName: r.facility_name, billingMonth: r.billing_month, startDate: r.start_date, endDate: r.end_date, energyType: _parseEnergyType(r.energy_type) || r.energy_type, usageAmount: r.usage_amount, usageCost: r.usage_cost, bankName: r.bank_name || '', virtualAccount: r.virtual_account || '', customerNumber: r.customer_number || '' };
 }
 function _rowToInfo(r) {
   return { id: r.id, facilityName: r.facility_name, energyType: r.energy_type, customerNumber: r.customer_number || '', bankName: r.bank_name || '', accountNumber: r.account_number || '' };
@@ -13320,12 +13334,12 @@ async function _emEnergyQuery(filters = {}) {
 
   // 역할별 기본 범위 제한
   if (role === 'user') {
-    if (facility) q = q.eq('facility_name', facility);
+    if (facility) q = q.in('facility_name', _emWithAliases([facility]));
     // facility 없으면 필터 없이 전체 반환 (어드민 계정으로 테스트하는 경우 등)
   } else if (role === 'facility-admin') {
     const names = await _getManagedFacilityNames(facility);
     if (!names.length) return [];  // 관리 시설 없으면 빈 결과
-    q = q.in('facility_name', names);
+    q = q.in('facility_name', _emWithAliases(names));
   }
   // admin: 전체 조회 (추가 필터 없음)
 
@@ -13333,7 +13347,7 @@ async function _emEnergyQuery(filters = {}) {
   if (filters.facility) {
     const { data: childData } = await SB.from('users').select('시설명').eq('parent_facility', filters.facility);
     const filterFacilities = [filters.facility, ...(childData || []).map(u => u.시설명).filter(Boolean)];
-    q = q.in('facility_name', filterFacilities);
+    q = q.in('facility_name', _emWithAliases(filterFacilities));
   }
 
   // 옛 이관 자료는 '전기료'처럼 '료'가 붙어 저장되어 있어 두 이름을 함께 찾는다
@@ -13359,11 +13373,11 @@ async function _emInfoQuery() {
   const role = _emRole(), facility = _emFacility();
   let q = SB.from('energy_info').select('*');
   if (role === 'user') {
-    if (facility) q = q.eq('facility_name', facility);
+    if (facility) q = q.in('facility_name', _emWithAliases([facility]));
   } else if (role === 'facility-admin') {
     const names = await _getManagedFacilityNames(facility);
     if (!names.length) return [];
-    q = q.in('facility_name', names);
+    q = q.in('facility_name', _emWithAliases(names));
   }
   const { data, error } = await q;
   if (error) throw error;
@@ -13942,9 +13956,11 @@ async function _generateDocxBlob(record) {
 
 // 첨부1(xlsx) 클라이언트 생성
 async function _generateAttachmentBlob(record, energyInfos) {
-  let matchingInfo = (energyInfos || []).find(i => i.facilityName === record.facilityName && i.energyType === record.energyType);
+  // 회선별 계좌를 찾도록 원래 시설명(대운산야영장(인터넷) 등)으로 먼저 찾는다
+  const infoName = record.rawFacilityName || record.facilityName;
+  let matchingInfo = (energyInfos || []).find(i => i.facilityName === infoName && i.energyType === record.energyType);
   if (!matchingInfo) {
-    const parentMatch = record.facilityName ? record.facilityName.match(/^(.+?)\(/) : null;
+    const parentMatch = infoName ? infoName.match(/^(.+?)\(/) : null;
     if (parentMatch) matchingInfo = (energyInfos || []).find(i => i.facilityName === parentMatch[1] && i.energyType === record.energyType);
   }
   const bankName = matchingInfo?.bankName || record.bankName || '';
