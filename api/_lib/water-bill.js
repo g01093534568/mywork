@@ -146,12 +146,29 @@ export async function launchBrowser() {
   });
 }
 
+// 사이트 CSS 는 'Pretendard GOV' 웹폰트를 쓰는데 서버 크롬에서는 글자가 통째로 비어 찍혔다.
+// 시스템 글꼴 설정에 기대지 않도록 나눔고딕을 문서 안에 data: URI 로 박고 모든 글자에 강제한다.
+let fontCss = null;
+async function embeddedFontCss() {
+  if (fontCss) return fontCss;
+  const dir = path.join(process.cwd(), 'fonts');
+  const face = async (file, weight) => {
+    const b64 = (await fs.readFile(path.join(dir, file))).toString('base64');
+    return `@font-face{font-family:'WBNanum';font-weight:${weight};src:url(data:font/ttf;base64,${b64}) format('truetype');}`;
+  };
+  fontCss = `<style>${await face('NanumGothic-Regular.ttf', 400)}${await face('NanumGothic-Bold.ttf', 700)}
+*{font-family:'WBNanum',sans-serif !important;}</style>`;
+  return fontCss;
+}
+
 export async function renderPdf(browser, printHtml) {
   const page = await browser.newPage();
   try {
     await page.setViewport({ width: 1024, height: 768 });
+    const html = printHtml.replace('</head>', `${await embeddedFontCss()}</head>`);
     // 사이트 CSS·로고를 받아와야 하므로 네트워크가 잠잠해질 때까지 기다린다
-    await page.setContent(printHtml, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.evaluate(() => document.fonts.ready);
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
