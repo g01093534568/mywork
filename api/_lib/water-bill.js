@@ -114,7 +114,7 @@ export async function fetchBill(customerNumber, month) {
 ${links}
 <style>
   body { background:#fff; margin:0; padding:20px; font-family:'NanumGothic', sans-serif; }
-  #homeCharge { max-width:980px; margin:0 auto; }
+  #homeCharge { width:980px; margin:0; }
 </style>
 </head><body>${fragment}</body></html>`;
 
@@ -169,9 +169,25 @@ export async function renderPdf(browser, printHtml) {
     // 사이트 CSS·로고를 받아와야 하므로 네트워크가 잠잠해질 때까지 기다린다
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);
+
+    // A4 한 장에 들어가도록 고지서 크기를 재서 축소한다.
+    // 고지서 폭을 고정해 두어야 축소해도 줄바꿈이 달라지지 않는다.
+    await page.emulateMediaType('print');
+    const size = await page.evaluate(() => {
+      const el = document.getElementById('homeCharge');
+      const r = el.getBoundingClientRect();
+      return { width: Math.ceil(r.right + 20), height: Math.ceil(r.bottom + 20) };
+    });
+    const MM = 96 / 25.4;                       // CSS px / mm
+    const printableW = (210 - 16) * MM;         // A4 폭 - 좌우 여백 8mm
+    const printableH = (297 - 20) * MM - 4;     // A4 높이 - 상하 여백 10mm, 반올림 여유
+    const scale = Math.max(0.1, Math.min(1, printableW / size.width, printableH / size.height));
+
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
+      scale,
+      pageRanges: '1',
       margin: { top: '10mm', bottom: '10mm', left: '8mm', right: '8mm' },
     });
     return Buffer.from(pdf);
