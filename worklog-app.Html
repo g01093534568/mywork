@@ -967,6 +967,16 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
   margin-bottom: 16px; border-left: none; padding-left: 0;
 }
 
+/* 상수도 고지서 패널 */
+#page-energy .wb-note { font-size: 12px; color: var(--t3); margin: -8px 0 14px; }
+#page-energy .wb-row { align-items: flex-end; flex-wrap: wrap; }
+#page-energy .wb-row .em-form-group { flex: 0 1 200px; }
+#page-energy .wb-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+#page-energy .wb-result { font-size: 13px; color: var(--t2); }
+#page-energy .wb-result:empty { display: none; }
+#page-energy .wb-result li { padding: 4px 0; list-style: none; }
+#page-energy .wb-result .wb-fail { color: #e5484d; }
+
 /* 폼 그룹 — worklog 스타일 */
 #page-energy .em-form-group,
 .em-modal .em-form-group { margin-bottom: 16px; }
@@ -2300,6 +2310,21 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
                   <button type="reset" class="reset-btn reset-filter-btn">초기화</button>
                 </div>
               </form>
+            </div>
+            <div class="energy-section" id="waterBillPanel">
+              <h3>상수도 고지서 (울산 상수도사업본부)</h3>
+              <p class="wb-note">에너지 정보에 상하수도로 등록된 10자리 고객번호의 고지서를 조회합니다. 매월 10일 오전 10시에 자동으로 입력되고 PDF가 메일로 발송됩니다.</p>
+              <div class="form-row wb-row">
+                <div class="em-form-group">
+                  <label for="waterBillMonth">고지 월</label>
+                  <input type="month" id="waterBillMonth">
+                </div>
+                <div class="wb-actions">
+                  <button type="button" class="search-btn" id="waterBillImportBtn" onclick="waterBillImport()">사용량 불러오기</button>
+                  <button type="button" class="reset-btn reset-filter-btn" id="waterBillPdfBtn" onclick="waterBillPdf()">고지서 PDF 받기</button>
+                </div>
+              </div>
+              <div id="waterBillResult" class="wb-result"></div>
             </div>
           </div>
 
@@ -13292,6 +13317,92 @@ async function _emInfoQuery() {
   const { data, error } = await q;
   if (error) throw error;
   return (data || []).map(_rowToInfo);
+}
+
+// ── 상수도 고지서 (울산 상수도사업본부) ──
+// 조회·PDF 는 서버(/api/water-bill)가 한다. 사이트가 브라우저 CORS 를 막고 CSRF 쿠키가 필요해서다.
+// 매월 10일에는 /api/cron/water-bill 이 같은 일을 자동으로 하고 PDF 를 메일로 보낸다.
+function _waterBillMonth() {
+  const el = document.getElementById('waterBillMonth');
+  if (!el.value) el.value = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 7);
+  return el.value;
+}
+async function _waterBillTargets() {
+  const infos = await _emInfoQuery();
+  return infos.filter(i => i.energyType === '상하수도' && /^\d{10}$/.test(i.customerNumber.trim()));
+}
+function _waterBillShow(lines) {
+  document.getElementById('waterBillResult').innerHTML = '<ul>' + lines.map(l =>
+    `<li class="${l.fail ? 'wb-fail' : ''}">${esc(l.text)}</li>`).join('') + '</ul>';
+}
+async function _waterBillRun(btnId, busyText, work) {
+  const btn = document.getElementById(btnId);
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = busyText;
+  try {
+    const month = _waterBillMonth();
+    const targets = await _waterBillTargets();
+    if (!targets.length) {
+      _waterBillShow([{ fail: true, text: '에너지 정보에 상하수도 10자리 고객번호가 등록된 시설이 없습니다.' }]);
+      return;
+    }
+    const lines = [];
+    for (const t of targets) {
+      try { lines.push(await work(t, month)); }
+      catch (e) { lines.push({ fail: true, text: `${t.facilityName}: ${e.message}` }); }
+      _waterBillShow(lines);
+    }
+  } catch (e) {
+    _waterBillShow([{ fail: true, text: e.message }]);
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+async function _waterBillFetch(customer, month, format) {
+  const res = await fetch(`/api/water-bill?customer=${customer.trim()}&month=${month}${format ? `&format=${format}` : ''}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `서버 오류 ${res.status}`);
+  }
+  return res;
+}
+
+if (document.getElementById('waterBillMonth')) _waterBillMonth();
+
+async function waterBillImport() {
+  await _waterBillRun('waterBillImportBtn', '불러오는 중...', async (t, month) => {
+    const { bill } = await (await _waterBillFetch(t.customerNumber, month)).json();
+    const { data: existing, error: selErr } = await SB.from('energy_records').select('id')
+      .eq('facility_name', t.facilityName).eq('energy_type', '상하수도').eq('billing_month', month).limit(1);
+    if (selErr) throw selErr;
+    const desc = `${bill.startDate} ~ ${bill.endDate}, ${bill.usageAmount.toLocaleString()}㎥, ${bill.usageCost.toLocaleString()}원`;
+    if (existing.length) return { text: `${t.facilityName}: 이미 입력되어 있음 (${desc})` };
+    const { error } = await SB.from('energy_records').insert({
+      facility_name: t.facilityName,
+      energy_type: '상하수도',
+      billing_month: month,
+      start_date: bill.startDate,
+      end_date: bill.endDate,
+      usage_amount: bill.usageAmount,
+      usage_cost: bill.usageCost,
+    });
+    if (error) throw error;
+    if (typeof loadEnergyRecords === 'function') loadEnergyRecords();
+    return { text: `${t.facilityName}: 입력 완료 (${desc})` };
+  });
+}
+
+async function waterBillPdf() {
+  await _waterBillRun('waterBillPdfBtn', 'PDF 만드는 중...', async (t, month) => {
+    const blob = await (await _waterBillFetch(t.customerNumber, month, 'pdf')).blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `상수도요금_${month}_${t.facilityName}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return { text: `${t.facilityName}: PDF 저장` };
+  });
 }
 
 // 차량 정보 쿼리 (시설명 기준 권한 필터 — 에너지 정보와 동일)

@@ -33,6 +33,22 @@
     {
       "path": "/api/cron/remind",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/water-bill",
+      "schedule": "0 1 10 * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/water-bill.js": {
+      "includeFiles": "fonts/**",
+      "memory": 2048,
+      "maxDuration": 60
+    },
+    "api/cron/water-bill.js": {
+      "includeFiles": "fonts/**",
+      "memory": 2048,
+      "maxDuration": 300
+    }
+  }
 }
