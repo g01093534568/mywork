@@ -14,7 +14,9 @@
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
+<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+// 복합기 스캔 PDF 의 한글 글자 층(KSC-EUC-H 등)은 문자표가 없으면 글자가 하나도 안 나온다
+var PDFJS_CMAP={cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true};</script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- 에너지 관리 시스템 의존성 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -12802,7 +12804,7 @@ function ksToggleType(v){
 async function ksExtractPdf(file){
   if(!window.pdfjsLib) throw new Error('PDF 라이브러리 로딩 중 — 잠시 후 다시 시도하세요');
   const buf=await file.arrayBuffer();
-  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const pdf=await pdfjsLib.getDocument({data:buf,...PDFJS_CMAP}).promise;
   let text=''; const max=Math.min(pdf.numPages,80);
   for(let i=1;i<=max;i++){ const page=await pdf.getPage(i); const c=await page.getTextContent(); text+=c.items.map(it=>it.str).join(' ')+'\n'; }
   return text.replace(/\n{3,}/g,'\n\n').trim();
@@ -13460,7 +13462,7 @@ const _buDigits = s => String(s || '').replace(/\D/g, '');
 
 async function _buPdfText(buf) {
   if (!window.pdfjsLib) throw new Error('PDF 라이브러리 로딩 중 — 잠시 후 다시 시도하세요');
-  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0), ...PDFJS_CMAP }).promise;
   let text = '';
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
     const c = await (await pdf.getPage(i)).getTextContent();
