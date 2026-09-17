@@ -13552,7 +13552,64 @@ function _buRuleKyungdongGas(text) {
   };
 }
 
-const _BU_RULES = [_buRuleUlsanWater, _buRuleKepco, _buRuleKyungdongGas];
+// KT 통신요금 명세서 — 스캔본을 "검색 가능한 PDF"로 저장한 것.
+// 스캐너 OCR 글자 층은 품질이 낮아(예: 7604084705J, 1,669f140원) 다음처럼 읽는다.
+//   금액: 쉼표 숫자 중 가장 여러 번 나온 값 (명세서에 납부금액이 네댓 번 찍힌다)
+//   기간: "12월 1일 ~ 12월 31일" / 월: 이용월 다음 달이 명세서 월 / 연도: 20260202 같은 날짜
+//   명세서번호: 온전히 읽히지 않으므로 오인식 글자를 숫자로 바꾼 문자열을 만들어 두고,
+//              _buResolve 가 등록된 고객번호가 그 안에 있는지 찾는다
+const _BU_OCR_DIGIT = { O: '0', o: '0', D: '0', Q: '0', I: '1', l: '1', i: '1', '|': '1', Z: '2', z: '2',
+  J: '3', 'Ξ': '3', '∃': '3', A: '4', S: '5', s: '5', G: '6', b: '6', T: '7', g: '9', q: '9' };
+function _buOcrBlobs(text) {
+  const base = [...text].map(c => _BU_OCR_DIGIT[c] ?? c).join('').replace(/[\s\-·.,]/g, '');
+  // B 는 3 으로도 8 로도 읽힌다 — 두 가지를 다 만든다
+  return [base.replace(/B/g, '8'), base.replace(/B/g, '3')].map(s => s.replace(/\D+/g, ' '));
+}
+function _buRuleKtTelecom(text) {
+  if (!/\bKT\b|케이티/.test(text)) return null;
+  const p = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*[~˜∼〜-]\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (!p) return null;
+
+  const counts = new Map();
+  const fixed = text.replace(/(?<=\d)[fr](?=\d{3})/g, ',');
+  for (const m of fixed.matchAll(/(?<![\d,])\d{1,3}(?:,\s?\d{3})+(?![\d,])/g)) {
+    const v = _buNum(m[0].replace(/\s/g, ''));
+    counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  for (const m of text.matchAll(/(?<!\d)\d{5,9}(?!\d)/g)) {   // 표준OCR 칸의 쉼표 없는 납부금액
+    const v = Number(m[0]);
+    if (counts.has(v)) counts.set(v, counts.get(v) + 1);
+  }
+  const [cost, hits] = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0] || [];
+  if (!cost || hits < 2) return null;
+
+  const endM = Number(p[3]);
+  const bm = endM % 12 + 1;                      // 이용월 다음 달이 명세서 월
+  // 발송일·납기일(YYYYMMDD)은 명세서 월이거나 그 다음 달이다
+  let by = null;
+  for (const d of text.matchAll(/(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/g)) {
+    const y = Number(d[1]), m = Number(d[2]);
+    const hit = [y, y - 1].find(Y => { const diff = (y * 12 + m) - (Y * 12 + bm); return diff >= 0 && diff <= 1; });
+    if (hit) { by = hit; break; }
+  }
+  if (!by) return null;
+  const ey = endM > bm ? by - 1 : by;
+  const sy = Number(p[1]) > endM ? ey - 1 : ey;
+  const pad = n => String(n).padStart(2, '0');
+  return {
+    energy_type: '통신',
+    customer_number: '',
+    _blobs: _buOcrBlobs(text),
+    billing_month: _buYM(by, bm),
+    start_date: `${sy}-${pad(p[1])}-${pad(p[2])}`,
+    end_date: `${ey}-${pad(p[3])}-${pad(p[4])}`,
+    usage_amount: 0,
+    usage_cost: cost,
+    note: '스캔 글자 인식 — 금액·기간을 명세서와 대조하세요',
+  };
+}
+
+const _BU_RULES = [_buRuleUlsanWater, _buRuleKepco, _buRuleKyungdongGas, _buRuleKtTelecom];
 
 function _buParseText(raw) {
   const text = _buNormalize(raw);
@@ -13662,9 +13719,15 @@ async function _buRead(file) {
 // 고객번호로 시설·종류를 찾고, 같은 시설·종류·월 기록이 이미 있는지 본다
 async function _buResolve(row, bill, infos) {
   const cust = _buDigits(bill.customer_number);
-  const info = cust && infos.find(i => _buDigits(i.customerNumber) === cust
+  let info = cust && infos.find(i => _buDigits(i.customerNumber) === cust
     && (!bill.energy_type || i.energyType === bill.energy_type))
     || (cust && infos.find(i => _buDigits(i.customerNumber) === cust));
+  // 스캔 글자 인식으로 번호가 온전하지 않을 때: 등록된 번호가 인식 문자열 안에 있는지 본다
+  if (!info && bill._blobs) {
+    info = infos.find(i => i.energyType === bill.energy_type && _buDigits(i.customerNumber).length >= 8
+      && bill._blobs.some(b => b.includes(_buDigits(i.customerNumber))));
+    if (info) bill.customer_number = info.customerNumber;
+  }
   row.facility = info ? info.facilityName : '';
   row.type = info ? info.energyType : (BU_TYPES.includes(bill.energy_type) ? bill.energy_type : '');
   row.month = /^\d{4}-\d{2}$/.test(bill.billing_month || '') ? bill.billing_month : '';
