@@ -1527,18 +1527,27 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             그 안에서 아래 무게에 따라 점수가 높은 짝부터 자리를 잡습니다.
           </div>
           <div class="hr-sub" style="margin-bottom:12px">
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+              <div style="font-size:12px;font-weight:700">무게 배분</div>
+              <div style="font-size:11px;color:var(--t3)">네 항목의 합은 언제나 100입니다 — 하나를 올리면 나머지가 비율대로 줄어듭니다.</div>
+              <div id="place-w-sum" style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent)"></div>
+            </div>
             <div class="form-row">
               <div class="form-group"><label>거주지 근접 <span id="place-w-dist-v" style="color:var(--accent)"></span></label>
-                <input type="range" id="place-w-dist" min="0" max="100" value="50" oninput="renderPlaceWeights()" /></div>
+                <input type="range" id="place-w-dist" min="0" max="100" value="35" oninput="renderPlaceWeights('place-w-dist')" /></div>
               <div class="form-group"><label>이전 근무지 회피 <span id="place-w-hist-v" style="color:var(--accent)"></span></label>
-                <input type="range" id="place-w-hist" min="0" max="100" value="50" oninput="renderPlaceWeights()" /></div>
+                <input type="range" id="place-w-hist" min="0" max="100" value="25" oninput="renderPlaceWeights('place-w-hist')" /></div>
               <div class="form-group"><label>현 소속 유임 <span id="place-w-stay-v" style="color:var(--accent)"></span></label>
-                <input type="range" id="place-w-stay" min="0" max="100" value="20" oninput="renderPlaceWeights()" /></div>
+                <input type="range" id="place-w-stay" min="0" max="100" value="15" oninput="renderPlaceWeights('place-w-stay')" /></div>
+              <div class="form-group"><label>근무성적평정 <span id="place-w-eval-v" style="color:var(--accent)"></span></label>
+                <input type="range" id="place-w-eval" min="0" max="100" value="25" oninput="renderPlaceWeights('place-w-eval')" /></div>
             </div>
             <div style="font-size:11px;color:var(--t3);line-height:1.7">
               <b>거주지 근접</b>은 직원 주소와 시설 주소의 행정구역이 얼마나 겹치는지로 봅니다(같은 읍·면·동 &gt; 같은 시·군·구 &gt; 같은 시·도).
               직원 주소에는 좌표가 없어 실제 도로 거리는 쓰지 않습니다.<br>
-              <b>이전 근무지 회피</b>는 최근 인사이동 시설로 다시 보내지 않으려는 쪽으로 점수를 깎습니다. 최근일수록 많이 깎습니다.
+              <b>이전 근무지 회피</b>는 최근 인사이동 시설로 다시 보내지 않으려는 쪽으로 점수를 깎습니다. 최근일수록 많이 깎습니다.<br>
+              <b>근무성적평정</b>은 직원 명부에 넣은 평정 점수(0~100)를 씁니다. 점수가 높은 사람이 먼저 자리를 고르게 되며,
+              평정이 없는 사람은 중간값 50으로 봅니다(등급만 있으면 수 95 · 우 85 · 미 70 · 양 60 · 가 50으로 환산).
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
@@ -2890,6 +2899,13 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
     <div class="form-group"><label>생년월일</label><input type="date" id="hr-f-birth" /></div>
     <div class="form-group"><label>주소</label><input type="text" id="hr-f-addr" placeholder="통근거리 산정에 씁니다" /></div>
     <div class="form-group"><label>전공</label><input type="text" id="hr-f-major" list="hr-major-list" placeholder="예: 행정학" /><datalist id="hr-major-list"></datalist></div>
+    <div class="form-row">
+      <div class="form-group"><label>근무성적평정 점수</label>
+        <input type="number" id="hr-f-eval" min="0" max="100" step="0.1" placeholder="예: 88.5" />
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">배치 시뮬레이션의 <b>근무성적평정</b> 무게에 씁니다. 비워 두면 중간값(50)으로 봅니다.</div></div>
+      <div class="form-group"><label>평정 연도</label>
+        <input type="number" id="hr-f-eval-year" min="1990" max="2100" step="1" placeholder="예: 2026" /></div>
+    </div>
     <div class="form-group">
       <label>최근 인사이동 시설</label>
       <div style="font-size:11px;color:var(--t3);margin:-2px 0 6px">1번이 가장 최근입니다. 현소속 이전에 근무한 곳을 순서대로 고르세요.</div>
@@ -4936,14 +4952,52 @@ function _seriesMatches(slotSeries, empSeries){
   return sl.split('·').map(x=>x.trim()).includes(String(empSeries||'').trim());
 }
 
+const PLACE_W_IDS=['place-w-dist','place-w-hist','place-w-stay','place-w-eval'];
+const PLACE_W_DEFAULT={'place-w-dist':35,'place-w-hist':25,'place-w-stay':15,'place-w-eval':25};
+
 function _placeWeights(){
-  const g=id=>parseInt(document.getElementById(id)?.value ?? '50',10);
-  return { dist:g('place-w-dist'), hist:g('place-w-hist'), stay:g('place-w-stay') };
+  const g=id=>{
+    const v=parseInt(document.getElementById(id)?.value ?? '',10);
+    return Number.isFinite(v)?v:PLACE_W_DEFAULT[id];
+  };
+  return { dist:g('place-w-dist'), hist:g('place-w-hist'),
+           stay:g('place-w-stay'), eval:g('place-w-eval') };
 }
-function renderPlaceWeights(){
+
+// 네 무게의 합을 100 으로 붙들어 둔다. 방금 움직인 것은 그대로 두고 나머지를 비율대로
+// 줄이거나 늘린다(나머지가 모두 0이면 고르게 나눈다). 합이 100이면 각 값이 곧 백분율이라
+// "거주지 40 · 평정 30" 처럼 읽을 수 있고, 점수 계산도 눈에 보이는 몫과 같아진다.
+function _normalizePlaceWeights(changedId){
+  const el=id=>document.getElementById(id);
+  if(!PLACE_W_IDS.every(id=>el(id))) return;            // 화면이 아직 없으면 손대지 않는다
+  const v={};
+  PLACE_W_IDS.forEach(id=>{
+    const n=parseInt(el(id).value,10);
+    v[id]=Math.max(0,Math.min(100,Number.isFinite(n)?n:PLACE_W_DEFAULT[id]));
+  });
+  const fixed=PLACE_W_IDS.includes(changedId)?changedId:null;
+  const rest=PLACE_W_IDS.filter(id=>id!==fixed);
+  const room=100-(fixed?v[fixed]:0);
+  const restSum=rest.reduce((a,id)=>a+v[id],0);
+  if(restSum>0) rest.forEach(id=>{ v[id]=Math.round(room*v[id]/restSum); });
+  else rest.forEach((id,i)=>{ v[id]=Math.floor(room/rest.length)+(i<room%rest.length?1:0); });
+  // 반올림 때문에 1~2 가 남거나 모자라면, 움직이지 않은 것 중 가장 큰 쪽에서 메운다
+  let diff=100-PLACE_W_IDS.reduce((a,id)=>a+v[id],0);
+  if(diff){
+    const t=rest.slice().sort((a,b)=>v[b]-v[a])[0];
+    if(t!=null) v[t]=Math.max(0,v[t]+diff);
+  }
+  PLACE_W_IDS.forEach(id=>{ el(id).value=String(v[id]); });
+}
+
+function renderPlaceWeights(changedId){
+  _normalizePlaceWeights(changedId);
   const w=_placeWeights();
   const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  set('place-w-dist-v',w.dist); set('place-w-hist-v',w.hist); set('place-w-stay-v',w.stay);
+  set('place-w-dist-v',w.dist); set('place-w-hist-v',w.hist);
+  set('place-w-stay-v',w.stay); set('place-w-eval-v',w.eval);
+  const sum=w.dist+w.hist+w.stay+w.eval;
+  set('place-w-sum','합계 '+sum);
 }
 
 // 시설 주소는 조직도(users)에 있다. 이름으로 찾을 수 있게 만들어 둔다.
@@ -5103,14 +5157,54 @@ function _fits(emp, slot){
   return rankKey(emp.직급)===rankKey(slot.직급) && _seriesMatches(slot.직렬, emp.직렬);
 }
 
+// 근무성적평정 — 명부에는 [{연도,기간,점수,등급,비고}] 배열로 쌓인다. 시뮬레이션은
+// 가장 최근 연도 한 건을 보고, 점수가 없으면 등급을 점수로 환산한다.
+const EVAL_GRADE_SCORE={'수':95,'우':85,'미':70,'양':60,'가':50,
+                        'S':95,'A':85,'B':70,'C':60,'D':50};
+// 화면에서 받은 평정 한 건을 기존 배열에 얹는다. 점수를 비우면 그 해 기록만 지운다.
+// 연도를 비우면 올해로 본다 — 어느 해 것인지 모르면 최근 순 정렬이 흔들린다.
+function _mergeEvalInput(prev, scoreRaw, yearRaw){
+  const arr=_arr(prev).filter(r=>r && typeof r==='object');
+  const txt=String(scoreRaw ?? '').trim();
+  const year=parseInt(String(yearRaw ?? '').replace(/\D/g,''),10)
+    || parseInt(String(_latestEval({평정:arr})?.연도 ?? '').replace(/\D/g,''),10)
+    || new Date().getFullYear();
+  const rest=arr.filter(r=>(parseInt(String(r.연도 ?? '').replace(/\D/g,''),10)||0)!==year);
+  if(!txt) return rest;                                  // 점수를 지우면 그 해 기록도 뺀다
+  const n=Math.max(0,Math.min(100,parseFloat(txt.replace(/[^\d.]/g,''))));
+  if(!Number.isFinite(n)) return arr;                    // 숫자가 아니면 손대지 않는다
+  const had=arr.find(r=>(parseInt(String(r.연도 ?? '').replace(/\D/g,''),10)||0)===year) || {};
+  return [{...had, 연도:year, 점수:n}, ...rest];
+}
+
+function _latestEval(emp){
+  const arr=_arr(emp&&emp.평정);
+  if(!arr.length) return null;
+  return arr.map(r=>({r, y:parseInt(String(r&&r.연도||'').replace(/\D/g,''),10)||0}))
+            .sort((a,b)=>b.y-a.y)[0].r || null;
+}
+// 0~100 점수, 넣은 게 없으면 null(부르는 쪽에서 중간값으로 본다)
+function _evalScore(emp){
+  const r=_latestEval(emp); if(!r) return null;
+  const n=parseFloat(String(r.점수 ?? '').replace(/[^\d.]/g,''));
+  if(Number.isFinite(n)) return Math.max(0,Math.min(100,n));
+  const g=String(r.등급 ?? '').trim();
+  const hit=EVAL_GRADE_SCORE[g] ?? EVAL_GRADE_SCORE[g.toUpperCase()];
+  return hit==null ? null : hit;
+}
+
 function _scorePair(emp, slot, w){
   const region=_regionScore(emp.주소, _facAddrOf(slot.시설명));
   const dist = region===null ? 50 : region;      // 주소를 모르면 중간값 — 벌도 상도 주지 않는다
   const hist = _histScore(emp, slot.시설명);
   const stay = emp.시설명===slot.시설명 ? 100 : 0;
-  const tot = w.dist+w.hist+w.stay;
-  const score = tot ? (w.dist*dist + w.hist*hist + w.stay*stay)/tot : 0;
-  return {score, dist, hist, stay, distKnown:region!==null};
+  // 평정은 자리와 상관없는 사람의 값이라, 자리마다 점수를 갈라놓지는 않고
+  // 그 사람이 먼저 자리를 고르게 만드는(짝 정렬을 끌어올리는) 몫으로 들어간다.
+  const evRaw=_evalScore(emp);
+  const ev = evRaw===null ? 50 : evRaw;
+  const tot = w.dist+w.hist+w.stay+w.eval;
+  const score = tot ? (w.dist*dist + w.hist*hist + w.stay*stay + w.eval*ev)/tot : 0;
+  return {score, dist, hist, stay, ev, distKnown:region!==null, evKnown:evRaw!==null};
 }
 
 function runPlacement(){
@@ -5185,7 +5279,8 @@ function renderPlaceResult(){
   const why=p=>{
     if(p.fixed) return '<span style="color:var(--t3)">관리자 지정</span>';
     const w=p.why; if(!w) return '';
-    return `<span style="color:var(--t3)">거주지 ${w.distKnown?w.dist:'?'} · 이전근무 ${w.hist} · 유임 ${w.stay}</span>`;
+    return `<span style="color:var(--t3)">거주지 ${w.distKnown?w.dist:'?'} · 이전근무 ${w.hist} · 유임 ${w.stay}`
+      + ` · 평정 ${w.evKnown?w.ev:'미입력'}</span>`;
   };
 
   cont.innerHTML=`
@@ -5193,7 +5288,7 @@ function renderPlaceResult(){
       <b>${r.placed.size}명 배치</b> · 미배치 <b class="${r.unplaced.length?'hr-over':''}">${r.unplaced.length}명</b>
       · 빈자리 <b class="${r.empty.length?'hr-under':''}">${r.empty.length}</b>
       <span style="color:var(--t3);font-size:11px;margin-left:8px">
-        무게 거주지 ${r.weights.dist} · 이전근무 ${r.weights.hist} · 유임 ${r.weights.stay}
+        무게 거주지 ${r.weights.dist} · 이전근무 ${r.weights.hist} · 유임 ${r.weights.stay} · 평정 ${r.weights.eval}
         · ${r.when.toLocaleTimeString('ko-KR')}</span>
     </div>
     ${r.notes.length?`<div class="hr-warn" style="margin-bottom:12px">${r.notes.map(esc).join('<br>')}</div>`:''}
@@ -5311,8 +5406,13 @@ function _renderPlaceOrg(){
                   : p.fixed ? '<span class="po-tag fix">지정</span>'
                   : (p.emp.시설명===f ? '<span class="po-tag stay">유임</span>' : '');
     const body = hasAny
-      ? rows.map(p=>`<div class="po-row"><span class="po-rank">${esc(p.slot.직급)||'—'}</span>`
-          + `<span class="po-name">${esc(p.emp.성명)}</span>${tag(p)}</div>`).join('')
+      ? rows.map(p=>{
+          const ev=_evalScore(p.emp);
+          const tip=`${p.emp.성명} · ${p.slot.직급}${p.slot.직렬?'·'+p.slot.직렬:''}`
+            + ` · 현소속 ${p.emp.시설명||'—'} · 평정 ${ev===null?'미입력':ev}`;
+          return `<div class="po-row" title="${esc(tip)}"><span class="po-rank">${esc(p.slot.직급)||'—'}</span>`
+            + `<span class="po-name">${esc(p.emp.성명)}</span>${tag(p)}</div>`;
+        }).join('')
         + vac.map(s=>`<div class="po-row po-vacant"><span class="po-rank">${esc(s.직급)||'—'}</span>`
           + `<span>빈자리${s.직렬?' · '+esc(s.직렬):''}</span></div>`).join('')
       : '';   // 정원이 없는 시설은 계통을 잇는 상자일 뿐이라 머리만 남긴다
@@ -5373,6 +5473,7 @@ function downloadPlacementExcel(){
       현소속:p.emp.시설명||'', 구분:p.fixed?(p.over?'관리자 지정(정원초과)':'관리자 지정'):'자동',
       거주지근접:p.why?(p.why.distKnown?p.why.dist:''):'',
       이전근무:p.why?p.why.hist:'', 유임:p.why?p.why.stay:'',
+      근무성적평정:p.why?(p.why.evKnown?p.why.ev:''):(_evalScore(p.emp) ?? ''),
       종합점수:p.why?Math.round(p.why.score):'', 주소:p.emp.주소||'',
     }));
   const left=r.unplaced.map(e=>({성명:e.성명, 사원번호:e.사원번호||'', 직급:e.직급||'', 직렬:e.직렬||'', 현소속:e.시설명||''}));
@@ -5443,6 +5544,11 @@ async function openEmpModal(id){
   document.getElementById('hr-f-empno').value=e?e.사원번호:'';
   document.getElementById('hr-f-addr').value=e?e.주소:'';
   document.getElementById('hr-f-facility').value=e?e.시설명:'';
+  // 근무성적평정 — 배열(연도별)에서 가장 최근 한 건을 꺼내 보여준다
+  const _ev=e?_latestEval(e):null;
+  const _evEl=document.getElementById('hr-f-eval'), _evY=document.getElementById('hr-f-eval-year');
+  if(_evEl) _evEl.value = e ? (_evalScore(e) ?? '') : '';
+  if(_evY)  _evY.value  = _ev && _ev.연도 ? String(_ev.연도) : '';
 
   // 최근 인사이동 시설 — 현소속과 같은 조직도 목록에서 고르게 한다.
   // 자유 입력으로 두면 표기가 갈려 시뮬레이션에서 같은 시설로 안 묶인다.
@@ -5491,7 +5597,11 @@ async function saveEmployee(){
     주소:document.getElementById('hr-f-addr').value.trim(),
     // 빈 칸은 걸러내고 순서만 남긴다 — 2번을 비우고 3번만 골라도 순서가 앞으로 당겨진다
     이동이력:Array.from({length:HR_MOVE_SLOTS},(_,i)=>
-      (document.getElementById('hr-f-move-'+i)?.value||'').trim()).filter(Boolean)
+      (document.getElementById('hr-f-move-'+i)?.value||'').trim()).filter(Boolean),
+    // 평정은 연도별로 쌓이는 배열이다. 화면에서 받은 한 해만 갈아 끼우고 다른 해는 남긴다.
+    평정:_mergeEvalInput(_hrKeep.평정,
+      document.getElementById('hr-f-eval')?.value,
+      document.getElementById('hr-f-eval-year')?.value),
   };
   try{
     await DB.upsertEmployee(data);
@@ -5639,10 +5749,13 @@ function _xlDate(v){
 // 만들어져 명부가 두 배가 된다. 사용자가 지우지 않도록 첫 칸에 두고 안내한다.
 // 이동1~이동5 = 최근 인사이동 시설. 1번이 가장 최근이다.
 const HR_MOVE_COLS=Array.from({length:HR_MOVE_SLOTS},(_,i)=>'이동'+(i+1));
-const HR_EMP_COLS=['id','현소속','성명','사원번호','직급','직렬','생년월일','주소','전공',...HR_MOVE_COLS];
+const HR_EMP_COLS=['id','현소속','성명','사원번호','직급','직렬','생년월일','주소','전공',
+                   '근무성적평정','평정연도',...HR_MOVE_COLS];
 function _empToRow(e){
+  const _ev=_latestEval(e);
   const o={id:e.id, 현소속:e.시설명, 성명:e.성명, 사원번호:e.사원번호, 직급:e.직급,
-           직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공};
+           직렬:e.직렬, 생년월일:e.생년월일, 주소:e.주소, 전공:e.전공,
+           근무성적평정:_evalScore(e) ?? '', 평정연도:(_ev&&_ev.연도)||''};
   const mv=_arr(e.이동이력);
   HR_MOVE_COLS.forEach((c,i)=>{ o[c]=mv[i]||''; });
   return o;
@@ -5680,9 +5793,11 @@ async function _quotaMatrix(){
 async function downloadHrTemplate(){
   const emp=[{id:'',현소속:'울주군립야영장',성명:'홍길동',사원번호:'091111',직급:'6급',
               직렬:'행정',생년월일:'1985-03-12',주소:'울산광역시 울주군 …',전공:'행정학',
+              근무성적평정:88.5,평정연도:new Date().getFullYear(),
               이동1:'문화체육센터',이동2:'본부'},
              {id:'',현소속:'본부장',성명:'김철수',사원번호:'091112',직급:'4급',
               직렬:'',생년월일:'1978-07-20',주소:'울산광역시 남구 …',전공:'토목공학',
+              근무성적평정:92,평정연도:new Date().getFullYear(),
               이동1:'울주군립야영장'}];
   // 정원 양식은 조직도의 모든 시설을 행으로 깔아 준다 — 숫자만 채우면 된다
   const {rows,header}=await _quotaMatrix();
@@ -5714,8 +5829,19 @@ async function uploadHrExcel(ev){
       직렬:isSeniorRank(r.직급) ? '' : String(r.직렬||'').trim(),
       전공:String(r.전공||'').trim(),
       시설명:String(r.현소속||r.배치시설||r.시설명||'').trim(),
-      이동이력:HR_MOVE_COLS.map(c=>String(r[c]||'').trim()).filter(Boolean)
+      이동이력:HR_MOVE_COLS.map(c=>String(r[c]||'').trim()).filter(Boolean),
+      _평정:r['근무성적평정'] ?? r['근평'] ?? r['평정점수'],
+      _평정연도:r['평정연도']
     })).filter(r=>r.성명);
+    // 엑셀에 없는 값(평정 이력·수상·메모·입사일·사전배치)은 기존 것을 그대로 지킨다.
+    // 예전엔 다운로드본을 고쳐 올릴 때마다 이 값들이 빈 값으로 덮여 사라졌다.
+    const _hadById=new Map(_hrEmps.map(e=>[e.id,e]));
+    empRows.forEach(r=>{
+      const had=r.id?_hadById.get(r.id):null;
+      if(had){ r.입사일=had.입사일||null; r.수상=had.수상||[]; r.메모=had.메모||''; r.배치고정=had.배치고정||{}; }
+      r.평정=_mergeEvalInput(had?had.평정:[], r._평정, r._평정연도);
+      delete r._평정; delete r._평정연도;
+    });
     // 정원 시트는 두 모양을 다 받는다:
     //  · 행렬 — 시설이 행, '5급-행정' 같은 열. 지금 내려주는 모양.
     //  · 목록 — 시설명/직렬/직급/정원. 예전에 받아간 파일을 위해 남겨둔다.
