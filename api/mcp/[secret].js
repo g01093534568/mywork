@@ -28,7 +28,12 @@ const SB_TIMEOUT_MS = 15000;
 
 /* ── Supabase REST ───────────────────────────────────────────── */
 
+// 인사배치·인사관리 데이터(hr_* 테이블)는 MCP로 절대 읽거나 쓰지 않는다 — 비서(AI)에게 인사 정보를 주지 않기 위해
+// 나중에 도구를 추가하더라도 여기서 막힌다.
+const BLOCKED_TABLES = /^(hr_|placement)/i;
+
 async function sb(path, opts = {}) {
+  if (BLOCKED_TABLES.test(path)) throw new Error('인사 데이터는 MCP로 접근할 수 없습니다');
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), SB_TIMEOUT_MS);
   try {
