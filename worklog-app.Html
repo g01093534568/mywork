@@ -1558,10 +1558,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <button class="gcal-mode-btn" id="place-view-table" onclick="setPlaceView('table')">📋 표</button>
             </div>
           </div>
+          <div id="place-save-row" style="display:none;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="place-run-name" placeholder="배치안 이름 (예: 2026 상반기 1안)"
+                   style="flex:1;min-width:200px;max-width:320px" onkeydown="if(event.key==='Enter')savePlaceRun()" />
+            <button class="btn btn-secondary" onclick="savePlaceRun()">💾 결과 저장</button>
+            <span style="font-size:11px;color:var(--t3)">지금 결과를 그대로 얼려 둡니다. 명부·정원이 바뀌어도 저장본은 남습니다.</span>
+          </div>
           <div id="place-result"></div>
           <div id="place-org-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
             <div class="pyr-scroll"><div id="place-org"></div></div>
           </div>
+
+          <div class="section-title" style="margin-top:24px">저장한 배치안 <span id="place-runs-count" style="font-size:11px;color:var(--t3);font-weight:400"></span></div>
+          <div id="place-runs"></div>
         </div>
       </div>
 
@@ -3619,6 +3628,13 @@ const _hrMissingCols=new Set();
 let _orgLocMissing=false;          // users 의 위치 칸이 아직 없는가
 let _movesColumnMissing=false;     // 이동이력 — 화면 안내에서 본다
 let _fixedColumnMissing=false;     // 배치고정 — 인사배치 화면에서 본다
+let _placeRunsMissing=false;       // 배치안 표(hr_placement_runs)가 아직 없는가
+// "표가 없다"와 "권한이 없다"는 다르게 안내해야 한다. 앞은 SQL 한 번이면 되고,
+// 뒤는 권한 문제라 안내가 달라진다.
+function _isMissingTable(err){
+  const c=String(err&&err.code||''), m=String(err&&err.message||'');
+  return c==='42P01' || c==='PGRST205' || /does not exist|schema cache/i.test(m);
+}
 function _syncMissingFlags(){
   _movesColumnMissing=_hrMissingCols.has('이동이력');
   _fixedColumnMissing=_hrMissingCols.has('배치고정');
@@ -3806,6 +3822,30 @@ const DB = {
   },
   async upsertEmployee(e){ await _empWrite(rows=>SB.from('hr_employees').upsert(rows), [empToDb(e)]); },
   async deleteEmployee(id){ const {error}=await SB.from('hr_employees').delete().eq('id',id); if(error)throw error; _cd('hr:emp'); },
+
+  // 배치 시뮬레이션 결과(배치안). 표를 아직 안 만들었으면 조용히 빈 목록을 주고,
+  // 화면이 "SQL 을 실행하세요"를 대신 말한다 — 저장 버튼만 눌러도 오류가 뜨는 것보다 낫다.
+  async getPlacementRuns(){
+    const k='hr:runs';
+    if(_cg(k)) return _cg(k);
+    const {data,error}=await SB.from('hr_placement_runs').select('*').order('실행일시',{ascending:false});
+    if(error){ _placeRunsMissing=_isMissingTable(error); console.error('[place runs]',error); return []; }
+    _placeRunsMissing=false;
+    return _cs(k,data||[]);
+  },
+  async insertPlacementRun(row){
+    const {data,error}=await SB.from('hr_placement_runs').insert(row).select('id').single();
+    if(error){ _placeRunsMissing=_isMissingTable(error); throw error; }
+    _cd('hr:runs'); return data;
+  },
+  async deletePlacementRun(id){
+    const {error}=await SB.from('hr_placement_runs').delete().eq('id',id);
+    if(error) throw error; _cd('hr:runs');
+  },
+  async renamePlacementRun(id,이름){
+    const {error}=await SB.from('hr_placement_runs').update({이름}).eq('id',id);
+    if(error) throw error; _cd('hr:runs');
+  },
   async insertEmployees(rows){ if(!rows.length)return; await _empWrite(r=>SB.from('hr_employees').insert(r), rows.map(empToDb)); },
   // 엑셀 왕복 저장 — id 가 있으면 그 사람을 고치고, 없으면 새로 만든다.
   // 전부 insert 하면 받아서 고쳐 올릴 때 같은 사람이 한 번 더 생겨 명부가 두 배가 된다.
@@ -5033,7 +5073,7 @@ function switchPlaceTab(t){
   const f=document.getElementById('place-pane-fix'), m=document.getElementById('place-pane-sim');
   if(f) f.style.display=_placeTab==='fix'?'':'none';
   if(m) m.style.display=_placeTab==='sim'?'':'none';
-  if(_placeTab==='fix') renderPlaceFix(); else renderPlaceResult();
+  if(_placeTab==='fix') renderPlaceFix(); else { renderPlaceResult(); renderPlaceRuns(); }
 }
 
 // ── 1. 사전 배치 ────────────────────────────────────────────
@@ -5263,6 +5303,7 @@ function renderPlaceResult(){
     const b=document.getElementById('place-xls'); if(b) b.style.display='none';
     const sw=document.getElementById('place-view-switch'); if(sw) sw.style.display='none';
     const ow=document.getElementById('place-org-wrap'); if(ow) ow.style.display='none';
+    const sv=document.getElementById('place-save-row'); if(sv) sv.style.display='none';
     return;
   }
   const byFac=new Map();
@@ -5285,6 +5326,7 @@ function renderPlaceResult(){
 
   cont.innerHTML=`
     <div class="hr-sub" style="margin-bottom:14px">
+      ${r.saved?`<span class="section-badge section-badge-green" style="font-size:10px;margin-right:6px">저장본 · ${esc(r.saved.이름)}</span>`:''}
       <b>${r.placed.size}명 배치</b> · 미배치 <b class="${r.unplaced.length?'hr-over':''}">${r.unplaced.length}명</b>
       · 빈자리 <b class="${r.empty.length?'hr-under':''}">${r.empty.length}</b>
       <span style="color:var(--t3);font-size:11px;margin-left:8px">
@@ -5335,7 +5377,140 @@ function renderPlaceResult(){
         </tbody></table></div>`:''}`;
 
   const sw=document.getElementById('place-view-switch'); if(sw) sw.style.display='';
+  // 저장본을 열어 본 것은 다시 저장할 이유가 없다 — 새로 돌린 결과만 저장 칸을 보여준다
+  const sv=document.getElementById('place-save-row'); if(sv) sv.style.display=r.saved?'none':'flex';
   setPlaceView(_placeView);
+}
+
+// ── 배치안 저장·불러오기 ────────────────────────────────────────
+// 저장은 그때의 결과만 얼린다. 명부·정원을 함께 얼리지는 않는다 —
+// 되살릴 때 쓰는 건 '누가 어디에 앉았는가'이고, 그 뒤로 명부가 바뀌어도
+// 저장한 배치안은 그대로 보여야 하기 때문이다.
+function _placeSnapshot(r){
+  return {
+    when:(r.when instanceof Date ? r.when : new Date()).toISOString(),
+    weights:r.weights||{},
+    notes:r.notes||[],
+    placed:[...r.placed.values()].map(p=>({
+      성명:p.emp.성명||'', 사원번호:p.emp.사원번호||'', 현소속:p.emp.시설명||'', 주소:p.emp.주소||'',
+      배치시설:p.slot.시설명||'', 직급:p.slot.직급||'', 직렬:p.slot.직렬||'',
+      역할:p.역할||'직원', fixed:!!p.fixed, over:!!p.over,
+      why:p.why?{score:p.why.score, dist:p.why.dist, hist:p.why.hist, stay:p.why.stay,
+                 ev:p.why.ev, distKnown:!!p.why.distKnown, evKnown:!!p.why.evKnown}:null,
+    })),
+    unplaced:(r.unplaced||[]).map(e=>({성명:e.성명||'', 사원번호:e.사원번호||'',
+      직급:e.직급||'', 직렬:e.직렬||'', 현소속:e.시설명||''})),
+    empty:(r.empty||[]).map(sl=>({시설명:sl.시설명||'', 직급:sl.직급||'', 직렬:sl.직렬||''})),
+  };
+}
+
+// 얼려 둔 덩어리를 화면이 아는 모양으로 되살린다. 표·조직도·엑셀이 모두 같은 모양을
+// 보기 때문에, 이 한 곳만 맞춰 두면 저장본도 방금 돌린 결과와 똑같이 그려진다.
+function _placeResultFromSnapshot(snap, meta){
+  const placed=new Map();
+  (snap.placed||[]).forEach((row,i)=>{
+    const key='p'+i;
+    placed.set(key,{
+      emp:{id:key, 성명:row.성명, 사원번호:row.사원번호, 시설명:row.현소속, 주소:row.주소,
+           직급:row.직급, 직렬:row.직렬, 평정:[]},
+      slot:{시설명:row.배치시설, 직급:row.직급, 직렬:row.직렬, key},
+      역할:row.역할||'직원', fixed:!!row.fixed, over:!!row.over, why:row.why||null,
+    });
+  });
+  const empty=(snap.empty||[]).map((sl,i)=>({...sl, key:'e'+i}));
+  const slots=[...placed.values()].map(p=>p.slot).concat(empty);
+  return {
+    when:new Date(snap.when||Date.now()),
+    weights:Object.assign({dist:0,hist:0,stay:0,eval:0}, snap.weights||{}),
+    slots, taken:new Set(slots.map(sl=>sl.key)), placed, notes:snap.notes||[],
+    unplaced:(snap.unplaced||[]).map(e=>({...e, 시설명:e.현소속||''})),
+    empty, saved:meta||{이름:'저장본'},
+  };
+}
+
+async function savePlaceRun(){
+  const r=_placeResult;
+  if(!r){ toast('먼저 시뮬레이션을 실행하세요','error'); return; }
+  if(r.saved){ toast('저장본을 보고 있습니다. 새로 실행한 결과만 저장할 수 있습니다','error'); return; }
+  const el=document.getElementById('place-run-name');
+  const 이름=(el?.value||'').trim() || `배치안 ${r.when.toLocaleString('ko-KR',{dateStyle:'short',timeStyle:'short'})}`;
+  try{
+    await DB.insertPlacementRun({
+      이름, 실행일시:r.when.toISOString(), 무게:r.weights,
+      요약:{배치:r.placed.size, 미배치:r.unplaced.length, 빈자리:r.empty.length},
+      내용:_placeSnapshot(r), 작성자:currentUser?.사원번호||'',
+    });
+    if(el) el.value='';
+    await renderPlaceRuns();
+    toast(`'${이름}'으로 저장했습니다`);
+  }catch(e){
+    console.error('[place save]',e);
+    toast(_placeRunsMissing
+      ? '배치안 표가 없습니다 — supabase_placement_runs_setup.sql 을 실행하세요'
+      : '저장 실패: '+(e.message||e), 'error');
+    renderPlaceRuns();
+  }
+}
+
+let _placeRuns=[];
+async function renderPlaceRuns(){
+  const cont=document.getElementById('place-runs'); if(!cont) return;
+  _placeRuns=await DB.getPlacementRuns();
+  const cnt=document.getElementById('place-runs-count');
+  if(cnt) cnt.textContent=_placeRuns.length?`${_placeRuns.length}건`:'';
+  if(_placeRunsMissing){
+    cont.innerHTML='<div class="hr-warn">⚠️ <b>배치안을 담을 표가 데이터베이스에 없습니다.</b> '
+      + 'Supabase → SQL Editor 에서 <code>supabase_placement_runs_setup.sql</code> 을 실행하세요. '
+      + '실행 전에는 결과를 저장할 수 없습니다(시뮬레이션과 엑셀 내려받기는 그대로 됩니다).</div>';
+    return;
+  }
+  if(!_placeRuns.length){
+    cont.innerHTML='<div class="po-none" style="padding:10px 2px">아직 저장한 배치안이 없습니다. 시뮬레이션을 돌린 뒤 <b>💾 결과 저장</b>을 누르세요.</div>';
+    return;
+  }
+  const w=x=>x&&typeof x==='object'?x:{};
+  cont.innerHTML=`<div class="hr-scroll"><table class="hr-table hr-center">
+    <thead><tr><th>이름</th><th>실행일시</th><th>배치</th><th>미배치</th><th>빈자리</th><th>무게(거주지·이전근무·유임·평정)</th><th style="width:150px"></th></tr></thead>
+    <tbody>${_placeRuns.map(run=>{
+      const su=w(run.요약), wt=w(run.무게);
+      const when=run.실행일시?new Date(run.실행일시).toLocaleString('ko-KR',{dateStyle:'short',timeStyle:'short'}):'—';
+      const cur=_placeResult&&_placeResult.saved&&_placeResult.saved.id===run.id;
+      return `<tr${cur?' style="background:rgba(59,201,138,0.07)"':''}>
+        <td><b>${esc(run.이름||'(이름 없음)')}</b>${cur?' <span class="hr-fit" style="font-size:10px">보는 중</span>':''}</td>
+        <td style="font-size:12px;color:var(--t3)">${esc(when)}</td>
+        <td>${su.배치??'—'}</td>
+        <td class="${su.미배치?'hr-over':''}">${su.미배치??'—'}</td>
+        <td class="${su.빈자리?'hr-under':''}">${su.빈자리??'—'}</td>
+        <td style="font-size:11px;color:var(--t3)">${wt.dist??'—'} · ${wt.hist??'—'} · ${wt.stay??'—'} · ${wt.eval??'—'}</td>
+        <td><div style="display:flex;gap:4px;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="loadPlaceRun('${run.id}')">불러오기</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePlaceRun('${run.id}')">🗑</button>
+        </div></td>
+      </tr>`;}).join('')}
+    </tbody></table></div>`;
+}
+
+function loadPlaceRun(id){
+  const run=_placeRuns.find(x=>x.id===id);
+  if(!run){ toast('배치안을 찾지 못했습니다','error'); return; }
+  const snap=(run.내용&&typeof run.내용==='object')?run.내용:{};
+  if(!Array.isArray(snap.placed)){ toast('저장된 내용을 읽을 수 없습니다','error'); return; }
+  _placeResult=_placeResultFromSnapshot(snap,{id:run.id, 이름:run.이름||'저장본'});
+  renderPlaceResult();
+  renderPlaceRuns();
+  const btn=document.getElementById('place-xls'); if(btn) btn.style.display='';
+  toast(`'${run.이름||'저장본'}'을 불러왔습니다`);
+}
+
+async function deletePlaceRun(id){
+  const run=_placeRuns.find(x=>x.id===id);
+  if(!await confirmDialog(`'${run?.이름||'이 배치안'}'을 지우시겠습니까?`)) return;
+  try{
+    await DB.deletePlacementRun(id);
+    if(_placeResult&&_placeResult.saved&&_placeResult.saved.id===id){ _placeResult=null; renderPlaceResult(); }
+    await renderPlaceRuns();
+    toast('지웠습니다');
+  }catch(e){ console.error('[place del]',e); toast('삭제 실패: '+(e.message||e),'error'); }
 }
 
 // ── 결과를 조직도 모양으로 ──────────────────────────────────────────
@@ -5407,7 +5582,8 @@ function _renderPlaceOrg(){
                   : (p.emp.시설명===f ? '<span class="po-tag stay">유임</span>' : '');
     const body = hasAny
       ? rows.map(p=>{
-          const ev=_evalScore(p.emp);
+          // 저장본을 불러온 경우 명부가 아니라 그때 쓴 점수(why.ev)를 보여준다
+          const ev=(p.why&&p.why.evKnown)?p.why.ev:_evalScore(p.emp);
           const tip=`${p.emp.성명} · ${p.slot.직급}${p.slot.직렬?'·'+p.slot.직렬:''}`
             + ` · 현소속 ${p.emp.시설명||'—'} · 평정 ${ev===null?'미입력':ev}`;
           return `<div class="po-row" title="${esc(tip)}"><span class="po-rank">${esc(p.slot.직급)||'—'}</span>`
