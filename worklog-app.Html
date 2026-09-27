@@ -836,7 +836,9 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 @media(max-width:600px){#home-briefing .hb-cta{display:none;}}
 /* ---- AI 어시스턴트 (음성+텍스트 통합) ---- */
 @keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(224,85,85,0.4);}70%{box-shadow:0 0 0 10px rgba(224,85,85,0);}100%{box-shadow:0 0 0 0 rgba(224,85,85,0);}}
-#ai-chat-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;overflow:hidden;padding:0;}
+/* 로그인 화면에는 어시스턴트가 보이지 않는다 — 로그인 후 .on 이 붙는다 */
+#ai-chat-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;overflow:hidden;padding:0;}
+#ai-chat-btn.on{display:flex;}
 /* 아바타가 원을 가득 채우고, 테두리 링으로 버튼임을 남긴다 */
 #ai-chat-btn img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block;}
 #ai-chat-btn{box-shadow:0 4px 20px rgba(232,160,32,0.35),inset 0 0 0 2px var(--accent);}
@@ -4163,6 +4165,8 @@ async function enterApp(){
   updateGmailConnectionUI(false,'');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
+  document.getElementById('ai-chat-btn')?.classList.add('on');
+  _hideAIIfUnavailable();
   document.getElementById('user-name-display').textContent = currentUser.시설명;
   document.getElementById('user-id-display').textContent = currentUser.사원번호;
   document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
@@ -4271,6 +4275,8 @@ function doLogout(){
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
+  document.getElementById('ai-chat-btn')?.classList.remove('on');
+  document.getElementById('ai-chat-panel')?.classList.remove('open');
   document.getElementById('l-pw').value='';
 }
 
