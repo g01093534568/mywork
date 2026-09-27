@@ -1554,8 +1554,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             <button class="btn btn-primary" onclick="runPlacement()">시뮬레이션 실행</button>
             <button class="btn btn-secondary" id="place-xls" style="display:none" onclick="downloadPlacementExcel()">엑셀로 내려받기</button>
             <div class="gcal-mode-switch" id="place-view-switch" style="display:none;margin-left:auto">
-              <button class="gcal-mode-btn active" id="place-view-table" onclick="setPlaceView('table')">📋 표</button>
-              <button class="gcal-mode-btn" id="place-view-org" onclick="setPlaceView('org')">🏢 조직도</button>
+              <button class="gcal-mode-btn active" id="place-view-org" onclick="setPlaceView('org')">🏢 조직도</button>
+              <button class="gcal-mode-btn" id="place-view-table" onclick="setPlaceView('table')">📋 표</button>
             </div>
           </div>
           <div id="place-result"></div>
@@ -4911,7 +4911,7 @@ function renderQuota(){
 const PLACE_ROLES=['관장','팀장','직원'];
 let _placeResult=null;      // 마지막 시뮬레이션 결과
 let _placeTab='fix';
-let _placeView='table';       // 시뮬레이션 결과 보기: 표 / 조직도
+let _placeView='org';         // 시뮬레이션 결과 보기: 조직도(기본) / 표
 
 // 주소를 시·도 / 시·군·구 / 읍·면·동 으로 가른다. 못 가르면 null.
 function _addrParts(addr){
@@ -5341,7 +5341,7 @@ function renderPlaceResult(){
 // ── 결과를 조직도 모양으로 ──────────────────────────────────────────
 // 보기 전환. 표와 조직도는 같은 결과(_placeResult)를 다르게 그린 것뿐이다.
 function setPlaceView(v){
-  _placeView = v==='org' ? 'org' : 'table';
+  _placeView = v==='table' ? 'table' : 'org';   // 기본은 조직도
   const bt=document.getElementById('place-view-table'), bo=document.getElementById('place-view-org');
   if(bt) bt.classList.toggle('active', _placeView==='table');
   if(bo) bo.classList.toggle('active', _placeView==='org');
