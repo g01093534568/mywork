@@ -917,19 +917,22 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 #page-energy { font-size: 14px; }
 #em-dashboardView { padding-bottom: 40px; }
 
-/* 탭 바 — worklog admin-tabs 패턴 */
-#page-energy .em-tab-bar {
+/* 탭 바 — worklog admin-tabs 패턴.
+   에너지 관리(사용량 입력·데이터 조회)뿐 아니라 인사배치·인사 탭도 같은 모양을 쓰므로
+   #page-energy 안쪽으로 묶지 않는다. 탭 내용(.em-tab-content) 규칙만 에너지 전용이다. */
+.em-tab-bar {
   display: flex; gap: 4px; margin-bottom: 24px;
   background: var(--card); border-radius: var(--r2); padding: 4px;
   width: fit-content; border: 1px solid var(--border);
+  flex-wrap: wrap;
 }
-#page-energy .em-tab {
+.em-tab {
   padding: 8px 18px; border-radius: 8px; font-size: 13px;
   font-weight: 600; color: var(--t2); cursor: pointer;
   transition: var(--tr); background: transparent; border: none;
 }
-#page-energy .em-tab.active { background: var(--accent); color: #1a1000; }
-#page-energy .em-tab:hover:not(.active) { color: var(--t1); background: var(--bg3); }
+.em-tab.active { background: var(--accent); color: #1a1000; }
+.em-tab:hover:not(.active) { color: var(--t1); background: var(--bg3); }
 #page-energy .em-tab-content { display: none; }
 #page-energy .em-tab-content.active { display: block; }
 
@@ -1469,7 +1472,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       <div id="daily-sub-place" style="display:none">
         <div class="hr-warn" id="place-warn" style="display:none;margin-bottom:12px"></div>
 
-        <div class="em-tabs" style="margin-bottom:14px">
+        <div class="em-tab-bar" style="margin-bottom:14px">
           <button class="em-tab active" id="place-tab-fix" onclick="switchPlaceTab('fix')">1️⃣ 사전 배치</button>
           <button class="em-tab" id="place-tab-sim" onclick="switchPlaceTab('sim')">2️⃣ 시뮬레이션</button>
         </div>
@@ -14005,8 +14008,8 @@ async function initEnergyMgmt() {
 // 에너지 세션 상단 탭(사용량 입력/데이터 조회) 활성화 + 마지막 탭 기억
 function activateEmTab(tabName) {
   _sessionSubTab.energy = tabName;
-  document.querySelectorAll('.em-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-  document.querySelectorAll('.em-tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#page-energy .em-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  document.querySelectorAll('#page-energy .em-tab-content').forEach(c => c.classList.remove('active'));
   const content = document.getElementById('em-' + tabName);
   if (content) content.classList.add('active');
   if (tabName === 'energy') {
@@ -14054,8 +14057,11 @@ function showDashboard() {
 document.addEventListener('DOMContentLoaded', function() {
     // Note: initEnergyMgmt() 가 navigate('energy') 시 자동 호출됨
 
-    const tabs = document.querySelectorAll('.em-tab');
-    const tabContents = document.querySelectorAll('.em-tab-content');
+    // 인사배치·인사 탭도 .em-tab 을 쓰므로 에너지 페이지 안쪽만 집는다.
+    // (예전엔 전부 집어서, 인사배치 탭을 누르면 activateEmTab(undefined) 가 돌며
+    //  에너지 탭들의 active 가 통째로 벗겨졌다.)
+    const tabs = document.querySelectorAll('#page-energy .em-tab');
+    const tabContents = document.querySelectorAll('#page-energy .em-tab-content');
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
