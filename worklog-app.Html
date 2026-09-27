@@ -486,6 +486,26 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .pyr-loose-title{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:0.5px;margin-bottom:10px;text-align:center;}
 .pyr-loose-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
 .pyr-hint{font-size:11px;color:var(--t3);margin-bottom:8px;}
+/* 인사배치 시뮬레이션 — 결과를 조직도 모양으로. 연결선은 위 피라미드 규칙을 그대로
+   쓰고, 상자만 사람 목록이 들어갈 만큼 키워 왼쪽 정렬로 바꾼다. */
+#place-org .pyr-box{width:215px;height:auto;min-height:56px;align-items:stretch;
+  justify-content:flex-start;text-align:left;cursor:default;padding:8px 10px;}
+#place-org .pyr-box:hover{border-color:var(--border);background:var(--card2);}
+#place-org .pyr-box.po-empty{border-style:dashed;opacity:0.75;}
+#place-org .pyr-box.po-empty .po-head{border-bottom:0;margin-bottom:0;padding-bottom:0;}
+#place-org .pyr-box.po-over{border-color:rgba(224,85,85,0.55);}
+.po-head{display:flex;align-items:baseline;gap:6px;font-size:12px;font-weight:700;color:var(--t1);
+  padding-bottom:5px;margin-bottom:5px;border-bottom:1px solid var(--border);word-break:keep-all;}
+.po-head .po-cnt{font-size:10px;font-weight:600;color:var(--t3);margin-left:auto;white-space:nowrap;}
+.po-row{display:flex;gap:5px;align-items:baseline;font-size:11px;line-height:1.6;color:var(--t2);}
+.po-row .po-rank{color:var(--t3);flex-shrink:0;min-width:34px;}
+.po-row .po-name{color:var(--t1);font-weight:600;}
+.po-row.po-vacant{color:var(--t3);font-style:italic;}
+.po-tag{font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;white-space:nowrap;}
+.po-tag.stay{background:rgba(59,201,138,0.16);color:#3bc98a;}
+.po-tag.fix{background:rgba(232,160,32,0.18);color:var(--accent);}
+.po-tag.over{background:rgba(224,85,85,0.16);color:#e05555;}
+.po-none{font-size:11px;color:var(--t3);}
 /* 사용자 관리 — 조직도 보기 */
 .org-tree{display:flex;flex-direction:column;gap:4px;}
 .org-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;transition:background 0.12s;min-width:0;}
@@ -1521,11 +1541,18 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
               <b>이전 근무지 회피</b>는 최근 인사이동 시설로 다시 보내지 않으려는 쪽으로 점수를 깎습니다. 최근일수록 많이 깎습니다.
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
             <button class="btn btn-primary" onclick="runPlacement()">시뮬레이션 실행</button>
             <button class="btn btn-secondary" id="place-xls" style="display:none" onclick="downloadPlacementExcel()">엑셀로 내려받기</button>
+            <div class="gcal-mode-switch" id="place-view-switch" style="display:none;margin-left:auto">
+              <button class="gcal-mode-btn active" id="place-view-table" onclick="setPlaceView('table')">📋 표</button>
+              <button class="gcal-mode-btn" id="place-view-org" onclick="setPlaceView('org')">🏢 조직도</button>
+            </div>
           </div>
           <div id="place-result"></div>
+          <div id="place-org-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);">
+            <div class="pyr-scroll"><div id="place-org"></div></div>
+          </div>
         </div>
       </div>
 
@@ -4868,6 +4895,7 @@ function renderQuota(){
 const PLACE_ROLES=['관장','팀장','직원'];
 let _placeResult=null;      // 마지막 시뮬레이션 결과
 let _placeTab='fix';
+let _placeView='table';       // 시뮬레이션 결과 보기: 표 / 조직도
 
 // 주소를 시·도 / 시·군·구 / 읍·면·동 으로 가른다. 못 가르면 null.
 function _addrParts(addr){
@@ -5137,7 +5165,10 @@ function renderPlaceResult(){
   const r=_placeResult;
   if(!r){
     cont.innerHTML='<div class="empty-state"><div class="icon">🧩</div><p>시뮬레이션 실행을 누르면 결과가 여기에 나옵니다.</p></div>';
+    cont.style.display='';
     const b=document.getElementById('place-xls'); if(b) b.style.display='none';
+    const sw=document.getElementById('place-view-switch'); if(sw) sw.style.display='none';
+    const ow=document.getElementById('place-org-wrap'); if(ow) ow.style.display='none';
     return;
   }
   const byFac=new Map();
@@ -5207,6 +5238,109 @@ function renderPlaceResult(){
               : `이 직급·직렬(${esc(e.직급)||'?'}${e.직렬?'·'+esc(e.직렬):''})의 정원이 어디에도 없습니다`}</td>
           </tr>`;}).join('')}
         </tbody></table></div>`:''}`;
+
+  const sw=document.getElementById('place-view-switch'); if(sw) sw.style.display='';
+  setPlaceView(_placeView);
+}
+
+// ── 결과를 조직도 모양으로 ──────────────────────────────────────────
+// 보기 전환. 표와 조직도는 같은 결과(_placeResult)를 다르게 그린 것뿐이다.
+function setPlaceView(v){
+  _placeView = v==='org' ? 'org' : 'table';
+  const bt=document.getElementById('place-view-table'), bo=document.getElementById('place-view-org');
+  if(bt) bt.classList.toggle('active', _placeView==='table');
+  if(bo) bo.classList.toggle('active', _placeView==='org');
+  const tbl=document.getElementById('place-result'), org=document.getElementById('place-org-wrap');
+  if(tbl) tbl.style.display = _placeView==='table' ? '' : 'none';
+  if(org) org.style.display = _placeView==='org'   ? '' : 'none';
+  if(_placeView==='org'){ _renderPlaceOrg(); requestAnimationFrame(_centerPyramid); }
+}
+
+// 상하 관계는 조직도 순번표(_facOrderMap: 순번+깊이)에서 되짚는다. 순번은 조직도를
+// 위에서부터 훑은 순서이므로, 깊이만 스택으로 따라가면 부모가 나온다 — DB를 다시
+// 읽지 않고도 표 들여쓰기(_facDepthMap)와 같은 자료를 보게 되어 두 보기가 어긋나지 않는다.
+function _facTreeFromOrder(){
+  const ordered=[..._facOrderMap.entries()].sort((a,b)=>a[1].order-b[1].order);
+  const kids=new Map(), roots=[], stack=[];
+  for(const [name,v] of ordered){
+    while(stack.length && stack[stack.length-1].depth>=v.depth) stack.pop();
+    const parent=stack.length ? stack[stack.length-1].name : '';
+    if(parent){ if(!kids.has(parent)) kids.set(parent,[]); kids.get(parent).push(name); }
+    else roots.push(name);
+    stack.push({name, depth:v.depth});
+  }
+  return {kids, roots};
+}
+
+function _renderPlaceOrg(){
+  const host=document.getElementById('place-org'); if(!host) return;
+  const r=_placeResult;
+  if(!r){ host.innerHTML='<div class="po-none" style="padding:12px">시뮬레이션을 먼저 실행하세요.</div>'; return; }
+
+  const placedBy=new Map(), emptyBy=new Map(), quotaBy=new Map();
+  [...r.placed.values()].forEach(p=>{
+    const f=p.slot.시설명;
+    if(!placedBy.has(f)) placedBy.set(f,[]);
+    placedBy.get(f).push(p);
+  });
+  r.empty.forEach(s=>{ if(!emptyBy.has(s.시설명)) emptyBy.set(s.시설명,[]); emptyBy.get(s.시설명).push(s); });
+  r.slots.forEach(s=>quotaBy.set(s.시설명,(quotaBy.get(s.시설명)||0)+1));
+
+  const card = f => {
+    const rows=(placedBy.get(f)||[]).slice().sort((a,b)=>_rankOrder(a.slot.직급)-_rankOrder(b.slot.직급)
+      || (a.slot.직렬||'').localeCompare(b.slot.직렬||'','ko')
+      || (a.emp.성명||'').localeCompare(b.emp.성명||'','ko'));
+    const vac=emptyBy.get(f)||[];
+    const quota=quotaBy.get(f)||0;
+    const hasAny=rows.length||vac.length||quota;
+    const over=rows.some(p=>p.over);
+    const cls=(hasAny?'':' po-empty')+(over?' po-over':'');
+    const cnt = hasAny
+      ? `${rows.length}/${quota||rows.length}명${vac.length?` · 빈 ${vac.length}`:''}`
+      : '정원 없음';
+    const tag = p => p.over ? '<span class="po-tag over">초과</span>'
+                  : p.fixed ? '<span class="po-tag fix">지정</span>'
+                  : (p.emp.시설명===f ? '<span class="po-tag stay">유임</span>' : '');
+    const body = hasAny
+      ? rows.map(p=>`<div class="po-row"><span class="po-rank">${esc(p.slot.직급)||'—'}</span>`
+          + `<span class="po-name">${esc(p.emp.성명)}</span>${tag(p)}</div>`).join('')
+        + vac.map(s=>`<div class="po-row po-vacant"><span class="po-rank">${esc(s.직급)||'—'}</span>`
+          + `<span>빈자리${s.직렬?' · '+esc(s.직렬):''}</span></div>`).join('')
+      : '';   // 정원이 없는 시설은 계통을 잇는 상자일 뿐이라 머리만 남긴다
+    return `<div class="pyr-box${cls}" title="${esc(f)} — 배치 ${rows.length}명${vac.length?` · 빈자리 ${vac.length}`:''}">
+      <div class="po-head"><span>${esc(f)}</span><span class="po-cnt">${cnt}</span></div>
+      ${body}
+    </div>`;
+  };
+
+  const {kids,roots}=_facTreeFromOrder();
+  const seen=new Set();
+  const kidsOf = f => (kids.get(f)||[]).filter(k=>!seen.has(k));
+  const node = f => {
+    if(seen.has(f)) return '';
+    seen.add(f);
+    const ks=kidsOf(f);
+    if(!ks.length) return `<div class="pyr-node">${card(f)}</div>`;
+    // 자식이 모두 말단이면 세로로 쌓는다 — 가로로 펼치면 화면을 벗어난다(조직도와 같은 규칙)
+    const allLeaf=ks.every(k=>!(kids.get(k)||[]).length);
+    const inner = allLeaf
+      ? `<div class="pyr-stack">${ks.map(k=>{ seen.add(k); return card(k); }).join('')}</div>`
+      : `<div class="pyr-kids">${ks.map(k=>node(k)).join('')}</div>`;
+    return `<div class="pyr-node">${card(f)}${inner}</div>`;
+  };
+
+  let html='';
+  if(roots.length) html+=`<div class="pyr-root">${roots.map(f=>node(f)).join('')}</div>`;
+  // 조직도에 없는 시설(이름이 바뀌었거나 지워진 곳)도 빠뜨리지 않는다
+  const loose=[...new Set([...placedBy.keys(),...emptyBy.keys()])].filter(f=>!seen.has(f));
+  if(loose.length){
+    html+=`<div class="pyr-loose"><div class="pyr-loose-title">조직도에 없는 시설</div>
+      <div class="pyr-loose-row">${loose.map(f=>{ seen.add(f); return card(f); }).join('')}</div></div>`;
+  }
+  host.innerHTML='<div class="pyr-hint">시뮬레이션 결과를 조직도에 얹어 그린 그림입니다 · '
+    + `배치 ${r.placed.size}명 · 미배치 ${r.unplaced.length}명 · 빈자리 ${r.empty.length}`
+    + (r.unplaced.length?' (미배치 명단은 📋 표 보기에 있습니다)':'') + '</div>'
+    + (html||'<div class="po-none" style="padding:12px">그릴 시설이 없습니다.</div>');
 }
 
 function downloadPlacementExcel(){
@@ -10122,7 +10256,8 @@ async function _handleOrgDrop(users, movedId, targetId, mode){
 // 숨어 있는 쪽은 폭이 0이라 저절로 건너뛴다.
 function _centerPyramid(){
   [['#user-pyramid-wrap .pyr-scroll','#user-pyramid .pyr-root .pyr-box'],
-   ['#um-pyramid-wrap .pyr-scroll',  '#um-pyramid .pyr-root .pyr-box']].forEach(([sSel,bSel])=>{
+   ['#um-pyramid-wrap .pyr-scroll',  '#um-pyramid .pyr-root .pyr-box'],
+   ['#place-org-wrap .pyr-scroll',   '#place-org .pyr-root .pyr-box']].forEach(([sSel,bSel])=>{
     const sc=document.querySelector(sSel), box=document.querySelector(bSel);
     if(!sc || !box || !sc.clientWidth) return;
     const sr=sc.getBoundingClientRect(), br=box.getBoundingClientRect();
