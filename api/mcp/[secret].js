@@ -12,7 +12,8 @@
 //   SUPABASE_SERVICE_ROLE_KEY  이 키로 조회한다 (RLS 를 닫은 뒤에는 anon 으로는 아무것도 안 보인다)
 //   SUPABASE_KEY     선택. 따로 줄 때만. 둘 다 없으면 앱의 anon 키를 쓴다
 //
-// 삭제 도구는 일부러 없다 — 되돌리기 어려운 작업은 앱에서 직접 하도록 남겨둔다.
+// 삭제 도구(delete_todo, delete_daily_log)는 confirm:true 를 줘야만 지운다. 지운 항목의 원래 값을 결과에 그대로 돌려주어
+// 실수로 지웠을 때 다시 넣을 수 있게 한다. 부르는 쪽(비서)은 지우기 전에 사용자 확인을 받는다.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -205,6 +206,39 @@ const TOOLS = [
     },
   },
   {
+    name: 'update_todo',
+    description: '키워드로 할 일을 찾아 내용을 고칩니다. 준 항목만 바뀝니다. 후보가 여럿이면 목록만 돌려주고 아무것도 바꾸지 않습니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '고칠 할 일 제목 키워드' },
+        title: { type: 'string', description: '새 제목' },
+        category: { type: 'string', description: '업무/개인/기타' },
+        priority: { type: 'string', enum: ['high', 'mid', 'low'] },
+        startDate: { type: 'string', description: 'YYYY-MM-DD, 빈 문자열이면 지움' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD, 빈 문자열이면 지움' },
+        startTime: { type: 'string', description: 'HH:MM' },
+        endTime: { type: 'string', description: 'HH:MM' },
+        memo: { type: 'string', description: '새 메모 (기존 메모를 대체)' },
+        status: { type: 'string', enum: ['todo', 'done'], description: 'todo 로 주면 완료 취소' },
+      },
+      required: ['keyword'],
+    },
+  },
+  {
+    name: 'delete_todo',
+    description: '키워드로 할 일을 찾아 삭제합니다. 되돌리기 어려우므로 사용자 확인을 받은 뒤 confirm:true 로 부르세요. ' +
+      '후보가 여럿이면 목록만 돌려줍니다. 결과에 지운 항목의 원래 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '지울 할 일 제목 키워드' },
+        confirm: { type: 'boolean', description: '사용자가 삭제를 확인했으면 true' },
+      },
+      required: ['keyword', 'confirm'],
+    },
+  },
+  {
     name: 'get_daily_logs',
     description: '특정 날짜의 업무일지를 조회합니다.',
     inputSchema: {
@@ -224,6 +258,37 @@ const TOOLS = [
         date: { type: 'string', description: 'YYYY-MM-DD, 생략 시 오늘' },
       },
       required: ['title'],
+    },
+  },
+  {
+    name: 'update_daily_log',
+    description: '특정 날짜 업무일지에서 제목 키워드로 활동을 찾아 고칩니다. 준 항목만 바뀝니다. 후보가 여럿이면 목록만 돌려줍니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '고칠 활동 제목 키워드' },
+        date: { type: 'string', description: 'YYYY-MM-DD, 생략 시 오늘' },
+        title: { type: 'string', description: '새 제목' },
+        content: { type: 'string', description: '새 내용 (기존 내용을 대체)' },
+        time: { type: 'string', description: '새 시간대 예: 09:00~10:00' },
+        reflection: { type: 'string', description: '새 성찰' },
+        newDate: { type: 'string', description: '다른 날짜로 옮길 때 YYYY-MM-DD' },
+      },
+      required: ['keyword'],
+    },
+  },
+  {
+    name: 'delete_daily_log',
+    description: '특정 날짜 업무일지에서 제목 키워드로 활동을 찾아 삭제합니다. 사용자 확인을 받은 뒤 confirm:true 로 부르세요. ' +
+      '후보가 여럿이면 목록만 돌려줍니다. 결과에 지운 항목의 원래 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '지울 활동 제목 키워드' },
+        date: { type: 'string', description: 'YYYY-MM-DD, 생략 시 오늘' },
+        confirm: { type: 'boolean', description: '사용자가 삭제를 확인했으면 true' },
+      },
+      required: ['keyword', 'confirm'],
     },
   },
   {
@@ -268,6 +333,24 @@ async function findTodoByKeyword(user, keyword) {
   }
   return { todo: hits[0] };
 }
+
+// 날짜 + 제목 키워드로 업무일지 활동 찾기 — 정확히 하나여야 수정·삭제한다.
+async function findLogByKeyword(user, date, keyword) {
+  const rows = await sb(`daily_logs?owner_id=eq.${q(user.id)}&log_date=eq.${q(date)}&select=*`);
+  const kw = (keyword || '').toLowerCase();
+  const hits = (rows || []).filter(a => (a.title || '').toLowerCase().includes(kw));
+  if (!hits.length) return { error: `${date} 일지에 "${keyword}"에 해당하는 활동이 없습니다` };
+  if (hits.length > 1) {
+    return {
+      error: `${date} 일지에서 "${keyword}"에 ${hits.length}건이 걸립니다. 더 구체적인 키워드로 다시 시도하세요.\n` +
+        hits.map(a => `• ${a.time_range ? a.time_range + ' ' : ''}${a.title}`).join('\n'),
+    };
+  }
+  return { log: hits[0] };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
 
 async function runTool(name, input, ctx) {
   const { empno, user } = ctx;
@@ -339,6 +422,78 @@ async function runTool(name, input, ctx) {
       const t = found.todo;
       await sb(`todos?id=eq.${q(t.id)}`, { method: 'PATCH', body: JSON.stringify({ due_date: input.dueDate }) });
       return `마감일을 바꿨습니다 — ${t.title}: ${t.due_date || '없음'} → ${input.dueDate}`;
+    }
+
+    case 'update_todo': {
+      const found = await findTodoByKeyword(user, input.keyword);
+      if (found.error) return found.error;
+      const t = found.todo;
+      const patch = {};
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.category !== undefined) patch.category = input.category;
+      if (input.priority !== undefined) patch.priority = input.priority;
+      if (input.memo !== undefined) patch.memo = input.memo;
+      for (const [key, col] of [['startDate', 'start_date'], ['dueDate', 'due_date']]) {
+        if (input[key] === undefined) continue;
+        if (input[key] && !DATE_RE.test(input[key])) return `${key} 는 YYYY-MM-DD 형식이어야 합니다`;
+        patch[col] = input[key] || null;
+      }
+      if (input.startTime !== undefined || input.endTime !== undefined) {
+        const [s0 = '', e0 = ''] = (t.time_range || '').split('~');
+        const st = input.startTime ?? s0, et = input.endTime ?? e0;
+        if ((st && !TIME_RE.test(st)) || (et && !TIME_RE.test(et))) return '시각은 HH:MM 형식이어야 합니다';
+        patch.time_range = [st, et].filter(Boolean).join('~');
+      }
+      if (input.status === 'todo') {
+        if (t.is_recurring) patch.completed_dates = (t.completed_dates || []).filter(d => d !== todayKST());
+        else { patch.status = 'todo'; patch.completed_date = null; }
+      } else if (input.status === 'done') {
+        if (t.is_recurring) patch.completed_dates = [...new Set([...(t.completed_dates || []), todayKST()])];
+        else { patch.status = 'done'; patch.completed_date = todayKST(); }
+      }
+      if (!Object.keys(patch).length) return '바꿀 항목이 없습니다';
+      await sb(`todos?id=eq.${q(t.id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+      return `고쳤습니다 — ${t.title}\n바뀐 항목: ${Object.keys(patch).join(', ')}`;
+    }
+
+    case 'delete_todo': {
+      if (input.confirm !== true) return '삭제하려면 사용자 확인을 받은 뒤 confirm:true 로 다시 부르세요';
+      const found = await findTodoByKeyword(user, input.keyword);
+      if (found.error) return found.error;
+      const t = found.todo;
+      await sb(`todos?id=eq.${q(t.id)}&owner_id=eq.${q(user.id)}`, { method: 'DELETE' });
+      return `삭제했습니다 — ${t.title}\n[복구용 원래 값] ${JSON.stringify(t)}`;
+    }
+
+    case 'update_daily_log': {
+      const date = input.date || todayKST();
+      if (!DATE_RE.test(date)) return '날짜는 YYYY-MM-DD 형식이어야 합니다';
+      const found = await findLogByKeyword(user, date, input.keyword);
+      if (found.error) return found.error;
+      const a = found.log;
+      const patch = {};
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.content !== undefined) patch.content = input.content;
+      if (input.time !== undefined) patch.time_range = input.time;
+      if (input.reflection !== undefined) patch.reflection = input.reflection;
+      if (input.newDate !== undefined) {
+        if (!DATE_RE.test(input.newDate)) return 'newDate 는 YYYY-MM-DD 형식이어야 합니다';
+        patch.log_date = input.newDate;
+      }
+      if (!Object.keys(patch).length) return '바꿀 항목이 없습니다';
+      await sb(`daily_logs?id=eq.${q(a.id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+      return `${date} 일지를 고쳤습니다 — ${a.title}\n바뀐 항목: ${Object.keys(patch).join(', ')}`;
+    }
+
+    case 'delete_daily_log': {
+      if (input.confirm !== true) return '삭제하려면 사용자 확인을 받은 뒤 confirm:true 로 다시 부르세요';
+      const date = input.date || todayKST();
+      if (!DATE_RE.test(date)) return '날짜는 YYYY-MM-DD 형식이어야 합니다';
+      const found = await findLogByKeyword(user, date, input.keyword);
+      if (found.error) return found.error;
+      const a = found.log;
+      await sb(`daily_logs?id=eq.${q(a.id)}&owner_id=eq.${q(user.id)}`, { method: 'DELETE' });
+      return `${date} 일지에서 삭제했습니다 — ${a.title}\n[복구용 원래 값] ${JSON.stringify(a)}`;
     }
 
     case 'get_daily_logs': {
