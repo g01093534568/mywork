@@ -1485,8 +1485,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             그 자리를 이미 찬 것으로 보고 나머지를 채웁니다.
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-            <input type="text" id="place-fix-search" placeholder="이름·사원번호·직급으로 찾기"
-                   oninput="renderPlaceFix()" style="flex:1;min-width:200px" />
+            <select id="place-fix-rank" onchange="renderPlaceFix()" style="min-width:120px">
+              <option value="">직급 전체</option>
+            </select>
+            <input type="text" id="place-fix-name" placeholder="성명으로 찾기"
+                   oninput="renderPlaceFix()" style="width:150px" />
+            <input type="text" id="place-fix-search" placeholder="사원번호·직렬·소속으로 찾기"
+                   oninput="renderPlaceFix()" style="flex:1;min-width:180px" />
+            <button class="btn btn-ghost btn-sm" onclick="resetPlaceFixFilter()">조회 초기화</button>
             <span id="place-fix-count" style="font-size:12px;color:var(--t3)"></span>
             <button class="btn btn-sm btn-secondary" onclick="clearAllFixed()">전체 해제</button>
           </div>
@@ -4945,10 +4951,39 @@ function switchPlaceTab(t){
 }
 
 // ── 1. 사전 배치 ────────────────────────────────────────────
+// 직급 드롭다운은 실제 직원 명부에 있는 직급만 담고, 낮은 급수부터 늘어놓는다.
+// 명부가 바뀌지 않았으면 다시 그리지 않는다(고른 값이 초기화되면 조회가 튄다).
+function _syncPlaceRankOptions(){
+  const sel=document.getElementById('place-fix-rank'); if(!sel) return '';
+  const ranks=[...new Set(_hrEmps.map(e=>String(e.직급||'').trim()).filter(Boolean))]
+    .sort((a,b)=>_rankOrder(a)-_rankOrder(b)||a.localeCompare(b,'ko'));
+  const sig=ranks.join('|');
+  if(sel.dataset.sig!==sig){
+    const keep=sel.value;
+    sel.innerHTML='<option value="">직급 전체</option>'+ranks.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('');
+    sel.dataset.sig=sig;
+    sel.value=ranks.includes(keep)?keep:'';
+  }
+  return sel.value;
+}
+
+function resetPlaceFixFilter(){
+  const r=document.getElementById('place-fix-rank'); if(r) r.value='';
+  const n=document.getElementById('place-fix-name'); if(n) n.value='';
+  const q=document.getElementById('place-fix-search'); if(q) q.value='';
+  renderPlaceFix();
+}
+
 function renderPlaceFix(){
   const cont=document.getElementById('place-fix-list'); if(!cont) return;
+  const rank=_syncPlaceRankOptions();
+  const name=(document.getElementById('place-fix-name')?.value||'').trim().toLowerCase();
   const q=(document.getElementById('place-fix-search')?.value||'').trim().toLowerCase();
-  const list=_hrEmps.filter(e=>!q||[e.성명,e.사원번호,e.직급,e.직렬,e.시설명].some(v=>(v||'').toLowerCase().includes(q)));
+  const filtering=!!(rank||name||q);
+  const list=_hrEmps.filter(e=>
+    (!rank || String(e.직급||'').trim()===rank) &&
+    (!name || (e.성명||'').toLowerCase().includes(name)) &&
+    (!q || [e.성명,e.사원번호,e.직급,e.직렬,e.시설명].some(v=>(v||'').toLowerCase().includes(q))));
   const sorted=list.slice().sort((a,b)=>{
     const oa=_facOrder(a.시설명), ob=_facOrder(b.시설명);
     if(oa!==ob) return oa-ob;
@@ -4958,10 +4993,12 @@ function renderPlaceFix(){
   });
   const fixedN=_hrEmps.filter(e=>e.배치고정&&e.배치고정.시설명).length;
   const cnt=document.getElementById('place-fix-count');
-  if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명 · 지정 ${fixedN}명`;
+  if(cnt) cnt.textContent=`전체 ${_hrEmps.length}명 · 지정 ${fixedN}명`+(filtering?` · 조회 ${sorted.length}명`:'');
 
   if(!sorted.length){
-    cont.innerHTML='<div class="empty-state"><div class="icon">🧩</div><p>직원이 없습니다. 인사관리에서 먼저 등록하세요.</p></div>';
+    cont.innerHTML=filtering
+      ? '<div class="empty-state"><div class="icon">🔍</div><p>조회 조건에 맞는 직원이 없습니다.</p></div>'
+      : '<div class="empty-state"><div class="icon">🧩</div><p>직원이 없습니다. 인사관리에서 먼저 등록하세요.</p></div>';
     return;
   }
   const opts=[...new Set(_hrQuota.map(x=>x.시설명))].sort((a,b)=>_facOrder(a)-_facOrder(b));
