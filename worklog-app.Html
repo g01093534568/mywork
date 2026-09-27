@@ -918,7 +918,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 #em-dashboardView { padding-bottom: 40px; }
 
 /* 탭 바 — worklog admin-tabs 패턴.
-   에너지 관리(사용량 입력·데이터 조회)뿐 아니라 인사배치·인사 탭도 같은 모양을 쓰므로
+   에너지 관리(에너지 관리·데이터 조회)뿐 아니라 인사배치·인사 탭도 같은 모양을 쓰므로
    #page-energy 안쪽으로 묶지 않는다. 탭 내용(.em-tab-content) 규칙만 에너지 전용이다. */
 .em-tab-bar {
   display: flex; gap: 4px; margin-bottom: 24px;
@@ -2290,8 +2290,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
 
         <div class="em-tab-bar">
-          <button class="em-tab active" data-tab="energy">사용량 입력</button>
-          <button class="em-tab" data-tab="dataView">데이터 조회</button>
+          <button class="em-tab active" data-tab="energy">1️⃣ 에너지 관리</button>
+          <button class="em-tab" data-tab="dataView">2️⃣ 데이터 조회</button>
         </div>
 
         <div>
@@ -14000,12 +14000,12 @@ async function initEnergyMgmt() {
   const userNameDisplay = document.getElementById('em-userName');
   if (userNameDisplay && currentUser) userNameDisplay.textContent = currentUser.시설명 || '';
   showDashboard();
-  // 로그인 직후엔 기본 탭(사용량 입력), 같은 로그인 중 복귀 시엔 마지막 탭 복원
+  // 로그인 직후엔 기본 탭(에너지 관리), 같은 로그인 중 복귀 시엔 마지막 탭 복원
   activateEmTab(_sessionSubTab.energy || 'energy');
   waterBillLoadRuns(false);   // 매월 10일 자동 처리 결과 한 줄
 }
 
-// 에너지 세션 상단 탭(사용량 입력/데이터 조회) 활성화 + 마지막 탭 기억
+// 에너지 세션 상단 탭(에너지 관리/데이터 조회) 활성화 + 마지막 탭 기억
 function activateEmTab(tabName) {
   _sessionSubTab.energy = tabName;
   document.querySelectorAll('#page-energy .em-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
