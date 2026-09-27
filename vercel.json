@@ -42,12 +42,10 @@
   "functions": {
     "api/water-bill.js": {
       "includeFiles": "fonts/**",
-      "memory": 2048,
       "maxDuration": 60
     },
     "api/cron/water-bill.js": {
       "includeFiles": "fonts/**",
-      "memory": 2048,
       "maxDuration": 300
     }
   }
