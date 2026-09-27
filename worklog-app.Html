@@ -5253,7 +5253,16 @@ function setPlaceView(v){
   const tbl=document.getElementById('place-result'), org=document.getElementById('place-org-wrap');
   if(tbl) tbl.style.display = _placeView==='table' ? '' : 'none';
   if(org) org.style.display = _placeView==='org'   ? '' : 'none';
-  if(_placeView==='org'){ _renderPlaceOrg(); requestAnimationFrame(_centerPyramid); }
+  if(_placeView==='org'){ _renderPlaceOrg(); requestAnimationFrame(_centerPlaceOrg); }
+}
+
+// 배치 조직도는 그림 전체를 가로 가운데에 둔다. 그림이 창보다 좁으면 CSS(.pyr-root의
+// justify-content)가 가운데로 모으고, 넓으면 스크롤을 가운데로 보낸다.
+// 폭은 그려 놓은 뒤라야 잴 수 있으므로 requestAnimationFrame 뒤에 부른다.
+function _centerPlaceOrg(){
+  const sc=document.querySelector('#place-org-wrap .pyr-scroll');
+  if(!sc || !sc.clientWidth) return;
+  sc.scrollLeft=Math.max(0,(sc.scrollWidth-sc.clientWidth)/2);
 }
 
 // 상하 관계는 조직도 순번표(_facOrderMap: 순번+깊이)에서 되짚는다. 순번은 조직도를
@@ -5261,15 +5270,15 @@ function setPlaceView(v){
 // 읽지 않고도 표 들여쓰기(_facDepthMap)와 같은 자료를 보게 되어 두 보기가 어긋나지 않는다.
 function _facTreeFromOrder(){
   const ordered=[..._facOrderMap.entries()].sort((a,b)=>a[1].order-b[1].order);
-  const kids=new Map(), roots=[], stack=[];
+  const kids=new Map(), parent=new Map(), roots=[], stack=[];
   for(const [name,v] of ordered){
     while(stack.length && stack[stack.length-1].depth>=v.depth) stack.pop();
-    const parent=stack.length ? stack[stack.length-1].name : '';
-    if(parent){ if(!kids.has(parent)) kids.set(parent,[]); kids.get(parent).push(name); }
+    const up=stack.length ? stack[stack.length-1].name : '';
+    if(up){ if(!kids.has(up)) kids.set(up,[]); kids.get(up).push(name); parent.set(name,up); }
     else roots.push(name);
     stack.push({name, depth:v.depth});
   }
-  return {kids, roots};
+  return {kids, parent, roots};
 }
 
 function _renderPlaceOrg(){
@@ -5313,16 +5322,25 @@ function _renderPlaceOrg(){
     </div>`;
   };
 
-  const {kids,roots}=_facTreeFromOrder();
+  const {kids,parent,roots}=_facTreeFromOrder();
+
+  // 이 배치와 상관없는 시설(정원도 배치도 없는 곳)은 그리지 않는다. 다른 공단·시험용
+  // 계정까지 조직도에 다 그리면 우리 그림이 한쪽으로 밀리고 읽기도 어렵다.
+  // 정원·배치가 있는 시설과 그 위로 이어지는 조상만 남긴다.
+  const keep=new Set();
+  [...quotaBy.keys(),...placedBy.keys(),...emptyBy.keys()].forEach(f=>{
+    for(let x=f; x && !keep.has(x); x=parent.get(x)) keep.add(x);
+  });
+
   const seen=new Set();
-  const kidsOf = f => (kids.get(f)||[]).filter(k=>!seen.has(k));
+  const kidsOf = f => (kids.get(f)||[]).filter(k=>keep.has(k) && !seen.has(k));
   const node = f => {
     if(seen.has(f)) return '';
     seen.add(f);
     const ks=kidsOf(f);
     if(!ks.length) return `<div class="pyr-node">${card(f)}</div>`;
     // 자식이 모두 말단이면 세로로 쌓는다 — 가로로 펼치면 화면을 벗어난다(조직도와 같은 규칙)
-    const allLeaf=ks.every(k=>!(kids.get(k)||[]).length);
+    const allLeaf=ks.every(k=>!kidsOf(k).length);
     const inner = allLeaf
       ? `<div class="pyr-stack">${ks.map(k=>{ seen.add(k); return card(k); }).join('')}</div>`
       : `<div class="pyr-kids">${ks.map(k=>node(k)).join('')}</div>`;
@@ -5330,7 +5348,8 @@ function _renderPlaceOrg(){
   };
 
   let html='';
-  if(roots.length) html+=`<div class="pyr-root">${roots.map(f=>node(f)).join('')}</div>`;
+  const shownRoots=roots.filter(f=>keep.has(f));
+  if(shownRoots.length) html+=`<div class="pyr-root">${shownRoots.map(f=>node(f)).join('')}</div>`;
   // 조직도에 없는 시설(이름이 바뀌었거나 지워진 곳)도 빠뜨리지 않는다
   const loose=[...new Set([...placedBy.keys(),...emptyBy.keys()])].filter(f=>!seen.has(f));
   if(loose.length){
@@ -10256,8 +10275,7 @@ async function _handleOrgDrop(users, movedId, targetId, mode){
 // 숨어 있는 쪽은 폭이 0이라 저절로 건너뛴다.
 function _centerPyramid(){
   [['#user-pyramid-wrap .pyr-scroll','#user-pyramid .pyr-root .pyr-box'],
-   ['#um-pyramid-wrap .pyr-scroll',  '#um-pyramid .pyr-root .pyr-box'],
-   ['#place-org-wrap .pyr-scroll',   '#place-org .pyr-root .pyr-box']].forEach(([sSel,bSel])=>{
+   ['#um-pyramid-wrap .pyr-scroll',  '#um-pyramid .pyr-root .pyr-box']].forEach(([sSel,bSel])=>{
     const sc=document.querySelector(sSel), box=document.querySelector(bSel);
     if(!sc || !box || !sc.clientWidth) return;
     const sr=sc.getBoundingClientRect(), br=box.getBoundingClientRect();
