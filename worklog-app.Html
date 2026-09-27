@@ -4096,6 +4096,10 @@ function stopRealtimeSync() {
   _vocabMap = null; // 계정 전환 시 이전 사용자 단어진행 캐시 제거
 }
 let currentTodoTab = '업무';
+// AI 어시스턴트 사용 불가 표시 — enterApp()이 세션 복원 IIFE에서 스크립트 파싱 중에
+// 불리므로, 그 IIFE보다 뒤에 let 으로 두면 TDZ 로 enterApp 이 통째로 죽는다.
+// (실제로 그 바람에 새로고침 시 인사배치 탭이 안 보였다.)
+let _aiUnavailable=false;
 // 세션별 마지막 하위 탭 — 메모리에만 보관(로그인/새로고침 시 초기화).
 // 로그인 직후엔 각 세션이 기본(첫) 화면, 같은 로그인 중 세션 복귀 시엔 마지막 화면 복원.
 let _sessionSubTab = {};
@@ -12350,7 +12354,7 @@ function parseGeminiError(status, errData){
 
 // 양쪽 제공자가 다 막혔다면 이 세션 동안은 계속 막혀 있다. 눌러도 오류만 나는
 // 버튼을 남겨두면 직원들이 반복해서 누르게 되므로, 한 번 확인되면 치운다.
-let _aiUnavailable=false;
+// (_aiUnavailable 선언은 파일 위쪽 — 세션 복원 IIFE보다 앞 — 에 있다. TDZ 방지)
 function _hideAIIfUnavailable(){
   if(!_aiUnavailable) return;
   const btn=document.getElementById('ai-chat-btn');
