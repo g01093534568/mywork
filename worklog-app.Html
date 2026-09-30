@@ -251,7 +251,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .activity-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
 .activity-title{font-size:14px;font-weight:600;}
 .activity-time{font-size:12px;color:var(--accent);font-weight:600;}
-.activity-linked{font-size:11px;color:var(--blue);margin-bottom:6px;padding:3px 8px;background:rgba(61,142,240,0.1);border-radius:4px;display:inline-block;}
+.activity-linked{font-size:11px;color:var(--blue);margin-bottom:6px;margin-right:4px;padding:3px 8px;background:rgba(61,142,240,0.1);border-radius:4px;display:inline-block;}
+.am-linked-list{display:flex;flex-wrap:wrap;gap:6px;}
+.am-linked-list .empty{font-size:12px;color:var(--t3);}
+.am-linked-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:14px;cursor:pointer;color:var(--t2);user-select:none;}
+.am-linked-chip input{display:none;}
+.am-linked-chip.on{border-color:var(--blue);background:rgba(61,142,240,0.12);color:var(--blue);}
 .activity-content{font-size:13px;color:var(--t2);line-height:1.6;white-space:pre-wrap;}
 .activity-reflection{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--t3);font-style:italic;}
 .activity-reflection::before{content:'💭 ';font-style:normal;}
@@ -2817,8 +2822,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div>
     </div>
     <div class="form-group">
-      <label>전략과제 연계</label>
-      <select id="am-linked"></select>
+      <label>전략과제 연계 <span style="font-size:11px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">최대 3개</span></label>
+      <div id="am-linked" class="am-linked-list"></div>
     </div>
     <div class="form-group">
       <label>주요 내용</label>
@@ -10001,7 +10006,7 @@ async function renderDailyActivities(date){
             <button class="btn btn-danger btn-sm" onclick="deleteActivity('${date}','${a.id}')">🗑</button>
           </div>
         </div>
-        ${a.linked?`<span class="activity-linked">↗ ${esc(a.linked)}</span>`:''}
+        ${splitLinkedTasks(a.linked).map(t=>`<span class="activity-linked">↗ ${esc(t)}</span>`).join('')}
         ${a.content?`<div class="activity-content">${esc(a.content)}</div>`:''}
         ${a.reflection?`<div class="activity-reflection">${esc(a.reflection)}</div>`:''}
       </div>
@@ -10013,8 +10018,7 @@ async function openActivityModal(date, id, prefillTitle){
   date=date||document.getElementById('daily-date').value||today();
   const org=await DB.getOrg();
   const tasks=(org.전략과제||[]).map(t=>t.과제);
-  const sel=document.getElementById('am-linked');
-  sel.innerHTML='<option value="">연계 전략과제 없음</option>'+tasks.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  let picked=[];
   document.getElementById('am-date').value=date;
   if(id){
     const activities=await DB.getDailyActivities(currentUser.사원번호,date);
@@ -10026,7 +10030,7 @@ async function openActivityModal(date, id, prefillTitle){
     const _t=parseTimeRange(a.time);
     document.getElementById('am-start').value=_t.start;
     document.getElementById('am-end').value=_t.end;
-    sel.value=a.linked||'';
+    picked=splitLinkedTasks(a.linked);
     document.getElementById('am-content').value=a.content||'';
     document.getElementById('am-reflection').value=a.reflection||'';
   } else {
@@ -10035,11 +10039,33 @@ async function openActivityModal(date, id, prefillTitle){
     document.getElementById('am-title').value=prefillTitle||'';
     document.getElementById('am-start').value='';
     document.getElementById('am-end').value='';
-    sel.value='';
     document.getElementById('am-content').value='';
     document.getElementById('am-reflection').value='';
   }
+  renderActivityLinkedChips(tasks, picked);
   openModal('activity-modal');
+}
+
+// 활동 한 건에 전략과제를 여러 개(최대 3) 연계한다. linked_task 텍스트 컬럼에 줄바꿈으로 이어 저장하므로
+// 예전의 과제 1개짜리 값도 그대로 읽힌다.
+const AM_LINKED_MAX=3;
+function splitLinkedTasks(v){ return String(v||'').split('\n').map(s=>s.trim()).filter(Boolean); }
+function renderActivityLinkedChips(tasks, picked){
+  // 전략체계에서 이름이 바뀌어 사라진 과제도, 이미 연계돼 있었다면 선택된 채로 보여 준다
+  const all=[...tasks, ...picked.filter(p=>!tasks.includes(p))];
+  const box=document.getElementById('am-linked');
+  box.innerHTML=all.length
+    ? all.map(t=>`<label class="am-linked-chip${picked.includes(t)?' on':''}"><input type="checkbox" value="${esc(t)}"${picked.includes(t)?' checked':''} onchange="toggleActivityLinked(this)">${esc(t)}</label>`).join('')
+    : '<span class="empty">등록된 전략과제가 없습니다</span>';
+}
+function toggleActivityLinked(cb){
+  const checked=document.querySelectorAll('#am-linked input:checked');
+  if(cb.checked && checked.length>AM_LINKED_MAX){
+    cb.checked=false;
+    toast(`전략과제는 최대 ${AM_LINKED_MAX}개까지 연계할 수 있습니다`,'error');
+    return;
+  }
+  cb.parentElement.classList.toggle('on', cb.checked);
 }
 
 async function saveActivity(){
@@ -10050,7 +10076,7 @@ async function saveActivity(){
   const data={
     id:editId||uid(), title,
     time:combineTimeRange(getTimeValue('am-start'), getTimeValue('am-end')),
-    linked:document.getElementById('am-linked').value,
+    linked:[...document.querySelectorAll('#am-linked input:checked')].map(c=>c.value).join('\n'),
     content:document.getElementById('am-content').value.trim(),
     reflection:document.getElementById('am-reflection').value.trim()
   };
