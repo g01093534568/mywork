@@ -29,7 +29,7 @@ var PDFJS_CMAP={cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
-<script src="https://unpkg.com/docx@8.6.0/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root {
   --bg: #0b1622;
@@ -14457,9 +14457,61 @@ function _emBillYM(record) {
   return (record.startDate || '').slice(0, 7);
 }
 
-// 공문(docx) 클라이언트 생성
-async function _generateDocxBlob(record) {
-  const { Document, Packer, Paragraph, TextRun, AlignmentType } = window.docx;
+// 공문(hwpx) 클라이언트 생성
+// 비서실 프로그램(private secretary/secretary/templates/공문.hwpx)과 같은 공문 템플릿 —
+// 함초롬돋움 12pt·줄간격 180%(글자 모양 0·문단 모양 0)에 제목용 모양만 더해 문단을 채운다.
+const HWPX_TEMPLATE_URL = '/templates/gongmun.hwpx';
+const _HWPX_CP_TITLE = 7, _HWPX_PP_CENTER = 20;   // 템플릿의 글자 모양 7개(0~6)·문단 모양 20개(0~19) 바로 다음 번호
+let _hwpxTemplateBuf = null;
+function _hwpxEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function _hwpxHeader(xml) {
+  const char0 = xml.match(/<hh:charPr id="0"[\s\S]*?<\/hh:charPr>/)[0];
+  const title = char0.replace('id="0"', `id="${_HWPX_CP_TITLE}"`).replace('height="1200"', 'height="1700"')
+    .replace('<hh:underline', '<hh:bold/><hh:underline');
+  const para0 = xml.match(/<hh:paraPr id="0"[\s\S]*?<\/hh:paraPr>/)[0];
+  const center = para0.replace('id="0"', `id="${_HWPX_PP_CENTER}"`).replace('horizontal="LEFT"', 'horizontal="CENTER"');
+  const add = (x, tag, item) => x
+    .replace(new RegExp(`<hh:${tag} itemCnt="(\\d+)"`), (m, n) => `<hh:${tag} itemCnt="${+n + 1}"`)
+    .replace(`</hh:${tag}>`, item + `</hh:${tag}>`);
+  return add(add(xml, 'charProperties', title), 'paraProperties', center);
+}
+// lines: [{ text, title }] — title 이면 굵게 17pt·가운데
+async function _buildHwpxBlob(lines) {
+  if (!window.JSZip) throw new Error('문서 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도하세요');
+  if (!_hwpxTemplateBuf) {
+    const r = await fetch(HWPX_TEMPLATE_URL);
+    if (!r.ok) throw new Error(`공문 서식을 불러오지 못했습니다 (${r.status})`);
+    _hwpxTemplateBuf = await r.arrayBuffer();
+  }
+  const src = await JSZip.loadAsync(_hwpxTemplateBuf);
+  const run = (l) => l.text
+    ? `<hp:run charPrIDRef="${l.title ? _HWPX_CP_TITLE : 0}"><hp:t>${_hwpxEsc(l.text)}</hp:t></hp:run>`
+    : '<hp:run charPrIDRef="0"/>';
+  const pp = (l) => (l.title ? _HWPX_PP_CENTER : 0);
+  const rest = lines.slice(1).map((l, i) =>
+    `<hp:p id="${i + 1}" paraPrIDRef="${pp(l)}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${run(l)}</hp:p>`).join('');
+  const out = new JSZip();
+  // mimetype 이 맨 앞·무압축이어야 한글이 연다 — 템플릿의 파일 순서를 그대로 따른다
+  for (const name of Object.keys(src.files)) {
+    const f = src.files[name];
+    if (f.dir) continue;
+    let data;
+    if (name === 'Contents/section0.xml') {
+      // 첫 문단에는 쪽 설정(secPr)이 들어 있어, 첫 줄은 그 뒤에 글자묶음으로 붙인다
+      data = (await f.async('string'))
+        .replace('<hp:p id="0" paraPrIDRef="0"', `<hp:p id="0" paraPrIDRef="${pp(lines[0])}"`)
+        .replace('{{FIRST}}', lines[0].text ? run(lines[0]) : '').replace('{{REST}}', rest);
+    } else if (name === 'Contents/header.xml') {
+      data = _hwpxHeader(await f.async('string'));
+    } else {
+      data = await f.async('uint8array');
+    }
+    out.file(name, data, { compression: name === 'mimetype' ? 'STORE' : 'DEFLATE' });
+  }
+  return out.generateAsync({ type: 'blob', mimeType: 'application/hwp+zip' });
+}
+
+async function _generateGongmunBlob(record) {
   let year, month;
   if (record.billingMonth) {
     const p = record.billingMonth.split('-');
@@ -14473,16 +14525,16 @@ async function _generateDocxBlob(record) {
   let paymentMethod = '첨부 2 고지서 참조';
   if (record.bankName && record.virtualAccount) paymentMethod = `계좌입금(${record.bankName} ${record.virtualAccount})`;
   else if (record.virtualAccount) paymentMethod = `계좌입금(${record.virtualAccount})`;
-  const doc = new Document({ sections: [{ properties: {}, children: [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '지출결의서', bold: true, size: 32 })], spacing: { after: 400 } }),
-    new Paragraph({ children: [new TextRun({ text: `${year}년 ${month}월 ${record.facilityName} ${record.energyType} 요금을 아래와 같이 납부하고자 합니다.`, size: 24 })], spacing: { after: 300 } }),
-    new Paragraph({ children: [new TextRun({ text: '', size: 24 })], spacing: { after: 200 } }),
-    new Paragraph({ children: [new TextRun({ text: `  1. 소요금액: 금${costNum.toLocaleString('ko-KR')}원(금${costKorean}원)`, size: 24 })], spacing: { after: 200 } }),
-    new Paragraph({ children: [new TextRun({ text: '  2. 세부내역: 첨부 1 참조', size: 24 })], spacing: { after: 200 } }),
-    new Paragraph({ children: [new TextRun({ text: `  3. 납부방법: ${paymentMethod}`, size: 24 })], spacing: { after: 200 } }),
-    new Paragraph({ children: [new TextRun({ text: '  4. 예산과목: ', size: 24 })], spacing: { after: 400 } })
-  ]}]});
-  return await Packer.toBlob(doc);
+  return _buildHwpxBlob([
+    { text: '지출결의서', title: true },
+    { text: '' },
+    { text: `${year}년 ${month}월 ${record.facilityName} ${record.energyType} 요금을 아래와 같이 납부하고자 합니다.` },
+    { text: '' },
+    { text: `  1. 소요금액: 금${costNum.toLocaleString('ko-KR')}원(금${costKorean}원)` },
+    { text: '  2. 세부내역: 첨부 1 참조' },
+    { text: `  3. 납부방법: ${paymentMethod}` },
+    { text: '  4. 예산과목: ' },
+  ]);
 }
 
 // 첨부1(xlsx) 클라이언트 생성
@@ -15458,8 +15510,8 @@ window.generateDocument = async function(index) {
         const records = await _emEnergyQuery();
         const record = records[index];
         if (!record) { alert('레코드를 찾을 수 없습니다.'); return; }
-        const blob = await _generateDocxBlob(record);
-        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.docx`;
+        const blob = await _generateGongmunBlob(record);
+        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.hwpx`;
         _downloadBlob(blob, filename);
         alert('공문이 생성되었습니다.');
     } catch (error) {
@@ -16705,8 +16757,8 @@ async function generateOfficialDocument(record) {
 
         console.log('공문 생성:', record);
 
-        const blob = await _generateDocxBlob(record);
-        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.docx`;
+        const blob = await _generateGongmunBlob(record);
+        const filename = `${_emBillYM(record)}-${record.facilityName}-${record.energyType}-공문.hwpx`;
         _downloadBlob(blob, filename);
         console.log('공문 생성 완료:', filename);
 
@@ -16819,11 +16871,11 @@ async function generateOfficialDocumentCombined(records) {
             isCombined: true // 합계 공문임을 표시
         };
 
-        const blob = await _generateDocxBlob(combinedRecord);
+        const blob = await _generateGongmunBlob(combinedRecord);
         const now = new Date();
         const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const facilityStr = facilities.length === 1 ? facilities[0] : '통합';
-        const filename = `${dateStr}-${facilityStr}-합계공문.docx`;
+        const filename = `${dateStr}-${facilityStr}-합계공문.hwpx`;
         _downloadBlob(blob, filename);
         console.log('합계 공문 생성 완료:', filename);
         alert(`공문 생성이 완료되었습니다.\n\n파일명: ${filename}\n합계 금액: ${totalCost.toLocaleString('ko-KR')}원`);
