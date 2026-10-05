@@ -12,7 +12,11 @@
 //   SUPABASE_SERVICE_ROLE_KEY  이 키로 조회한다 (RLS 를 닫은 뒤에는 anon 으로는 아무것도 안 보인다)
 //   SUPABASE_KEY     선택. 따로 줄 때만. 둘 다 없으면 앱의 anon 키를 쓴다
 //
-// 삭제 도구(delete_todo, delete_daily_log, delete_facility_goal, delete_energy_record)는 confirm:true 를 줘야만 지운다. 지운 항목의 원래 값을 결과에 그대로 돌려주어
+// 할 일·업무일지·시설목표·에너지 기록은 전용 도구로, 그 밖의 앱 데이터(개인·연간목표, 독서, 운동, 주식·펀드,
+// 에너지 고객정보, 차량, AI 지식자료, 조직목표)는 공통 도구(list/get/add/update/delete_record)로 다룬다.
+// 인사 데이터(hr_*·placement)와 로그인 계정(users)은 다루지 않는다.
+//
+// 삭제 도구(delete_todo, delete_daily_log, delete_facility_goal, delete_energy_record, delete_record)는 confirm:true 를 줘야만 지운다. 지운 항목의 원래 값을 결과에 그대로 돌려주어
 // 실수로 지웠을 때 다시 넣을 수 있게 한다. 부르는 쪽(비서)은 지우기 전에 사용자 확인을 받는다.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -192,6 +196,253 @@ async function findEnergyRecord(user, id) {
   const rows = await sb(`energy_records?id=eq.${n}${scope.filter}&select=*`);
   if (!rows || !rows.length) return { error: `#${n} 에너지 기록이 없거나 볼 수 있는 시설 범위 밖입니다` };
   return { record: rows[0], scope };
+}
+
+/* ── 그 밖의 앱 데이터: 공통 도구(list/get/add/update/delete_record)로 다룬다 ─────────
+ * 전용 도구가 있는 할 일·업무일지·시설목표·에너지 기록은 앱 규칙(반복 완료·달성률 계산 등)이 있어
+ * 여기 넣지 않는다. 인사(hr_*·placement)는 BLOCKED_TABLES 에서, 로그인 계정(users: 비밀번호 포함)은
+ * 여기 없다는 것으로 막힌다 — 이 표에 없는 테이블은 공통 도구로 손댈 수 없다.
+ *
+ * scope  owner    본인(users.id) 것만. 추가할 때 owner_id·사원번호를 채운다
+ *        facility 에너지 기록과 같은 시설 범위(energyScope)
+ *        global   모두 같은 데이터
+ * read/write  앱 CAPS 와 같은 역할 제한 (없으면 누구나)
+ * cols   type: text·number·int·date·enum(values)·strarr(문자열 배열 jsonb)·json·jsonarr(배열을 JSON 문자열로 저장)
+ */
+const ENERGY_MANAGE = ['admin', 'facility-admin'];   // 앱 CAPS 'energy.manage'
+const DATASETS = {
+  personal_goals: {
+    label: '개인 성과목표', table: 'personal_goals', scope: 'owner', id: 'text', order: 'created_at.asc',
+    cols: {
+      goal: { type: 'text', label: '목표', required: true },
+      kpis: { type: 'strarr', label: 'KPI' },
+      progress: { type: 'int', label: '진행률(%)' },
+      linked: { type: 'text', label: '연계 시설목표' },
+    },
+    show: ['goal', 'progress', 'kpis', 'linked'], search: ['goal', 'linked'],
+  },
+  annual_goals: {
+    label: '연간 개인목표', table: 'annual_goals', scope: 'owner', id: 'uuid', order: 'year.desc,category.asc',
+    cols: {
+      year: { type: 'int', label: '연도', required: true },
+      category: { type: 'text', label: '분류(건강·자기계발 등)', required: true },
+      title: { type: 'text', label: '제목', required: true },
+      description: { type: 'text', label: '설명' },
+      target: { type: 'jsonarr', label: '목표치 목록' },
+      progress: { type: 'int', label: '진행률(%)' },
+      status: { type: 'enum', values: ['진행중', '완료', '보류'], label: '상태' },
+    },
+    show: ['year', 'category', 'title', 'status', 'progress', 'target'], search: ['title', 'description', 'category'],
+    defaults: { status: '진행중', progress: 0, target: '[]' }, touch: true,
+  },
+  books: {
+    label: '독서기록', table: 'books', scope: 'owner', id: 'uuid', order: 'created_at.desc',
+    cols: {
+      title: { type: 'text', label: '제목', required: true },
+      author: { type: 'text', label: '저자' },
+      status: { type: 'enum', values: ['읽을예정', '읽는중', '완독'], label: '상태' },
+      start_date: { type: 'date', label: '시작일' },
+      end_date: { type: 'date', label: '완독일' },
+      rating: { type: 'int', label: '별점(1~5)' },
+      memo: { type: 'text', label: '메모' },
+      cover_url: { type: 'text', label: '표지 주소' },
+    },
+    show: ['title', 'author', 'status', 'start_date', 'end_date', 'rating'], search: ['title', 'author', 'memo'],
+    defaults: { status: '읽는중' }, touch: true,
+  },
+  exercises: {
+    label: '운동기록(골프·러닝)', table: 'exercises', scope: 'owner', id: 'text', order: 'date.desc', read: ['admin'],
+    cols: {
+      type: { type: 'enum', values: ['golf', 'running', 'running_race'], label: '종류(golf 골프 / running 러닝 / running_race 대회)', required: true },
+      date: { type: 'date', label: '날짜', required: true },
+      location: { type: 'text', label: '장소' },
+      score: { type: 'int', label: '골프 타수' },
+      distance: { type: 'number', label: '거리(km)' },
+      duration: { type: 'int', label: '시간(분)' },
+      memo: { type: 'text', label: '메모' },
+    },
+    show: ['date', 'type', 'location', 'score', 'distance', 'duration'], search: ['location', 'memo'], touch: true,
+  },
+  stocks: {
+    label: '보유 종목', table: 'stocks', scope: 'owner', id: 'text', order: 'created_at.asc',
+    cols: {
+      name: { type: 'text', label: '종목명', required: true },
+      ticker: { type: 'text', label: '종목코드' },
+      current_price: { type: 'number', label: '현재가' },
+      prev_close: { type: 'number', label: '전일 종가' },
+    },
+    show: ['name', 'ticker', 'current_price', 'prev_close'], search: ['name', 'ticker'],
+  },
+  trades: {
+    label: '주식 매매기록', table: 'trades', scope: 'owner', id: 'text', order: 'trade_date.desc',
+    cols: {
+      stock_id: { type: 'text', label: '보유 종목 id(stocks)' },
+      stock_name: { type: 'text', label: '종목명', required: true },
+      ticker: { type: 'text', label: '종목코드' },
+      trade_date: { type: 'date', label: '거래일', required: true },
+      type: { type: 'enum', values: ['buy', 'sell'], label: '매수 buy / 매도 sell', required: true },
+      qty: { type: 'number', label: '수량', required: true },
+      price: { type: 'number', label: '단가', required: true },
+      fee: { type: 'number', label: '수수료' },
+      memo: { type: 'text', label: '메모' },
+    },
+    show: ['trade_date', 'type', 'stock_name', 'qty', 'price', 'fee'], search: ['stock_name', 'ticker', 'memo'],
+    defaults: { fee: 0, memo: '' },
+  },
+  funds: {
+    label: '펀드', table: 'funds', scope: 'owner', id: 'text', order: 'created_at.asc',
+    cols: {
+      name: { type: 'text', label: '펀드명', required: true },
+      fund_type: { type: 'text', label: '유형(ETF·주식혼합 등)' },
+      principal: { type: 'number', label: '원금' },
+      valuation: { type: 'number', label: '평가금액' },
+      start_date: { type: 'date', label: '가입일' },
+      memo: { type: 'text', label: '메모' },
+    },
+    show: ['name', 'fund_type', 'principal', 'valuation', 'start_date'], search: ['name', 'memo'],
+  },
+  energy_info: {
+    label: '에너지 고객정보(고객번호·납부계좌)', table: 'energy_info', scope: 'facility', id: 'int', order: 'facility_name.asc,energy_type.asc',
+    write: ENERGY_MANAGE,
+    cols: {
+      facility_name: { type: 'text', label: '시설명', required: true },
+      energy_type: { type: 'enum', values: ENERGY_TYPES, label: '종류', required: true },
+      customer_number: { type: 'text', label: '고객번호' },
+      bank_name: { type: 'text', label: '은행' },
+      account_number: { type: 'text', label: '납부 계좌' },
+    },
+    show: ['facility_name', 'energy_type', 'customer_number', 'bank_name', 'account_number'], search: ['facility_name', 'customer_number'],
+  },
+  vehicle_info: {
+    label: '차량정보', table: 'vehicle_info', scope: 'facility', id: 'int', order: 'facility_name.asc',
+    write: ENERGY_MANAGE,
+    cols: {
+      facility_name: { type: 'text', label: '시설명', required: true },
+      vehicle_number: { type: 'text', label: '차량번호', required: true },
+      fuel: { type: 'text', label: '연료' },
+      model_year: { type: 'text', label: '연식' },
+      vehicle_type: { type: 'text', label: '차종' },
+    },
+    show: ['facility_name', 'vehicle_number', 'vehicle_type', 'fuel', 'model_year'], search: ['facility_name', 'vehicle_number', 'vehicle_type'],
+  },
+  knowledge: {
+    label: 'AI 지식자료', table: 'knowledge_sources', scope: 'global', id: 'uuid', order: 'created_at.asc',
+    write: ['admin', 'facility-admin'],   // 앱 CAPS 'knowledge.manage'
+    cols: {
+      title: { type: 'text', label: '제목', required: true },
+      src_type: { type: 'enum', values: ['text', 'url', 'file', 'pdf'], label: '자료 형태' },
+      content: { type: 'text', label: '본문', required: true },
+    },
+    show: ['title', 'src_type', 'content', 'created_at'], search: ['title', 'content'],
+    defaults: { src_type: 'text' }, longText: 'content',
+  },
+  org_goals: {
+    label: '조직목표(미션·비전·전략목표·전략과제)', table: 'org_goals', scope: 'global', id: 'int', order: 'id.asc',
+    write: ['admin'], noAdd: true, noDelete: true,   // 앱 CAPS 'goals.org'. 한 줄(id 1)뿐이라 추가·삭제는 막는다
+    cols: {
+      mission: { type: 'text', label: '미션' },
+      vision: { type: 'text', label: '비전' },
+      전략목표: { type: 'json', label: '전략목표 배열(문자열)' },
+      전략과제: { type: 'json', label: '전략과제 배열 [{과제, 목표idx, 경영목표[]}]' },
+    },
+    show: ['mission', 'vision', '전략목표', '전략과제'], search: ['mission', 'vision'], touch: true,
+  },
+};
+const DATASET_KEYS = Object.keys(DATASETS);
+const DATASET_HELP = DATASET_KEYS.map(k => {
+  const d = DATASETS[k];
+  return `${k}=${d.label} [${Object.entries(d.cols).map(([c, m]) => `${c}${m.required ? '*' : ''}: ${m.label}${m.values ? ` (${m.values.join('/')})` : ''}`).join(', ')}]`;
+}).join('\n');
+
+function dsRoleOk(ds, user, mode) {
+  const roles = mode === 'write' ? (ds.write || ds.read) : ds.read;
+  return !roles || roles.includes(user.role);
+}
+
+// 공통 도구에서 쓸 범위 필터 — 조회·수정·삭제가 모두 이것을 거친다
+async function dsScope(ds, user) {
+  if (ds.scope === 'owner') return `&owner_id=eq.${q(user.id)}`;
+  if (ds.scope === 'facility') return (await energyScope(user)).filter;
+  return '';
+}
+
+// 들어온 값을 컬럼 형식에 맞춰 바꾼다. 문제가 있으면 { error } 를 돌려준다.
+function dsCoerce(ds, values) {
+  const out = {};
+  for (const [k, raw] of Object.entries(values || {})) {
+    const m = ds.cols[k];
+    if (!m) return { error: `${k} 는 ${ds.label}에 없는 항목입니다. 쓸 수 있는 항목: ${Object.keys(ds.cols).join(', ')}` };
+    if (raw === null || raw === '') {
+      if (m.required) return { error: `${m.label}(${k}) 은(는) 비울 수 없습니다` };
+      out[k] = m.type === 'strarr' ? [] : m.type === 'jsonarr' ? '[]' : null;
+      continue;
+    }
+    switch (m.type) {
+      case 'text': out[k] = String(raw); break;
+      case 'number': case 'int': {
+        const n = fgNum(raw);
+        if (n === null) return { error: `${m.label}(${k}) 은(는) 숫자여야 합니다` };
+        out[k] = m.type === 'int' ? Math.round(n) : n;
+        break;
+      }
+      case 'date':
+        if (!DATE_RE.test(String(raw))) return { error: `${m.label}(${k}) 은(는) YYYY-MM-DD 형식이어야 합니다` };
+        out[k] = String(raw); break;
+      case 'enum':
+        if (!m.values.includes(String(raw))) return { error: `${m.label}(${k}) 은(는) ${m.values.join('/')} 중 하나여야 합니다` };
+        out[k] = String(raw); break;
+      case 'strarr': case 'jsonarr': {
+        const arr = Array.isArray(raw) ? raw.map(String) : [String(raw)];
+        out[k] = m.type === 'jsonarr' ? JSON.stringify(arr) : arr;
+        break;
+      }
+      case 'json':
+        if (typeof raw === 'string') {
+          try { out[k] = JSON.parse(raw); } catch { return { error: `${m.label}(${k}) 은(는) JSON 이어야 합니다` }; }
+        } else out[k] = raw;
+        break;
+    }
+  }
+  return { values: out };
+}
+
+function dsShowValue(ds, col, v, full) {
+  if (v === null || v === undefined || v === '') return '-';
+  const m = ds.cols[col];
+  if (m?.type === 'jsonarr') { try { const a = JSON.parse(v); return Array.isArray(a) ? a.join(', ') || '-' : String(v); } catch { return String(v); } }
+  if (Array.isArray(v) && v.every(x => typeof x !== 'object')) return v.join(', ') || '-';
+  if (typeof v === 'object') return JSON.stringify(v);
+  if (col === ds.longText && !full) return `(${String(v).length.toLocaleString('ko-KR')}자) ${String(v).slice(0, 60).replace(/\s+/g, ' ')}…`;
+  if (typeof v === 'number') return v.toLocaleString('ko-KR');
+  return String(v);
+}
+
+function dsFormat(ds, row, full = false) {
+  const cols = full ? Object.keys(ds.cols) : ds.show;
+  const label = (c) => (ds.cols[c]?.label || c).replace(/\(.*\)$/, '');
+  const parts = cols.map(c => `${label(c)}: ${dsShowValue(ds, c, row[c], full)}`);
+  if (full) return `#${row.id}\n` + parts.map(p => `  ${p}`).join('\n');
+  return `#${row.id} · ${parts.join(' · ')}`;
+}
+
+async function dsFind(ds, user, id) {
+  if (id === undefined || id === null || id === '') return { error: 'id 가 필요합니다. list_records 로 먼저 찾으세요' };
+  const sid = String(id).replace(/^#/, '');
+  if (ds.id === 'int' && !/^\d+$/.test(sid)) return { error: 'id 는 숫자여야 합니다' };
+  const scope = await dsScope(ds, user);
+  const rows = await sb(`${ds.table}?id=eq.${q(sid)}${scope}&select=*`);
+  if (!rows || !rows.length) return { error: `${ds.label} #${sid} 이(가) 없거나 볼 수 있는 범위 밖입니다` };
+  return { row: rows[0], scope };
+}
+
+// 시설 범위 데이터는 범위 안 시설명으로만 넣고 옮길 수 있다(오타·범위 밖 시설이면 다시 찾을 수 없게 된다)
+async function dsCheckFacility(ds, user, name) {
+  if (ds.scope !== 'facility' || name === undefined) return null;
+  const names = user.role === 'admin'
+    ? [...new Set(((await sb('users?select=시설명')) || []).map(u => u.시설명).filter(Boolean))]
+    : user.role === 'facility-admin' ? await managedFacilities(user.시설명) : [user.시설명];
+  if (withAliases(names).includes(name)) return null;
+  return user.role === 'admin' ? `"${name}" 이라는 시설이 없습니다. 시설명을 정확히 주세요` : `"${name}" 은(는) 관리 범위 밖 시설입니다`;
 }
 
 /* ── 도구 정의 ───────────────────────────────────────────────── */
@@ -487,6 +738,68 @@ const TOOLS = [
       required: ['id', 'confirm'],
     },
   },
+  {
+    name: 'list_records',
+    description: '할 일·업무일지·시설목표·에너지 기록을 뺀 나머지 앱 데이터를 조회합니다. 각 줄 맨 앞 #id 로 get/update/delete_record 를 부릅니다.\n' +
+      'dataset 과 항목(*는 추가할 때 필수):\n' + DATASET_HELP,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataset: { type: 'string', enum: DATASET_KEYS },
+        keyword: { type: 'string', description: '제목·이름 등에서 찾을 말' },
+        filter: { type: 'object', description: '항목=값 이 정확히 같은 것만 (예: {"type":"golf"}, {"year":2026})' },
+        limit: { type: 'number', description: '기본 30 · 최대 200' },
+      },
+      required: ['dataset'],
+    },
+  },
+  {
+    name: 'get_record',
+    description: 'list_records 의 #id 로 한 건의 모든 항목(긴 본문 포함)을 봅니다.',
+    inputSchema: {
+      type: 'object',
+      properties: { dataset: { type: 'string', enum: DATASET_KEYS }, id: { type: ['string', 'number'] } },
+      required: ['dataset', 'id'],
+    },
+  },
+  {
+    name: 'add_record',
+    description: 'list_records 에 있는 dataset 에 새 항목을 추가합니다. values 에 항목 이름(list_records 설명 참고)과 값을 줍니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataset: { type: 'string', enum: DATASET_KEYS },
+        values: { type: 'object', description: '예: {"title":"총, 균, 쇠","author":"재레드 다이아몬드","status":"읽는중"}' },
+      },
+      required: ['dataset', 'values'],
+    },
+  },
+  {
+    name: 'update_record',
+    description: 'list_records 의 #id 로 한 건을 찾아 values 에 준 항목만 고칩니다. 결과에 바뀌기 전 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataset: { type: 'string', enum: DATASET_KEYS },
+        id: { type: ['string', 'number'] },
+        values: { type: 'object', description: '바꿀 항목과 새 값. 빈 문자열이면 지움' },
+      },
+      required: ['dataset', 'id', 'values'],
+    },
+  },
+  {
+    name: 'delete_record',
+    description: 'list_records 의 #id 로 한 건을 삭제합니다. 되돌리기 어려우므로 사용자 확인을 받은 뒤 confirm:true 로 부르세요. 결과에 지운 항목의 원래 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataset: { type: 'string', enum: DATASET_KEYS },
+        id: { type: ['string', 'number'] },
+        confirm: { type: 'boolean', description: '사용자가 삭제를 확인했으면 true' },
+      },
+      required: ['dataset', 'id', 'confirm'],
+    },
+  },
 ];
 
 /* ── 도구 실행 ───────────────────────────────────────────────── */
@@ -601,6 +914,91 @@ function cleanKpi(raw) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
+
+async function runRecordTool(name, ds, input, ctx) {
+  const { empno, user } = ctx;
+  switch (name) {
+    case 'list_records': {
+      let path = `${ds.table}?select=*${await dsScope(ds, user)}`;
+      for (const [k, v] of Object.entries(input.filter || {})) {
+        if (!ds.cols[k]) return `${k} 는 ${ds.label}에 없는 항목입니다. 쓸 수 있는 항목: ${Object.keys(ds.cols).join(', ')}`;
+        path += `&${encodeURIComponent(k)}=eq.${q(String(v))}`;
+      }
+      if (input.keyword) {
+        const kw = String(input.keyword).replace(/[*,()"]/g, '');
+        path += `&or=(${ds.search.map(c => `${encodeURIComponent(c)}.ilike.${q(`*${kw}*`)}`).join(',')})`;
+      }
+      const limit = Math.min(Math.max(Math.floor(Number(input.limit) || 30), 1), 200);
+      path += `&order=${ds.order}&limit=${limit + 1}`;
+      const rows = (await sb(path)) || [];
+      if (!rows.length) return `조건에 맞는 ${ds.label}이(가) 없습니다`;
+      const more = rows.length > limit;
+      return `[${ds.label} ${more ? `${limit}건 이상` : `${rows.length}건`}]\n` +
+        rows.slice(0, limit).map(r => dsFormat(ds, r)).join('\n') +
+        (more ? '\n…더 있습니다. 조건을 좁히거나 limit 을 늘리세요' : '');
+    }
+
+    case 'get_record': {
+      const found = await dsFind(ds, user, input.id);
+      if (found.error) return found.error;
+      const text = dsFormat(ds, found.row, true);
+      // 지식자료 본문은 수만 자가 될 수 있다 — 대화 창을 다 먹지 않게 자른다
+      return text.length > 12000 ? text.slice(0, 12000) + `\n…(이하 ${text.length - 12000}자 생략)` : text;
+    }
+
+    case 'add_record': {
+      if (ds.noAdd) return `${ds.label}은(는) 추가하지 않고 update_record 로 고칩니다`;
+      const c = dsCoerce(ds, input.values);
+      if (c.error) return c.error;
+      const values = { ...(ds.defaults || {}), ...c.values };
+      const missing = Object.entries(ds.cols).filter(([k, m]) => m.required && (values[k] === undefined || values[k] === null));
+      if (missing.length) return `필수 항목이 빠졌습니다: ${missing.map(([k, m]) => `${k}(${m.label})`).join(', ')}`;
+      const facErr = await dsCheckFacility(ds, user, values.facility_name);
+      if (facErr) return facErr;
+      const row = { ...values };
+      if (ds.id === 'text') row.id = crypto.randomUUID();
+      if (ds.scope === 'owner') { row.owner_id = user.id; row.사원번호 = empno; }
+      if (ds.table === 'knowledge_sources') row.uploaded_by = empno;
+      if (ds.touch) row.updated_at = new Date().toISOString();
+      const saved = await sb(ds.table, { method: 'POST', body: JSON.stringify(row), headers: { Prefer: 'return=representation' } });
+      return `${ds.label}에 추가했습니다\n${dsFormat(ds, saved?.[0] || row)}`;
+    }
+
+    case 'update_record': {
+      const found = await dsFind(ds, user, input.id);
+      if (found.error) return found.error;
+      const c = dsCoerce(ds, input.values);
+      if (c.error) return c.error;
+      const patch = c.values;
+      if (!Object.keys(patch).length) return '바꿀 항목이 없습니다';
+      const facErr = await dsCheckFacility(ds, user, patch.facility_name);
+      if (facErr) return facErr;
+      const before = found.row;
+      const body = ds.touch ? { ...patch, updated_at: new Date().toISOString() } : patch;
+      const updated = await sb(`${ds.table}?id=eq.${q(String(before.id))}${found.scope}`, {
+        method: 'PATCH', body: JSON.stringify(body), headers: { Prefer: 'return=representation' },
+      });
+      if (!updated || !updated.length) return `#${before.id} 을(를) 고치지 못했습니다 (그 사이 지워졌을 수 있습니다)`;
+      const after = updated[0];
+      return `${ds.label}을(를) 고쳤습니다 — #${before.id}\n` +
+        Object.keys(patch).map(k => `• ${ds.cols[k].label}: ${dsShowValue(ds, k, before[k])} → ${dsShowValue(ds, k, after[k])}`).join('\n') +
+        `\n[복구용 원래 값] ${JSON.stringify(Object.fromEntries(Object.keys(patch).map(k => [k, before[k]])))}`;
+    }
+
+    case 'delete_record': {
+      if (ds.noDelete) return `${ds.label}은(는) 삭제할 수 없습니다. 내용을 비우려면 update_record 를 쓰세요`;
+      if (input.confirm !== true) return '삭제하려면 사용자 확인을 받은 뒤 confirm:true 로 다시 부르세요';
+      const found = await dsFind(ds, user, input.id);
+      if (found.error) return found.error;
+      const r = found.row;
+      const deleted = await sb(`${ds.table}?id=eq.${q(String(r.id))}${found.scope}`, {
+        method: 'DELETE', headers: { Prefer: 'return=representation' },
+      });
+      if (!deleted || !deleted.length) return `#${r.id} 을(를) 지우지 못했습니다 (이미 지워졌을 수 있습니다)`;
+      return `${ds.label}에서 삭제했습니다 — ${dsFormat(ds, r)}\n[복구용 원래 값] ${JSON.stringify(r)}`;
+    }
+  }
+}
 
 async function runTool(name, input, ctx) {
   const { empno, user } = ctx;
@@ -1029,6 +1427,20 @@ async function runTool(name, input, ctx) {
       });
       if (!deleted || !deleted.length) return `#${r.id} 기록을 지우지 못했습니다 (이미 지워졌을 수 있습니다)`;
       return `에너지 기록을 삭제했습니다 — ${formatEnergyRecord(r)}\n[복구용 원래 값] ${JSON.stringify(r)}`;
+    }
+
+    case 'list_records':
+    case 'get_record':
+    case 'add_record':
+    case 'update_record':
+    case 'delete_record': {
+      const ds = DATASETS[input.dataset];
+      if (!ds) return `dataset 은 ${DATASET_KEYS.join('/')} 중 하나여야 합니다`;
+      const writing = !['list_records', 'get_record'].includes(name);
+      if (!dsRoleOk(ds, user, writing ? 'write' : 'read')) {
+        return `${ds.label}을(를) ${writing ? '고칠' : '볼'} 권한이 없습니다 (${(writing ? ds.write || ds.read : ds.read).join('·')} 전용)`;
+      }
+      return runRecordTool(name, ds, input, ctx);
     }
 
     default:
