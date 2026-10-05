@@ -12,7 +12,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY  이 키로 조회한다 (RLS 를 닫은 뒤에는 anon 으로는 아무것도 안 보인다)
 //   SUPABASE_KEY     선택. 따로 줄 때만. 둘 다 없으면 앱의 anon 키를 쓴다
 //
-// 삭제 도구(delete_todo, delete_daily_log, delete_facility_goal)는 confirm:true 를 줘야만 지운다. 지운 항목의 원래 값을 결과에 그대로 돌려주어
+// 삭제 도구(delete_todo, delete_daily_log, delete_facility_goal, delete_energy_record)는 confirm:true 를 줘야만 지운다. 지운 항목의 원래 값을 결과에 그대로 돌려주어
 // 실수로 지웠을 때 다시 넣을 수 있게 한다. 부르는 쪽(비서)은 지우기 전에 사용자 확인을 받는다.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -137,12 +137,61 @@ const withAliases = (names) => {
 };
 const inList = (names) => `in.(${names.map(n => `"${n.replace(/"/g, '""')}"`).join(',')})`;
 
+// 자신 + 모든 하위(손자 이하 포함) — 앱의 _getManagedFacilityNames 와 같다.
+// 조직도가 4~5단계라 직계 1단계만 보면 아래가 통째로 빠진다.
 async function managedFacilities(facility) {
-  const [own, child] = await Promise.all([
-    sb(`users?시설명=eq.${q(facility)}&select=시설명`),
-    sb(`users?parent_facility=eq.${q(facility)}&select=시설명`),
-  ]);
-  return [...new Set([...(own || []), ...(child || [])].map(u => u.시설명).filter(Boolean))];
+  const all = (await sb('users?select=시설명,parent_facility')) || [];
+  const out = new Set([facility]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const u of all) {
+      if (u.시설명 && u.parent_facility && out.has(u.parent_facility) && !out.has(u.시설명)) {
+        out.add(u.시설명); grew = true;
+      }
+    }
+  }
+  return [...out].filter(Boolean);
+}
+
+// 에너지 기록을 볼 수 있는 범위 — 앱 _emEnergyQuery 와 같다: admin 전체, facility-admin 관리 시설, user 본인 시설.
+// 조회·수정·삭제가 모두 이 필터를 거치므로 범위 밖 기록은 id를 알아도 건드릴 수 없다.
+async function energyScope(user) {
+  if (user.role === 'admin') return { filter: '', label: '전체 시설' };
+  if (user.role === 'facility-admin') {
+    const names = await managedFacilities(user.시설명);
+    return { filter: `&facility_name=${inList(withAliases(names))}`, label: `${user.시설명} 외 ${names.length - 1}곳` };
+  }
+  return { filter: `&facility_name=${inList(withAliases([user.시설명]))}`, label: user.시설명 };
+}
+
+const ENERGY_TYPES = ['전기', '상하수도', '도시가스', '통신'];
+const MONTH_RE = /^\d{4}-\d{2}$/;
+const ENERGY_UNIT = { 전기: 'kWh', 상하수도: '㎥', 도시가스: '㎥' };
+
+// 옛 이관 자료는 '전기료'처럼 '료'가 붙어 있다
+const energyTypeOf = (raw) => (raw || '기타').replace(/료$/, '');
+const energyTypeFilter = (t) => {
+  const base = energyTypeOf(t);
+  return `&energy_type=in.(${[base, base + '료'].map(v => `"${v}"`).join(',')})`;
+};
+
+function formatEnergyRecord(r) {
+  const type = energyTypeOf(r.energy_type);
+  const unit = ENERGY_UNIT[type] || '';
+  const usage = r.usage_amount === null ? '-' : Number(r.usage_amount).toLocaleString('ko-KR');
+  const cost = r.usage_cost === null ? '-' : Math.round(Number(r.usage_cost)).toLocaleString('ko-KR');
+  const period = r.start_date || r.end_date ? ` · ${r.start_date || '?'}~${r.end_date || '?'}` : '';
+  return `#${r.id} ${r.billing_month || '월 미상'} ${r.facility_name} ${type}${period} · 사용량 ${usage}${unit ? ' ' + unit : ''} · 요금 ${cost}원`;
+}
+
+async function findEnergyRecord(user, id) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return { error: 'id 는 list_energy_records 에 나오는 기록 번호(숫자)여야 합니다' };
+  const scope = await energyScope(user);
+  const rows = await sb(`energy_records?id=eq.${n}${scope.filter}&select=*`);
+  if (!rows || !rows.length) return { error: `#${n} 에너지 기록이 없거나 볼 수 있는 시설 범위 밖입니다` };
+  return { record: rows[0], scope };
 }
 
 /* ── 도구 정의 ───────────────────────────────────────────────── */
@@ -390,6 +439,52 @@ const TOOLS = [
         energyType: { type: 'string', description: '에너지 종류, 생략 시 전체' },
         month: { type: 'string', description: '조회 월 YYYY-MM, 생략 시 전체 기간' },
       },
+    },
+  },
+  {
+    name: 'list_energy_records',
+    description: '에너지 기록을 한 건씩 보여 줍니다(기록 번호 #id 포함). 수정·삭제 전에 이 도구로 대상 기록 번호를 확인하세요. 최근 청구월부터 나옵니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        energyType: { type: 'string', description: '전기/상하수도/도시가스/통신, 생략 시 전체' },
+        month: { type: 'string', description: '청구월 YYYY-MM' },
+        fromMonth: { type: 'string', description: '이 청구월부터 YYYY-MM' },
+        toMonth: { type: 'string', description: '이 청구월까지 YYYY-MM' },
+        facility: { type: 'string', description: '시설명 일부' },
+        limit: { type: 'number', description: '최대 건수, 기본 30 · 최대 100' },
+      },
+    },
+  },
+  {
+    name: 'update_energy_record',
+    description: '에너지 기록 하나를 기록 번호(id)로 찾아 고칩니다. 준 항목만 바뀝니다. 결과에 바뀌기 전 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'list_energy_records 의 기록 번호(#뒤 숫자)' },
+        facilityName: { type: 'string', description: '시설명' },
+        energyType: { type: 'string', enum: ENERGY_TYPES },
+        billingMonth: { type: 'string', description: '청구월 YYYY-MM' },
+        startDate: { type: 'string', description: '사용 시작일 YYYY-MM-DD' },
+        endDate: { type: 'string', description: '사용 종료일 YYYY-MM-DD' },
+        usageAmount: { type: 'number', description: '사용량' },
+        usageCost: { type: 'number', description: '요금(원)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_energy_record',
+    description: '에너지 기록 하나를 기록 번호(id)로 삭제합니다. 되돌리기 어려우므로 사용자 확인을 받은 뒤 confirm:true 로 부르세요. ' +
+      '결과에 지운 기록의 원래 값이 담깁니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'list_energy_records 의 기록 번호(#뒤 숫자)' },
+        confirm: { type: 'boolean', description: '사용자가 삭제를 확인했으면 true' },
+      },
+      required: ['id', 'confirm'],
     },
   },
 ];
@@ -830,30 +925,16 @@ async function runTool(name, input, ctx) {
     }
 
     case 'query_energy': {
-      // 앱과 같은 역할별 범위: admin은 전체, facility-admin은 관리 시설, user는 본인 시설
-      let path = 'energy_records?select=*';
-      let scopeLabel = user.시설명;
-      if (user.role === 'admin') {
-        scopeLabel = '전체 시설';
-      } else if (user.role === 'facility-admin') {
-        const names = await managedFacilities(user.시설명);
-        if (!names.length) return '관리 중인 시설이 없습니다';
-        path += `&facility_name=${inList(withAliases(names))}`;
-        scopeLabel = `${user.시설명} 외 ${names.length - 1}곳`;
-      } else {
-        path += `&facility_name=${inList(withAliases([user.시설명]))}`;
-      }
-      // 옛 이관 자료는 '전기료'처럼 '료'가 붙어 있다
-      if (input.energyType) {
-        const t = input.energyType.replace(/료$/, '');
-        path += `&energy_type=in.(${[t, t + '료'].map(v => `"${v}"`).join(',')})`;
-      }
+      const scope = await energyScope(user);
+      const scopeLabel = scope.label;
+      let path = 'energy_records?select=*' + scope.filter;
+      if (input.energyType) path += energyTypeFilter(input.energyType);
       if (input.month) path += `&billing_month=eq.${q(input.month)}`;
       const rows = (await sb(path)) || [];
       if (!rows.length) return '해당 조건의 에너지 기록이 없습니다';
       const byType = {};
       for (const r of rows) {
-        const k = (r.energy_type || '기타').replace(/료$/, '');
+        const k = energyTypeOf(r.energy_type);
         byType[k] = byType[k] || { usage: 0, cost: 0, n: 0 };
         byType[k].usage += parseFloat(r.usage_amount) || 0;
         byType[k].cost += parseFloat(r.usage_cost) || 0;
@@ -863,6 +944,91 @@ async function runTool(name, input, ctx) {
       return `[${scopeLabel} 에너지 — ${period}]\n` + Object.entries(byType).map(([k, v]) =>
         `• ${k}: 사용량 ${v.usage.toLocaleString('ko-KR')} · 요금 ${Math.round(v.cost).toLocaleString('ko-KR')}원 (${v.n}건)`
       ).join('\n');
+    }
+
+    case 'list_energy_records': {
+      const scope = await energyScope(user);
+      let path = 'energy_records?select=*' + scope.filter;
+      for (const key of ['month', 'fromMonth', 'toMonth']) {
+        if (input[key] && !MONTH_RE.test(input[key])) return `${key} 는 YYYY-MM 형식이어야 합니다`;
+      }
+      if (input.energyType) path += energyTypeFilter(input.energyType);
+      if (input.month) path += `&billing_month=eq.${q(input.month)}`;
+      if (input.fromMonth) path += `&billing_month=gte.${q(input.fromMonth)}`;
+      if (input.toMonth) path += `&billing_month=lte.${q(input.toMonth)}`;
+      if (input.facility) path += `&facility_name=ilike.${q(`*${input.facility.replace(/[*,()]/g, '')}*`)}`;
+      const limit = Math.min(Math.max(Math.floor(Number(input.limit) || 30), 1), 100);
+      path += `&order=billing_month.desc.nullslast,facility_name.asc,id.desc&limit=${limit + 1}`;
+      const rows = (await sb(path)) || [];
+      if (!rows.length) return '해당 조건의 에너지 기록이 없습니다';
+      const more = rows.length > limit;
+      return `[${scope.label} 에너지 기록 ${more ? `${limit}건 이상` : `${rows.length}건`}]\n` +
+        rows.slice(0, limit).map(formatEnergyRecord).join('\n') +
+        (more ? `\n…더 있습니다. 조건을 좁히거나 limit 을 늘리세요` : '');
+    }
+
+    case 'update_energy_record': {
+      const found = await findEnergyRecord(user, input.id);
+      if (found.error) return found.error;
+      const r = found.record;
+      const patch = {};
+      if (input.facilityName !== undefined) {
+        const f = input.facilityName.trim();
+        if (!f) return '시설명은 비울 수 없습니다';
+        // 없는 시설명(오타)이나 범위 밖 시설로 옮기면 그 뒤로는 다시 볼 수도 고칠 수도 없게 된다
+        const names = user.role === 'admin'
+          ? [...new Set(((await sb('users?select=시설명')) || []).map(u => u.시설명).filter(Boolean))]
+          : user.role === 'facility-admin' ? await managedFacilities(user.시설명) : [user.시설명];
+        if (!withAliases(names).includes(f)) {
+          return user.role === 'admin'
+            ? `"${f}" 이라는 시설이 없습니다. 시설명을 정확히 주세요`
+            : `"${f}" 은(는) 관리 범위 밖 시설이라 옮길 수 없습니다`;
+        }
+        patch.facility_name = f;
+      }
+      if (input.energyType !== undefined) {
+        const t = energyTypeOf(input.energyType.trim());
+        if (!ENERGY_TYPES.includes(t)) return `에너지 종류는 ${ENERGY_TYPES.join('/')} 중 하나여야 합니다`;
+        patch.energy_type = t;
+      }
+      if (input.billingMonth !== undefined) {
+        if (!MONTH_RE.test(input.billingMonth)) return 'billingMonth 는 YYYY-MM 형식이어야 합니다';
+        patch.billing_month = input.billingMonth;
+      }
+      for (const [key, col] of [['startDate', 'start_date'], ['endDate', 'end_date']]) {
+        if (input[key] === undefined) continue;
+        if (!DATE_RE.test(input[key])) return `${key} 는 YYYY-MM-DD 형식이어야 합니다`;
+        patch[col] = input[key];
+      }
+      const start = patch.start_date ?? r.start_date, end = patch.end_date ?? r.end_date;
+      if (start && end && start > end) return `사용 기간이 거꾸로입니다 (${start} ~ ${end})`;
+      for (const [key, col] of [['usageAmount', 'usage_amount'], ['usageCost', 'usage_cost']]) {
+        if (input[key] === undefined) continue;
+        const v = fgNum(input[key]);
+        if (v === null || v < 0) return `${key} 는 0 이상의 숫자여야 합니다`;
+        patch[col] = v;
+      }
+      if (!Object.keys(patch).length) return '바꿀 항목이 없습니다';
+      const updated = await sb(`energy_records?id=eq.${r.id}${found.scope.filter}`, {
+        method: 'PATCH', body: JSON.stringify(patch), headers: { Prefer: 'return=representation' },
+      });
+      if (!updated || !updated.length) return `#${r.id} 기록을 고치지 못했습니다 (그 사이 지워졌을 수 있습니다)`;
+      const LABEL = { facility_name: '시설', energy_type: '종류', billing_month: '청구월', start_date: '시작일', end_date: '종료일', usage_amount: '사용량', usage_cost: '요금' };
+      return `에너지 기록을 고쳤습니다\n이전: ${formatEnergyRecord(r)}\n지금: ${formatEnergyRecord(updated[0])}\n` +
+        Object.keys(patch).map(c => `• ${LABEL[c]}: ${r[c] ?? '-'} → ${updated[0][c] ?? '-'}`).join('\n') +
+        `\n[복구용 원래 값] ${JSON.stringify(r)}`;
+    }
+
+    case 'delete_energy_record': {
+      if (input.confirm !== true) return '삭제하려면 사용자 확인을 받은 뒤 confirm:true 로 다시 부르세요';
+      const found = await findEnergyRecord(user, input.id);
+      if (found.error) return found.error;
+      const r = found.record;
+      const deleted = await sb(`energy_records?id=eq.${r.id}${found.scope.filter}`, {
+        method: 'DELETE', headers: { Prefer: 'return=representation' },
+      });
+      if (!deleted || !deleted.length) return `#${r.id} 기록을 지우지 못했습니다 (이미 지워졌을 수 있습니다)`;
+      return `에너지 기록을 삭제했습니다 — ${formatEnergyRecord(r)}\n[복구용 원래 값] ${JSON.stringify(r)}`;
     }
 
     default:
