@@ -413,7 +413,7 @@ function dsShowValue(ds, col, v, full) {
   if (Array.isArray(v) && v.every(x => typeof x !== 'object')) return v.join(', ') || '-';
   if (typeof v === 'object') return JSON.stringify(v);
   if (col === ds.longText && !full) return `(${String(v).length.toLocaleString('ko-KR')}자) ${String(v).slice(0, 60).replace(/\s+/g, ' ')}…`;
-  if (typeof v === 'number') return v.toLocaleString('ko-KR');
+  if (typeof v === 'number' && m?.type === 'number') return v.toLocaleString('ko-KR');   // 연도·별점 같은 정수는 그대로
   return String(v);
 }
 
