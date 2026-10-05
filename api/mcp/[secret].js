@@ -95,13 +95,16 @@ function visibleOnDate(t, date) {
 
 const PRIORITY_LABEL = { high: '높음', mid: '중간', low: '낮음' };
 
+// 할 일 id 는 UUID 라 목록에는 앞 8자리만 보인다. 수정 도구는 이 #id(앞자리)로도 찾는다
+const todoShortId = (t) => String(t.id || '').slice(0, 8);
+
 function formatTodo(t, date) {
   const done = isDoneOnDate(t, date);
   const bits = [t.category || '업무', PRIORITY_LABEL[t.priority] || '중간'];
   if (t.time_range) bits.push(t.time_range);
   if (t.due_date) bits.push(`마감 ${t.due_date}`);
   if (t.is_recurring) bits.push('반복');
-  return `${done ? '[완료]' : '[ ]'} ${t.title} (${bits.join(' · ')})`;
+  return `#${todoShortId(t)} ${done ? '[완료]' : '[ ]'} ${t.title} (${bits.join(' · ')})`;
 }
 
 /* ── 사용자 ──────────────────────────────────────────────────── */
@@ -312,6 +315,7 @@ const DATASETS = {
       account_number: { type: 'text', label: '납부 계좌' },
     },
     show: ['facility_name', 'energy_type', 'customer_number', 'bank_name', 'account_number'], search: ['facility_name', 'customer_number'],
+    mask: ['customer_number', 'account_number'],   // 목록·수정 결과에서는 뒤 4자리만. 전체 값은 get_record 로
   },
   vehicle_info: {
     label: '차량정보', table: 'vehicle_info', scope: 'facility', id: 'int', order: 'facility_name.asc',
@@ -339,6 +343,7 @@ const DATASETS = {
   org_goals: {
     label: '조직목표(미션·비전·전략목표·전략과제)', table: 'org_goals', scope: 'global', id: 'int', order: 'id.asc',
     write: ['admin'], noAdd: true, noDelete: true,   // 앱 CAPS 'goals.org'. 한 줄(id 1)뿐이라 추가·삭제는 막는다
+    confirmUpdate: true,   // 공단 전체에 보이는 내용이라 수정도 미리보기 → confirm:true 로 확정
     cols: {
       mission: { type: 'text', label: '미션' },
       vision: { type: 'text', label: '비전' },
@@ -406,8 +411,16 @@ function dsCoerce(ds, values) {
   return { values: out };
 }
 
+// 계좌·고객번호: 숫자·문자 뒤 4자리만 남기고 가린다
+function maskTail(v) {
+  const s = String(v);
+  let keep = 4;
+  return s.split('').reverse().map(ch => (/[0-9A-Za-z]/.test(ch) ? (keep-- > 0 ? ch : '*') : ch)).reverse().join('');
+}
+
 function dsShowValue(ds, col, v, full) {
   if (v === null || v === undefined || v === '') return '-';
+  if (!full && ds.mask?.includes(col)) return maskTail(v);
   const m = ds.cols[col];
   if (m?.type === 'jsonarr') { try { const a = JSON.parse(v); return Array.isArray(a) ? a.join(', ') || '-' : String(v); } catch { return String(v); } }
   if (Array.isArray(v) && v.every(x => typeof x !== 'object')) return v.join(', ') || '-';
@@ -488,34 +501,36 @@ const TOOLS = [
   },
   {
     name: 'complete_todo',
-    description: '키워드로 할 일을 찾아 완료 처리합니다. 후보가 여럿이면 목록만 돌려주고 아무것도 바꾸지 않습니다.',
+    description: '#id 또는 키워드로 할 일을 찾아 완료 처리합니다. 후보가 여럿이면 목록만 돌려주고 아무것도 바꾸지 않습니다.',
     inputSchema: {
       type: 'object',
       properties: {
+        id: { type: 'string', description: 'list_todos 의 #id (주면 keyword 대신 이것으로 찾음)' },
         keyword: { type: 'string', description: '할 일 제목 키워드' },
         date: { type: 'string', description: '완료일 YYYY-MM-DD, 생략 시 오늘' },
       },
-      required: ['keyword'],
     },
   },
   {
     name: 'update_todo_due',
-    description: '키워드로 할 일을 찾아 마감일을 바꿉니다(연기·당기기). 후보가 여럿이면 목록만 돌려줍니다.',
+    description: '#id 또는 키워드로 할 일을 찾아 마감일을 바꿉니다(연기·당기기). 후보가 여럿이면 목록만 돌려줍니다.',
     inputSchema: {
       type: 'object',
       properties: {
+        id: { type: 'string', description: 'list_todos 의 #id (주면 keyword 대신 이것으로 찾음)' },
         keyword: { type: 'string', description: '할 일 제목 키워드' },
         dueDate: { type: 'string', description: '새 마감일 YYYY-MM-DD' },
       },
-      required: ['keyword', 'dueDate'],
+      required: ['dueDate'],
     },
   },
   {
     name: 'update_todo',
-    description: '키워드로 할 일을 찾아 내용을 고칩니다. 준 항목만 바뀝니다. 후보가 여럿이면 목록만 돌려주고 아무것도 바꾸지 않습니다.',
+    description: '#id 또는 키워드로 할 일을 찾아 내용을 고칩니다. 준 항목만 바뀝니다. 후보가 여럿이면 목록만 돌려주고 아무것도 바꾸지 않습니다.',
     inputSchema: {
       type: 'object',
       properties: {
+        id: { type: 'string', description: 'list_todos 의 #id (주면 keyword 대신 이것으로 찾음)' },
         keyword: { type: 'string', description: '고칠 할 일 제목 키워드' },
         title: { type: 'string', description: '새 제목' },
         category: { type: 'string', description: '업무/개인/기타' },
@@ -527,20 +542,20 @@ const TOOLS = [
         memo: { type: 'string', description: '새 메모 (기존 메모를 대체)' },
         status: { type: 'string', enum: ['todo', 'done'], description: 'todo 로 주면 완료 취소' },
       },
-      required: ['keyword'],
     },
   },
   {
     name: 'delete_todo',
-    description: '키워드로 할 일을 찾아 삭제합니다. 되돌리기 어려우므로 사용자 확인을 받은 뒤 confirm:true 로 부르세요. ' +
+    description: '#id 또는 키워드로 할 일을 찾아 삭제합니다. 되돌리기 어려우므로 사용자 확인을 받은 뒤 confirm:true 로 부르세요. ' +
       '후보가 여럿이면 목록만 돌려줍니다. 결과에 지운 항목의 원래 값이 담깁니다.',
     inputSchema: {
       type: 'object',
       properties: {
+        id: { type: 'string', description: 'list_todos 의 #id (주면 keyword 대신 이것으로 찾음)' },
         keyword: { type: 'string', description: '지울 할 일 제목 키워드' },
         confirm: { type: 'boolean', description: '사용자가 삭제를 확인했으면 true' },
       },
-      required: ['keyword', 'confirm'],
+      required: ['confirm'],
     },
   },
   {
@@ -640,8 +655,8 @@ const TOOLS = [
         goal: { type: 'string', description: '시설목표 제목 키워드' },
         kpi: { type: 'string', description: 'KPI 이름 키워드. 목표에 KPI가 하나뿐이면 생략 가능' },
         name: { type: 'string', description: 'KPI 새 이름' },
-        target: { type: ['number', 'string'], description: '새 목표값, 빈 문자열이면 지움' },
-        actual: { type: ['number', 'string'], description: '새 실적, 빈 문자열이면 지움' },
+        target: { type: ['number', 'null'], description: '새 목표값 (숫자만, 단위는 unit 에). null 이면 지움' },
+        actual: { type: ['number', 'null'], description: '새 실적 (숫자만, 단위는 unit 에). null 이면 지움' },
         unit: { type: 'string', description: '단위' },
         dir: { type: 'string', enum: ['up', 'down'], description: 'up=높을수록 좋음, down=낮을수록 좋음' },
         add: { type: 'boolean', description: 'true면 kpi 이름으로 새 KPI를 추가' },
@@ -776,13 +791,15 @@ const TOOLS = [
   },
   {
     name: 'update_record',
-    description: 'list_records 의 #id 로 한 건을 찾아 values 에 준 항목만 고칩니다. 결과에 바뀌기 전 값이 담깁니다.',
+    description: 'list_records 의 #id 로 한 건을 찾아 values 에 준 항목만 고칩니다. 결과에 바뀌기 전 값이 담깁니다. ' +
+      'org_goals(조직목표)는 공단 전체에 보이므로 먼저 미리보기만 돌려주고, 사용자 확인을 받은 뒤 같은 값과 confirm:true 로 다시 불러야 저장됩니다.',
     inputSchema: {
       type: 'object',
       properties: {
         dataset: { type: 'string', enum: DATASET_KEYS },
         id: { type: ['string', 'number'] },
         values: { type: 'object', description: '바꿀 항목과 새 값. 빈 문자열이면 지움' },
+        confirm: { type: 'boolean', description: 'org_goals 수정을 사용자가 확인했으면 true' },
       },
       required: ['dataset', 'id', 'values'],
     },
@@ -804,16 +821,23 @@ const TOOLS = [
 
 /* ── 도구 실행 ───────────────────────────────────────────────── */
 
-// 키워드로 할 일 찾기 — 정확히 하나여야 수정한다.
-async function findTodoByKeyword(user, keyword) {
+// #id(앞자리) 또는 키워드로 할 일 찾기 — 정확히 하나여야 수정한다.
+async function findTodoByKeyword(user, keyword, id) {
   const rows = await sb(`todos?owner_id=eq.${q(user.id)}&select=*`);
+  if (id !== undefined && id !== null && id !== '') {
+    const sid = String(id).replace(/^#/, '').toLowerCase();
+    const hits = sid.length >= 4 ? (rows || []).filter(t => String(t.id).toLowerCase().startsWith(sid)) : [];
+    if (hits.length !== 1) return { error: `할 일 #${sid} 을(를) ${hits.length ? '하나로 고를 수 없습니다' : '찾을 수 없습니다'}. list_todos 로 #id 를 확인하세요` };
+    return { todo: hits[0] };
+  }
+  if (!keyword) return { error: 'id(list_todos 의 #id) 또는 keyword 가 필요합니다' };
   const kw = keyword.toLowerCase();
   const hits = (rows || []).filter(t => (t.title || '').toLowerCase().includes(kw));
   if (!hits.length) return { error: `"${keyword}"에 해당하는 할 일이 없습니다` };
   if (hits.length > 1) {
     return {
       error: `"${keyword}"에 ${hits.length}건이 걸립니다. 더 구체적인 키워드로 다시 시도하세요.\n` +
-        hits.map(t => `• ${t.title}`).join('\n'),
+        hits.map(t => `• #${todoShortId(t)} ${t.title}`).join('\n') + '\n#id 로 다시 부르면 바로 고릅니다',
     };
   }
   return { todo: hits[0] };
@@ -907,6 +931,15 @@ function findKpiIndex(kpis, keyword) {
   return { idx: hits[0][1] };
 }
 
+// KPI 목표·실적은 숫자만 받는다 ("1,500"·"1500천원" 같은 문자열은 단위 혼동이 생겨 거절)
+function kpiNumberError(key, v, allowEmpty) {
+  if (allowEmpty && (v === null || v === '')) return null;
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    return `${key} 는 숫자만 넣습니다 (받은 값: ${JSON.stringify(v)}). 쉼표·단위 없이 숫자로 주고 단위는 unit 에 적으세요`;
+  }
+  return null;
+}
+
 function cleanKpi(raw) {
   const k = fgKpi(raw);
   return { ...k, name: k.name.trim(), unit: (k.unit || '').trim() };
@@ -974,6 +1007,11 @@ async function runRecordTool(name, ds, input, ctx) {
       const facErr = await dsCheckFacility(ds, user, patch.facility_name);
       if (facErr) return facErr;
       const before = found.row;
+      if (ds.confirmUpdate && input.confirm !== true) {
+        return `[미리보기 — 아직 저장하지 않았습니다] ${ds.label} #${before.id}\n` +
+          Object.keys(patch).map(k => `• ${ds.cols[k].label}: ${dsShowValue(ds, k, before[k], true)} → ${dsShowValue(ds, k, patch[k], true)}`).join('\n') +
+          '\n공단 전체에 보이는 내용입니다. 사용자 확인을 받은 뒤 같은 values 와 confirm:true 로 다시 부르세요';
+      }
       const body = ds.touch ? { ...patch, updated_at: new Date().toISOString() } : patch;
       const updated = await sb(`${ds.table}?id=eq.${q(String(before.id))}${found.scope}`, {
         method: 'PATCH', body: JSON.stringify(body), headers: { Prefer: 'return=representation' },
@@ -1052,7 +1090,7 @@ async function runTool(name, input, ctx) {
     }
 
     case 'complete_todo': {
-      const found = await findTodoByKeyword(user, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword, input.id);
       if (found.error) return found.error;
       const t = found.todo;
       const date = input.date || todayKST();
@@ -1065,7 +1103,7 @@ async function runTool(name, input, ctx) {
 
     case 'update_todo_due': {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate || '')) return '마감일은 YYYY-MM-DD 형식이어야 합니다';
-      const found = await findTodoByKeyword(user, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword, input.id);
       if (found.error) return found.error;
       const t = found.todo;
       await sb(`todos?id=eq.${q(t.id)}`, { method: 'PATCH', body: JSON.stringify({ due_date: input.dueDate }) });
@@ -1073,7 +1111,7 @@ async function runTool(name, input, ctx) {
     }
 
     case 'update_todo': {
-      const found = await findTodoByKeyword(user, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword, input.id);
       if (found.error) return found.error;
       const t = found.todo;
       const patch = {};
@@ -1106,7 +1144,7 @@ async function runTool(name, input, ctx) {
 
     case 'delete_todo': {
       if (input.confirm !== true) return '삭제하려면 사용자 확인을 받은 뒤 confirm:true 로 다시 부르세요';
-      const found = await findTodoByKeyword(user, input.keyword);
+      const found = await findTodoByKeyword(user, input.keyword, input.id);
       if (found.error) return found.error;
       const t = found.todo;
       await sb(`todos?id=eq.${q(t.id)}&owner_id=eq.${q(user.id)}`, { method: 'DELETE' });
@@ -1200,6 +1238,12 @@ async function runTool(name, input, ctx) {
       if (!canEditFacilityGoals(user)) return '시설목표 관리 권한(admin·facility-admin)이 없습니다';
       const goal = (input.goal || '').trim();
       if (!goal) return '시설목표 제목이 필요합니다';
+      for (const [i, raw] of (Array.isArray(input.kpis) ? input.kpis : []).entries()) {
+        for (const key of ['target', 'actual']) {
+          const err = raw && typeof raw === 'object' && raw[key] !== undefined && kpiNumberError(`kpis[${i}].${key}`, raw[key], true);
+          if (err) return err;
+        }
+      }
       const kpis = (Array.isArray(input.kpis) ? input.kpis : []).map(cleanKpi).filter(k => k.name);
       const row = {
         id: crypto.randomUUID(),
@@ -1243,9 +1287,9 @@ async function runTool(name, input, ctx) {
       const before = fgKpiText(k);
       for (const key of ['target', 'actual']) {
         if (input[key] === undefined) continue;
-        const v = fgNum(input[key]);
-        if (v === null && input[key] !== '') return `${key} 는 숫자여야 합니다`;
-        k[key] = v;
+        const err = kpiNumberError(key, input[key], true);
+        if (err) return err;
+        k[key] = input[key] === null || input[key] === '' ? null : input[key];
       }
       if (input.name !== undefined && input.name.trim()) k.name = input.name.trim();
       if (input.unit !== undefined) k.unit = input.unit.trim();
