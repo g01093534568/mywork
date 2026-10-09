@@ -6153,7 +6153,7 @@ function _pfDraw(kind){
     }).join('');
     return `<tr><td class="pf-fac${f.team?' pf-team':''}" style="padding-left:${8+f.depth*14}px" title="${esc(f.name)}">${esc(f.name)}</td>${cells}${monthly?`<td class="pf-sum" id="pf-${kind}-r${i}"></td>`:''}</tr>`;
   }).join('');
-  const foot=`<tr class="pf-total"><td class="pf-fac">합계</td>${months.map(m=>`<td class="pf-sum" id="pf-${kind}-c${m}"></td>`).join('')}${monthly?`<td class="pf-sum" id="pf-${kind}-all"></td>`:''}</tr>`;
+  const foot=`<tr class="pf-total"><td class="pf-fac" title="맨 위 단계(depth 0) 행만 더한 합계">합계</td>${months.map(m=>`<td class="pf-sum" id="pf-${kind}-c${m}"></td>`).join('')}${monthly?`<td class="pf-sum" id="pf-${kind}-all"></td>`:''}</tr>`;
   cont.innerHTML=`
     <div class="pf-bar">
       <select onchange="_pfSetYear('${kind}',this)">${_pfYears().map(v=>`<option value="${v}"${v===y?' selected':''}>${v}년</option>`).join('')}</select>
@@ -6175,9 +6175,13 @@ function _pfSums(kind){
   const st=_pf[kind], months=_pfMonths(kind,st.year);
   const ins=[...document.querySelectorAll(`#pf-${kind} .pf-in`)];
   const col={}, row={}; let all=0;
+  // 월별 합계·전체 합계는 맨 위 단계 행(depth 0)만 더한다 — 하위 시설 금액은 팀 행에 이미 들어 있어 전부 더하면 겹친다.
+  // 2025년까지 운영한 복지관도 depth 0 이라 그해까지 들어가고, 2026년부터는 표에서 빠져 합계에서도 빠진다.
+  const inTotal=f=>f && f.depth===0;
   ins.forEach(el=>{
     const c=_pfCell(kind, el.value), n=(c&&!c.bad&&c.amount)||0, i=el.dataset.i, m=el.dataset.m;
-    col[m]=(col[m]||0)+n; row[i]=(row[i]||0)+n; all+=n;
+    row[i]=(row[i]||0)+n;
+    if(inTotal(st.view[+i])){ col[m]=(col[m]||0)+n; all+=n; }
   });
   months.forEach(m=>{ const c=document.getElementById(`pf-${kind}-c${m}`); if(c) c.textContent=_pfFmt(col[m]||0); });
   st.view.forEach((f,i)=>{ const r=document.getElementById(`pf-${kind}-r${i}`); if(r) r.textContent=_pfFmt(row[i]||0); });
