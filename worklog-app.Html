@@ -221,7 +221,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 /* ---- DAILY ---- */
 .daily-date-bar{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap;}
 .daily-date-bar input[type="date"]{width:auto;flex:none;}
-.daily-date-bar #ai-report-btn{margin-left:auto;}
 .daily-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:20px;}
 .daily-todo-list{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
 .daily-todo-list h4{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--t2);}
@@ -273,10 +272,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .admin-subtab.active{color:var(--accent);border-bottom-color:var(--accent);}
 .admin-panel{display:none;}
 .admin-panel.active{display:block;}
-#admin-knowledge .facility-table{width:100%;border-collapse:collapse;font-size:13px;}
-#admin-knowledge .facility-table th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--t2);font-weight:600;font-size:12px;}
-#admin-knowledge .facility-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--t1);vertical-align:middle;}
-#admin-knowledge .facility-table tr:hover td{background:rgba(255,255,255,0.02);}
 .org-form-section{margin-bottom:24px;}
 .org-form-section h4{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
 .strategy-editor{display:flex;flex-direction:column;gap:8px;}
@@ -854,44 +849,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 @media(max-width:700px){.gmail-sidebar{width:52px;}.gmail-label-btn span,.gmail-compose-btn span{display:none;}.gmail-compose-btn{padding:10px;border-radius:50%;}.gmail-thread-snippet{display:none;}}
 /* ---- 홈 브리핑 배너 ---- */
 #home-briefing{display:none;align-items:center;gap:10px;background:linear-gradient(90deg,rgba(232,160,32,0.12),rgba(232,160,32,0.04));border:1px solid rgba(232,160,32,0.25);border-radius:var(--r);padding:12px 16px;margin-bottom:22px;cursor:pointer;transition:var(--tr);}
-#home-briefing:hover{border-color:var(--accent);}
 #home-briefing .hb-icon{font-size:17px;flex-shrink:0;}
 #home-briefing .hb-text{flex:1;font-size:13.5px;color:var(--t1);font-weight:500;}
-#home-briefing .hb-cta{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;}
-@media(max-width:600px){#home-briefing .hb-cta{display:none;}}
-/* ---- AI 어시스턴트 (음성+텍스트 통합) ---- */
-@keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(224,85,85,0.4);}70%{box-shadow:0 0 0 10px rgba(224,85,85,0);}100%{box-shadow:0 0 0 0 rgba(224,85,85,0);}}
-/* 로그인 화면에는 어시스턴트가 보이지 않는다 — 로그인 후 .on 이 붙는다 */
-#ai-chat-btn{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px rgba(232,160,32,0.35);z-index:9000;transition:all 0.2s;overflow:hidden;padding:0;}
-#ai-chat-btn.on{display:flex;}
-/* 아바타가 원을 가득 채우고, 테두리 링으로 버튼임을 남긴다 */
-#ai-chat-btn img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block;}
-#ai-chat-btn{box-shadow:0 4px 20px rgba(232,160,32,0.35),inset 0 0 0 2px var(--accent);}
-.ai-avatar{width:1.35em;height:1.35em;border-radius:50%;vertical-align:-0.3em;object-fit:cover;object-position:50% 40%;}
-#ai-chat-btn:hover{transform:scale(1.08);}
-#ai-chat-panel{position:fixed;bottom:28px;right:28px;width:380px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 56px);background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);z-index:9002;display:none;flex-direction:column;box-shadow:var(--shadow);overflow:hidden;animation:slideUp 0.2s ease;}
-#ai-chat-panel.open{display:flex;}
-.ai-chat-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3);}
-.ai-chat-head .title{font-size:14px;font-weight:700;}
-.ai-chat-head .ai-prov{flex:1;font-size:11px;color:var(--t2);opacity:.75;letter-spacing:.02em;}
-.ai-chat-head button{background:transparent;color:var(--t2);font-size:15px;padding:4px 8px;border-radius:6px;}
-.ai-chat-head button:hover{color:var(--t1);background:var(--card);}
-#ai-chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
-.ai-msg{max-width:82%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
-.ai-msg.user{align-self:flex-end;background:var(--accent);color:#1a1000;border-bottom-right-radius:4px;}
-.ai-msg.bot{align-self:flex-start;background:var(--card2);color:var(--t1);border-bottom-left-radius:4px;}
-.ai-msg.bot.thinking{color:var(--t2);font-style:italic;}
-.ai-chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);align-items:center;}
-.ai-chat-input input{flex:1;font-size:15px;}
-.ai-chat-input button{background:var(--accent);color:#1a1000;font-weight:700;padding:0 16px;border-radius:var(--r2);font-size:14px;}
-.ai-chat-input button:disabled{opacity:0.5;cursor:default;}
-#voice-mic-btn{flex:0 0 auto;width:42px;height:38px;padding:0;background:var(--card2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;}
-#voice-mic-btn:hover{border-color:var(--accent);}
-#voice-mic-btn.listening{background:var(--red);border-color:var(--red);color:#fff;animation:micPulse 1.2s infinite;}
-#jarvis-btn{flex:0 0 auto;width:42px;height:38px;padding:0;background:var(--card2);border:1px solid var(--border);color:var(--t1);border-radius:var(--r2);font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;}
-#jarvis-btn:hover{border-color:var(--accent);}
-#jarvis-btn.on{background:var(--accent);border-color:var(--accent);color:#1a1000;animation:micPulse 1.6s infinite;}
-@media(max-width:600px){#ai-chat-panel{right:0;bottom:0;left:0;width:100%;max-width:100%;height:80vh;border-radius:var(--r) var(--r) 0 0;padding-bottom:env(safe-area-inset-bottom);}}
 /* ---- BOOKS ---- */
 .book-filter-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--t2);background:transparent;cursor:pointer;transition:var(--tr);}
 .book-filter-btn.active{background:var(--accent);color:#1a1000;}
@@ -1407,8 +1366,8 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <p id="home-subtitle">오늘의 목표를 확인하고 성과를 향해 나아가세요</p>
       </div>
 
-      <div id="home-briefing" onclick="toggleAIChat()" title="AI에게 더 물어보기">
-        <span class="hb-icon">🔔</span><span class="hb-text"></span><span class="hb-cta">AI에게 묻기 →</span>
+      <div id="home-briefing">
+        <span class="hb-icon">🔔</span><span class="hb-text"></span>
       </div>
 
       <div class="personal-tabs" style="margin-bottom:18px">
@@ -1586,7 +1545,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         <button class="btn btn-secondary btn-sm" onclick="changeDate(1)">다음 ▶</button>
         <input type="date" id="daily-date" onchange="renderDailyPage()" />
         <span id="daily-day-label" style="font-size:14px;color:var(--t2);"></span>
-        <button class="btn btn-secondary btn-sm" id="ai-report-btn" onclick="generateAIReport()" style="margin-left:auto">🤖 AI 리포트</button>
       </div>
       <div class="daily-grid">
         <div class="daily-todo-list">
@@ -1603,12 +1561,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           </h4>
           <div id="daily-activities-content"></div>
         </div>
-      </div>
-
-      <!-- AI 성찰 리포트 -->
-      <div id="ai-report-wrap" style="margin-top:20px;display:none;">
-        <div class="section-title">🤖 AI 업무 성찰 리포트</div>
-        <div id="ai-report-box" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;font-size:14px;color:var(--t1);line-height:1.9;white-space:pre-wrap;"></div>
       </div>
 
       <!-- 구글 캘린더 -->
@@ -2020,14 +1972,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
             캘린더 일정 알림은 구글 연동이 살아 있고 앱이 열려 있을 때만 동작합니다.
           </div>
         </div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:480px;margin-top:16px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;"><img class="ai-avatar" src="/assistant.png" alt="" /> AI 어시스턴트</div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px;">
-            <button id="tts-natural-btn" class="btn btn-sm btn-secondary" onclick="setNaturalTTS(!naturalTTSOn())">🔈 기본 음성 사용 중</button>
-          </div>
-          <div id="tts-natural-desc" style="font-size:11px;color:var(--t3);margin-bottom:12px;"></div>
-          <div style="font-size:13px;color:var(--t2);">AI 어시스턴트·성찰 리포트는 서버에 안전하게 저장된 공용 키로 <b>바로 사용 가능</b>합니다. 별도 설정이 필요 없습니다.</div>
-        </div>
       </div>
       <!-- Goals Tab -->
       <div id="admin-goals" class="admin-panel active">
@@ -2247,48 +2191,6 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
         </div>
       </div>
 
-      <!-- 📚 AI 지식자료 Tab -->
-      <div id="admin-knowledge" class="admin-panel">
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:640px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">📚 AI 지식자료 업로드</div>
-          <div style="font-size:13px;color:var(--t2);margin-bottom:20px;">여기 올린 자료는 모든 사용자가 우측 하단 <b><img class="ai-avatar" src="/assistant.png" alt="" /> AI 어시스턴트</b>에게 질문할 때 근거로 사용됩니다. (PDF · txt · md · 웹 URL · 텍스트)</div>
-          <div class="form-group">
-            <label>유형</label>
-            <select id="ks-type" onchange="ksToggleType(this.value)">
-              <option value="file">📎 파일 (PDF / txt / md)</option>
-              <option value="url">🔗 웹페이지 URL</option>
-              <option value="text">✍️ 텍스트 붙여넣기</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>제목 <span style="text-transform:none;color:var(--t3);">(비우면 자동)</span></label>
-            <input type="text" id="ks-title" placeholder="자료 제목" />
-          </div>
-          <div class="form-group" id="ks-file-group">
-            <label>파일 선택</label>
-            <input type="file" id="ks-file" accept=".pdf,.txt,.md,.markdown,text/plain" onchange="ksOnFileChange(this)" />
-            <div id="ks-file-status" style="font-size:12px;color:var(--t3);margin-top:6px;"></div>
-          </div>
-          <div class="form-group" id="ks-url-group" style="display:none;">
-            <label>URL</label>
-            <input type="url" id="ks-url" placeholder="https://..." />
-          </div>
-          <div class="form-group" id="ks-text-group" style="display:none;">
-            <label>텍스트</label>
-            <textarea id="ks-text" rows="6" placeholder="여기에 텍스트를 붙여넣으세요" style="resize:vertical;"></textarea>
-          </div>
-          <button class="btn btn-primary" id="ks-save-btn" onclick="ksSaveSource()">자료 추가</button>
-        </div>
-        <div class="admin-section" style="margin-top:32px;">
-          <h3>등록된 지식자료 <span id="ks-count" style="font-weight:500;color:var(--t3);font-size:12px;"></span></h3>
-          <table class="facility-table">
-            <thead>
-              <tr><th>제목</th><th style="width:80px;">유형</th><th style="width:90px;">분량</th><th style="width:120px;">등록일</th><th style="width:70px;">작업</th></tr>
-            </thead>
-            <tbody id="ks-list-body"></tbody>
-          </table>
-        </div>
-      </div>
     </div>
 
     <!-- ── GMAIL PAGE ── -->
@@ -3584,7 +3486,6 @@ const CAPS = {
   'hr.manage':        { label:'인사정보 관리',      roles:['admin'] },
   'perm.view':        { label:'권한 현황 보기',      roles:['admin'] },
   'energy.manage':    { label:'에너지·차량 관리',   roles:['admin','facility-admin'] },
-  'knowledge.manage': { label:'AI 지식자료 관리',   roles:['admin','facility-admin'] },
   'google.connect':   { label:'Google 계정 연동',   roles:['admin','facility-admin','user'] },
   'exercise.view':    { label:'개인 운동 기록',      roles:['admin'] },
 };
@@ -4026,10 +3927,6 @@ const DB = {
   // ── 영어공부 단어 학습 진행 (사원별 1행, data: { [dayIdx]: [학습한 단어 인덱스] }) ──
   async getVocabProgress(uid){ const k=`vocab:${_ownerId()}`; if(_C[k]) return _C[k]; const {data,error}=await SB.from('vocab_progress').select('data').eq('owner_id',_ownerId()).maybeSingle(); if(error){console.error('[vocab]',error.message);return _cs(k,{});} return _cs(k,(data&&data.data)||{}); },
   async saveVocabProgress(uid,map){ const {error}=await SB.from('vocab_progress').upsert({owner_id:_ownerId(),사원번호:uid,data:map,updated_at:new Date().toISOString()},{onConflict:'owner_id'}); if(error)throw error; _cd(`vocab:${_ownerId()}`); },
-  // ── AI 지식자료 (전체 공용) ──
-  async getKnowledge(){ const k='knowledge:all'; if(_cg(k)) return _cg(k); const {data,error}=await SB.from('knowledge_sources').select('*').order('created_at',{ascending:true}); if(error){console.error(error);return[];} return _cs(k,data||[]); },
-  async addKnowledge(uid,src){ const obj={title:src.title,src_type:src.src_type||'file',content:src.content||'',uploaded_by:uid,created_at:new Date().toISOString()}; const {error}=await SB.from('knowledge_sources').insert(obj); if(error)throw error; _cd('knowledge:all'); },
-  async deleteKnowledge(id){ const {error}=await SB.from('knowledge_sources').delete().eq('id',id); if(error)throw error; _cd('knowledge:all'); },
 };
 
 // ═══════════════════════════════════════════════
@@ -4086,10 +3983,6 @@ function startRealtimeSync() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises', filter: `owner_id=eq.${uid}` }, () => {
       _cd(`ex:${_ownerId()}:golf`, `ex:${_ownerId()}:running`, `ex:${_ownerId()}:running_race`);
       if (currentPage === 'personal' && document.getElementById('personal-exercise')?.classList.contains('active')) _rtDebounce(renderExerciseTab);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'knowledge_sources' }, () => {
-      _cd('knowledge:all'); // 전체 공용 — 관리자 업로드 시 즉시 반영
-      if (document.getElementById('ks-list-body')) _rtDebounce(ksRenderList);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'annual_goals', filter: `owner_id=eq.${uid}` }, () => {
       _cd(`ag:${_ownerId()}`);
@@ -4184,10 +4077,6 @@ function stopRealtimeSync() {
   _vocabMap = null; // 계정 전환 시 이전 사용자 단어진행 캐시 제거
 }
 let currentTodoTab = '업무';
-// AI 어시스턴트 사용 불가 표시 — enterApp()이 세션 복원 IIFE에서 스크립트 파싱 중에
-// 불리므로, 그 IIFE보다 뒤에 let 으로 두면 TDZ 로 enterApp 이 통째로 죽는다.
-// (실제로 그 바람에 새로고침 시 인사배치 탭이 안 보였다.)
-let _aiUnavailable=false;
 // 세션별 마지막 하위 탭 — 메모리에만 보관(로그인/새로고침 시 초기화).
 // 로그인 직후엔 각 세션이 기본(첫) 화면, 같은 로그인 중 세션 복귀 시엔 마지막 화면 복원.
 let _sessionSubTab = {};
@@ -4266,8 +4155,6 @@ async function enterApp(){
   updateGmailConnectionUI(false,'');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
-  document.getElementById('ai-chat-btn')?.classList.add('on');
-  _hideAIIfUnavailable();
   document.getElementById('user-name-display').textContent = currentUser.시설명;
   document.getElementById('user-id-display').textContent = currentUser.사원번호;
   document.getElementById('user-avatar').textContent = currentUser.시설명[0]||'?';
@@ -4307,7 +4194,7 @@ async function enterApp(){
   // 이미 알림을 켜둔 사용자는 로그인하면 바로 감시를 재개한다.
   // 알림 모듈의 변수는 이 파일 아래쪽에 선언돼 있다 — 스크립트가 끝난 뒤에 부른다
   // (예전에 같은 이유로 홈 화면이 TDZ 로 죽은 적이 있다).
-  setTimeout(() => { startNotifyWatch(); updateNotifyUI(); updateTTSUI(); prewarmTTS(); }, 0);
+  setTimeout(() => { startNotifyWatch(); updateNotifyUI(); }, 0);
 
   // localStorage → Supabase 1회 자동 이전 (백그라운드 — navigate 블로킹 방지)
   migrateLocalStorageToSupabase();
@@ -4319,9 +4206,6 @@ async function enterApp(){
   _sessionSubTab = {};
   currentTodoTab = '업무';
   navigate('home');
-  // 🦾 자비스 — 세션 복원이 스크립트 파싱 중 enterApp를 호출하므로,
-  // 하단에 let으로 선언된 _jarvis* 변수의 TDZ를 피해 setTimeout으로 지연 시작
-  setTimeout(()=>{ try{ initJarvis(); }catch(e){ console.error('[Jarvis init]',e); } },0);
 }
 
 async function migrateLocalStorageToSupabase(){
@@ -4359,7 +4243,6 @@ async function migrateLocalStorageToSupabase(){
 }
 
 function doLogout(){
-  stopJarvis(false);
   stopGcalAutoRefresh();
   stopRealtimeSync();
   DB.clearCache();
@@ -4376,8 +4259,6 @@ function doLogout(){
   currentUser=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
-  document.getElementById('ai-chat-btn')?.classList.remove('on');
-  document.getElementById('ai-chat-panel')?.classList.remove('open');
   document.getElementById('l-pw').value='';
 }
 
@@ -4472,8 +4353,7 @@ async function refreshCurrentPage(){
   const atTop=()=> (window.scrollY||document.documentElement.scrollTop||0)<=0;
   const blocked=()=> document.getElementById('app-screen').style.display==='none'
     || document.querySelector('.modal-overlay.active')
-    || document.querySelector('.sidebar.open')
-    || document.getElementById('ai-chat-panel')?.style.display==='flex';
+    || document.querySelector('.sidebar.open');
   const settle=(y,op)=>{ ind.style.transition='transform .3s ease, opacity .3s ease'; ind.style.transform=`translateX(-50%) translateY(${y}px)`; ind.style.opacity=String(op); };
   window.addEventListener('touchstart',e=>{
     if(refreshing||blocked()||!atTop()){ pulling=false; return; }
@@ -6192,8 +6072,7 @@ async function renderHome(){
   const painted = renderOrgGoalsFromCache();
   if(!painted) paintOrgGoals('<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>');
 
-  // AI 브리핑은 Gemini 를 부른다 — 느리고 실패하기도 한다.
-  // 목표체계를 그린 다음에 시작해 첫 화면을 붙잡지 않게 한다.
+  // 브리핑은 할 일·캘린더를 따로 조회한다 — 목표체계를 그린 다음에 시작해 첫 화면을 붙잡지 않게 한다.
   setTimeout(showHomeBriefing, 0);
 
   // 캐시 초기화 → Supabase에서 fresh 데이터 강제 re-fetch
@@ -11222,10 +11101,9 @@ const ADMIN_NAV=[
     {id:'hr',        label:'인사관리 data',  cap:'hr.manage'},
     {id:'perm',      label:'권한 관리',      cap:'perm.view'}]},
   {id:'energy',      label:'⚡ 에너지 및 차량', cap:'energy.manage'},
-  {id:'knowledge',   label:'📚 AI 지식자료',  cap:'knowledge.manage'},
   {id:'google',      label:'🔗 Google 계정',  cap:'google.connect'},
 ];
-const ADMIN_PANELS=['google','goals','facility','org','users','hr','perm','energy','knowledge'];
+const ADMIN_PANELS=['google','goals','facility','org','users','hr','perm','energy'];
 
 function _navOK(item){ return !item.cap || can(item.cap); }
 // 묶음은 그 안에 볼 수 있는 화면이 하나라도 있을 때만 보인다
@@ -11263,7 +11141,7 @@ async function switchAdminTab(tab){
     if(el) el.classList.toggle('active',t===tab);
   });
 
-  if(tab==='google'){ updateNotifyUI(); updateTTSUI(); }
+  if(tab==='google') updateNotifyUI();
   if(tab==='goals') await loadAdminGoalsForm();
   if(tab==='facility') await renderAdminFacilityGoals();
   if(tab==='org') await renderAdminUsers();
@@ -11271,7 +11149,6 @@ async function switchAdminTab(tab){
   if(tab==='hr') await renderHrPage();
   if(tab==='perm') renderPermMatrix();
   if(tab==='energy'){ loadFacilities(); loadEnergyInfos(); loadVehicleInfos(); }
-  if(tab==='knowledge') await ksRenderList();
 }
 
 // ═══════════════════════════════════════════════
@@ -12150,8 +12027,9 @@ async function addGcalEvent() {
     const [ey, em] = startDate.split('-').map(Number);
     gcalViewYear = ey; gcalViewMonth = em - 1;
     renderCustomCalendar();
-    // '업무' 캘린더에 넣은 일정은 할 일로도 챙겨야 하는 경우가 많다 — 물어보고 넣는다
-    if (/업무/.test(calName)) showGcalTodoPrompt(title, startDate, endDate, startTime, effEndTime, created.id, calId);
+    // '업무'·'개인' 캘린더에 넣은 일정은 할 일로도 챙겨야 하는 경우가 많다 — 물어보고 같은 분류로 넣는다
+    const todoCat = /업무/.test(calName) ? '업무' : /개인/.test(calName) ? '개인' : '';
+    if (todoCat) showGcalTodoPrompt(title, startDate, endDate, startTime, effEndTime, created.id, calId, todoCat);
   } catch(e) { toast('네트워크 오류: ' + e.message, 'error'); }
 }
 
@@ -12164,7 +12042,7 @@ function _gcalSpanLabel(startDate, endDate, startTime, endTime) {
   return { period, time };
 }
 
-function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime, eventId, calId) {
+function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime, eventId, calId, category = '업무') {
   document.querySelectorAll('.todo-log-prompt').forEach(el => el.remove());
   const { period, time } = _gcalSpanLabel(startDate, endDate, startTime, endTime);
   const el = document.createElement('div');
@@ -12172,14 +12050,14 @@ function showGcalTodoPrompt(title, startDate, endDate, startTime, endTime, event
   el.innerHTML = `
     <div class="todo-log-prompt-title">📅 일정 추가됨 — 할 일 목록에도 넣을까요?</div>
     <div class="todo-log-prompt-item" title="${esc(title)}">${esc(title)}</div>
-    <div class="todo-log-prompt-sub">${esc(period)} · ${esc(time)} · 분류 업무</div>
+    <div class="todo-log-prompt-sub">${esc(period)} · ${esc(time)} · 분류 ${esc(category)}</div>
     <div class="todo-log-prompt-actions">
       <button class="tlp-btn-skip">나중에</button>
       <button class="tlp-btn-add">할 일 추가</button>
     </div>`;
   document.body.appendChild(el);
   el.querySelector('.tlp-btn-skip').onclick = () => el.remove();
-  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el);
+  el.querySelector('.tlp-btn-add').onclick = () => confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el, category);
   // 완료→일지 프롬프트와 같은 방식으로 자동 정리 (조금 더 길게)
   setTimeout(() => {
     if (el.parentNode) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
@@ -12241,11 +12119,11 @@ async function syncTodoToGcal(todo) {
   }
 }
 
-async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el) {
+async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, eventId, calId, el, category = '업무') {
   const todo = {
     // 일정의 기간·시간대를 그대로 옮긴다.
     // 시작일이 미래면 그날이 돼야 '오늘 할 일'에 뜬다(todayVisible)
-    id: uid(), title, category: '업무', priority: 'mid', status: 'todo',
+    id: uid(), title, category, priority: 'mid', status: 'todo',
     startDate, dueDate: endDate, time: combineTimeRange(startTime, endTime), memo: '',
     // 어느 일정에서 왔는지 기억해 둔다 — 나중에 할 일을 고치면 캘린더도 같이 고친다
     gcalEventId: eventId || '', gcalCalId: calId || '',
@@ -12260,82 +12138,6 @@ async function confirmGcalToTodo(title, startDate, endDate, startTime, endTime, 
     else if (currentPage === 'home') renderHome();
   } catch(e) { toast('할 일 추가에 실패했습니다', 'error'); console.error(e); }
 }
-
-// ═══════════════════════════════════════════════
-// AI DAILY REPORT
-// ═══════════════════════════════════════════════
-async function generateAIReport(){
-  const date=document.getElementById('daily-date').value||today();
-  const btn=document.getElementById('ai-report-btn');
-  const wrap=document.getElementById('ai-report-wrap');
-  const box=document.getElementById('ai-report-box');
-
-  btn.disabled=true; btn.textContent='⏳ 분석 중...';
-  wrap.style.display='block';
-  box.textContent='AI가 오늘의 업무를 분석하고 있습니다...';
-
-  try{
-    const [activities, allTodos]=await Promise.all([
-      DB.getDailyActivities(currentUser.사원번호, date),
-      DB.getTodos(currentUser.사원번호)
-    ]);
-
-    const relevant=allTodos.filter(t=>{
-      if(!todayVisible(t,date)) return false;
-      if(!t.isRecurring&&t.startDate&&t.startDate>date) return false;
-      return true;
-    });
-    const doneCount=relevant.filter(t=>isDoneOnDate(t,date)).length;
-    const total=relevant.length;
-    const pct=total?Math.round(doneCount/total*100):0;
-    const doneTitles=relevant.filter(t=>isDoneOnDate(t,date)).map(t=>t.title);
-    const pendingTitles=relevant.filter(t=>!isDoneOnDate(t,date)).map(t=>t.title);
-
-    const actText=activities.length
-      ? activities.map(a=>{
-          let s=`• [${a.time||'시간미기록'}] ${a.title}`;
-          if(a.content) s+=`\n  내용: ${a.content}`;
-          if(a.reflection) s+=`\n  성찰: ${a.reflection}`;
-          return s;
-        }).join('\n')
-      : '(업무 활동 기록 없음)';
-
-    const prompt=`당신은 업무 성찰 코치입니다. 아래 하루 업무 데이터를 바탕으로 따뜻하고 실용적인 성찰 리포트를 한국어로 작성해 주세요.
-
-날짜: ${date}
-할 일 완료율: ${doneCount}/${total}건 완료 (${pct}%)
-완료한 할 일: ${doneTitles.length ? doneTitles.join(', ') : '없음'}
-미완료 할 일: ${pendingTitles.length ? pendingTitles.join(', ') : '없음'}
-
-업무 활동 기록:
-${actText}
-
-아래 3가지 항목으로 400자 이내로 간결하게 작성하세요:
-1. ✅ 오늘의 핵심 성과
-2. 💡 아쉬운 점 또는 개선 포인트
-3. 🎯 내일을 위한 제언`;
-
-    // 무료 한도 낮은 gemini-2.5 계열 제외, 사용 가능한 flash 모델 자동 선택 (프록시 경유)
-    const model=await getGeminiModel();
-
-    const res=await geminiProxy('generate',{model,payload:{contents:[{parts:[{text:prompt}]}]}});
-    if(!res.ok){
-      const errData=await res.json().catch(()=>({}));
-      throw new Error(parseGeminiError(res.status, errData));
-    }
-    const data=await res.json();
-    box.textContent=data.candidates?.[0]?.content?.parts?.[0]?.text||'리포트를 생성하지 못했습니다.';
-  }catch(e){
-    console.error('[AI Report]',e);
-    box.textContent='⚠️ 리포트 생성 실패: '+e.message;
-    toast('AI 리포트 오류: '+e.message,'error');
-  }finally{
-    btn.disabled=false; btn.textContent='🤖 AI 리포트';
-  }
-}
-
-
-
 
 // ═══════════════════════════════════════════════
 // GMAIL — GCal과 동일 토큰 공유 (통합 scope)
@@ -12779,28 +12581,9 @@ function gmailFormatDate(raw) {
 }
 
 // ═══════════════════════════════════════════════
-// AI VOICE ASSISTANT
+// GEMINI 호출 (고지서 판독용 — /api/gemini 프록시 경유)
 // ═══════════════════════════════════════════════
-const GEMINI_TOOLS=[
-  {name:'add_todo',description:'새 할 일을 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'할 일 제목'},category:{type:'STRING',description:'카테고리: 업무/개인/건강/학습/기타, 기본값 업무'},priority:{type:'STRING',description:'우선순위: high/mid/low, 기본값 mid'},dueDate:{type:'STRING',description:'YYYY-MM-DD 마감일, 없으면 생략'},memo:{type:'STRING',description:'메모'}},required:['title']}},
-  {name:'complete_todo',description:'키워드로 할 일을 찾아 완료 처리합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'할 일 제목 키워드'}},required:['keyword']}},
-  {name:'add_daily_log',description:'오늘 업무 활동 일지를 추가합니다',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'활동 제목'},content:{type:'STRING',description:'활동 내용'},time:{type:'STRING',description:'시간대 예: 09:00-10:00'}},required:['title']}},
-  {name:'navigate_page',description:'앱 페이지로 이동합니다',parameters:{type:'OBJECT',properties:{page:{type:'STRING',description:'home/todo/daily/personal/exercise/admin 중 하나'}},required:['page']}},
-  {name:'search_todos',description:'할 일 목록에서 키워드 검색합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'검색 키워드'}},required:['keyword']}},
-  {name:'show_today_summary',description:'오늘의 할 일 현황을 요약합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
-  {name:'list_todos',description:'할 일 목록을 조회합니다. 상태/마감일 필터 가능. 옮기기·정리 등 복합 작업 전에 먼저 호출하세요',parameters:{type:'OBJECT',properties:{status:{type:'STRING',description:'todo(미완료)/done(완료)/all 중 하나, 기본 all'},onlyToday:{type:'STRING',description:'오늘 보이는 항목만: yes/no, 기본 no'}},required:[]}},
-  {name:'update_todo_due',description:'키워드로 할 일을 찾아 마감일을 변경(연기/이동)합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'할 일 제목 키워드'},dueDate:{type:'STRING',description:'새 마감일 YYYY-MM-DD'}},required:['keyword','dueDate']}},
-  {name:'get_goal_progress',description:'개인/시설 경영목표와 진행률을 조회합니다',parameters:{type:'OBJECT',properties:{scope:{type:'STRING',description:'personal(개인)/facility(시설)/all 중 하나, 기본 all'}},required:[]}},
-  {name:'weekly_report',description:'이번 주(월~일) 할 일 완료 통계를 집계합니다',parameters:{type:'OBJECT',properties:{dummy:{type:'STRING',description:'사용 안 함'}},required:[]}},
-  {name:'query_energy',description:'에너지(전기/가스/수도 등) 사용량과 요금을 조회·집계합니다',parameters:{type:'OBJECT',properties:{energyType:{type:'STRING',description:'에너지 종류(전기/가스/수도 등), 없으면 전체'},month:{type:'STRING',description:'조회 월 YYYY-MM, 없으면 전체 기간'}},required:[]}},
-  {name:'get_today_logs',description:'특정 날짜의 업무 일지를 조회합니다',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD, 생략 시 오늘'}},required:[]}},
-  {name:'search_knowledge',description:'관리자가 업로드한 지식자료(문서·매뉴얼·규정·PDF 등)에서 내용을 찾아 근거로 가져옵니다. 사용자가 업로드된 자료·문서·매뉴얼·규정의 내용을 묻거나 그에 근거한 답을 원하면 반드시 먼저 호출하세요',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'찾고 싶은 핵심 키워드나 질문'}},required:[]}},
-  {name:'add_calendar_event',description:'구글 캘린더에 일정을 추가합니다. "일정 잡아줘/회의 넣어줘/약속 추가" 처럼 시각이 있는 약속이면 할 일(add_todo)이 아니라 이 도구를 쓰세요',parameters:{type:'OBJECT',properties:{title:{type:'STRING',description:'일정 제목'},date:{type:'STRING',description:'YYYY-MM-DD 시작일'},startTime:{type:'STRING',description:'HH:MM 시작 시각. 없으면 종일 일정'},endTime:{type:'STRING',description:'HH:MM 종료 시각. 생략하면 시작 1시간 뒤'},endDate:{type:'STRING',description:'YYYY-MM-DD 종료일. 하루짜리면 생략'},location:{type:'STRING',description:'장소'},description:{type:'STRING',description:'설명·메모'},calendar:{type:'STRING',description:'넣을 캘린더 이름 일부. 생략하면 업무 캘린더, 없으면 기본 캘린더'}},required:['title','date']}},
-  {name:'list_calendar_events',description:'구글 캘린더 일정을 조회합니다. "오늘 일정 뭐 있어/이번주 일정 알려줘" 같은 질문에 쓰세요',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'YYYY-MM-DD 조회할 날짜. 생략 시 오늘'},endDate:{type:'STRING',description:'YYYY-MM-DD 범위 조회의 마지막 날. 하루만 볼 때는 생략'}},required:[]}},
-  {name:'delete_calendar_event',description:'구글 캘린더 일정을 제목 키워드로 찾아 삭제합니다',parameters:{type:'OBJECT',properties:{keyword:{type:'STRING',description:'일정 제목에 포함된 말'},date:{type:'STRING',description:'YYYY-MM-DD 그 일정이 있는 날짜. 생략 시 오늘'}},required:['keyword']}}
-];
-
-let _voiceRec=null,_isListening=false,_voiceMode=false,_finalTranscript='',_geminiModel=null,_convHistory=[];
+let _geminiModel=null;
 
 function parseGeminiError(status, errData){
   const msg=errData?.error?.message||'';
@@ -12824,22 +12607,10 @@ function parseGeminiError(status, errData){
     try{ localStorage.removeItem(_GEMINI_BAD_KEY); }catch(e){}
     // 키가 없을 때만 관리자 몫이다. 그 외(모델 과부하·일시 장애)는 다시 하면 된다 —
     // 여기서 "키를 설정하세요"라고 하면 멀쩡한 키를 붙들고 헤매게 된다.
-    if(/키가 설정되지 않았습니다|NO_KEY/.test(msg)){
-      _aiUnavailable=true;
-      return 'AI 어시스턴트가 아직 준비되지 않았습니다. 관리자가 AI 키를 설정하면 사용할 수 있습니다.';
-    }
+    if(/키가 설정되지 않았습니다|NO_KEY/.test(msg)) return 'AI 키가 설정되지 않았습니다. 관리자에게 문의하세요.';
     return 'AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.';
   }
   return msg||`Gemini API 오류 (HTTP ${status})`;
-}
-
-// 양쪽 제공자가 다 막혔다면 이 세션 동안은 계속 막혀 있다. 눌러도 오류만 나는
-// 버튼을 남겨두면 직원들이 반복해서 누르게 되므로, 한 번 확인되면 치운다.
-// (_aiUnavailable 선언은 파일 위쪽 — 세션 복원 IIFE보다 앞 — 에 있다. TDZ 방지)
-function _hideAIIfUnavailable(){
-  if(!_aiUnavailable) return;
-  const btn=document.getElementById('ai-chat-btn');
-  if(btn) btn.style.display='none';
 }
 
 // 모델은 목록 API로 매번 알아내되 12시간 캐시 — 새 세대가 나오면 저절로 따라가고,
@@ -12909,240 +12680,6 @@ function _markGeminiBad(model,ttl){
   try{ const o=_geminiBad(); o[model]=Date.now()+ttl; localStorage.setItem(_GEMINI_BAD_KEY,JSON.stringify(o)); }catch(e){}
 }
 
-// 음성은 채팅의 입력 모드 중 하나 — 받아쓴 말이 채팅으로 흘러가고, 음성으로 시작하면 답을 읽어준다.
-function toggleVoiceInput(){ if(_isListening) stopVoiceInput(); else startVoiceInput(); }
-
-function startVoiceInput(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ toast('이 브라우저는 음성 인식을 지원하지 않습니다 (Chrome 권장)','error'); return; }
-  const panel=document.getElementById('ai-chat-panel');
-  if(panel && !panel.classList.contains('open')) toggleAIChat();
-  const field=document.getElementById('ai-chat-field');
-  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }   // 자비스 일시정지(이중 인식 방지)
-  _voiceRec=new SR(); _voiceRec.lang='ko-KR'; _voiceRec.continuous=false; _voiceRec.interimResults=true;
-  _isListening=true; _voiceMode=true; updateMicBtn(true); _finalTranscript='';
-  if(field){ field.value=''; field.placeholder='🎙 듣고 있어요…'; }
-  _voiceRec.onresult=(e)=>{ let f='',i=''; for(const r of e.results){ if(r.isFinal) f+=r[0].transcript; else i+=r[0].transcript; } if(f) _finalTranscript=f; if(field) field.value=_finalTranscript||i; };
-  _voiceRec.onend=async()=>{ const txt=_finalTranscript; _finalTranscript=''; _isListening=false; updateMicBtn(false); if(field) field.placeholder='무엇이든 물어보세요…'; if(txt){ if(field) field.value=txt; await sendAIChat(true); } };
-  _voiceRec.onerror=(e)=>{ if(e.error!=='no-speech') toast('음성 인식 오류: '+e.error,'error'); _isListening=false; _voiceMode=false; updateMicBtn(false); if(field) field.placeholder='무엇이든 물어보세요…'; };
-  _voiceRec.start();
-}
-
-function stopVoiceInput(){ if(_voiceRec) _voiceRec.stop(); _isListening=false; _voiceMode=false; updateMicBtn(false); stopSpeaking(); const field=document.getElementById('ai-chat-field'); if(field) field.placeholder='무엇이든 물어보세요…'; if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } }
-
-let _ttsVoice=null;
-// ── 한국어 음성 고르기 ────────────────────────────────────────
-// 브라우저에는 한국어 음성이 여러 개 깔려 있고 품질 차이가 크다.
-// 기기에 내장된 로컬 음성(localService)은 오프라인에서 돌아 빠르지만 딱딱하고,
-// 구글·마이크로소프트의 네트워크 음성은 사람 말에 훨씬 가깝다.
-// 예전에는 "아무 한국어 음성"을 집어서 기계음이 걸리는 일이 많았다.
-function _voiceScore(v){
-  let s=0;
-  if(!v.localService) s+=50;                                   // 네트워크 음성이 품질 차이가 가장 크다
-  if(/natural|neural|wavenet|online/i.test(v.name)) s+=30;     // 최신 합성 엔진 표기
-  if(/google/i.test(v.name)) s+=15;
-  else if(/microsoft/i.test(v.name)) s+=10;
-  if(/(female|여성|여자|SunHi|Heami|Yuna|Ji-?Min|Seo-?Hyeon)/i.test(v.name)) s+=5;  // 아바타와 결을 맞춘다
-  return s;
-}
-function _pickKoVoice(){
-  try{
-    const ko=(window.speechSynthesis.getVoices()||[]).filter(v=>/^ko/i.test(v.lang));
-    if(!ko.length){ _ttsVoice=null; return; }
-    _ttsVoice=ko.slice().sort((a,b)=>_voiceScore(b)-_voiceScore(a))[0];
-  }catch(e){}
-}
-// 음성 목록은 비동기로 채워진다 — 첫 호출이 비어 있어도 voiceschanged 로 다시 고른다
-if(window.speechSynthesis){ _pickKoVoice(); window.speechSynthesis.onvoiceschanged=_pickKoVoice; }
-
-// 이 브라우저에 어떤 한국어 음성이 있고 무엇이 뽑혔는지 확인용 (콘솔에서 listKoVoices())
-window.listKoVoices=function(){
-  const ko=(window.speechSynthesis.getVoices()||[]).filter(v=>/^ko/i.test(v.lang));
-  console.table(ko.map(v=>({이름:v.name, 네트워크음성:!v.localService, 점수:_voiceScore(v), 선택:_ttsVoice&&v.name===_ttsVoice.name})));
-  return ko.length+'개';
-};
-// ── 자연스러운 음성 (Gemini TTS) ──────────────────────────────
-// 브라우저 내장 TTS는 즉시 나오지만 딱딱하다. Gemini TTS 는 사람 목소리에
-// 가깝지만 음성을 만들어 받아야 해서 짧은 답 ~2초, 보통 답 ~4.5초가 걸린다.
-// 그래서 기본으로 쓰되 언제든 끌 수 있게 하고, 실패하면 내장 TTS로 넘어간다.
-const TTS_MODEL='gemini-2.5-flash-preview-tts';
-const TTS_VOICE='Kore';
-const TTS_TIMEOUT=9000;          // 이보다 늦으면 기다리느니 내장 음성으로 말한다
-let _ttsAudio=null;
-// 기본은 꺼둔다. 음성 생성은 텍스트보다 토큰을 훨씬 많이 먹어서, 켜두면 무료 한도가
-// 답변 몇 십 번 만에 바닥난다. 쓰고 싶을 때만 설정에서 켜는 편이 안전하다.
-function naturalTTSOn(){ try{ return localStorage.getItem('wl_tts_natural')==='1'; }catch(e){ return false; } }
-function setNaturalTTS(on){ try{ localStorage.setItem('wl_tts_natural',on?'1':'0'); }catch(e){} updateTTSUI(); }
-
-// Gemini 는 헤더 없는 raw PCM(16bit LE)을 준다 — <audio>가 읽으려면 WAV 헤더를 붙여야 한다
-function _pcmToWav(pcm,rate){
-  const h=new ArrayBuffer(44), v=new DataView(h);
-  const w=(o,t)=>{ for(let i=0;i<t.length;i++) v.setUint8(o+i,t.charCodeAt(i)); };
-  w(0,'RIFF'); v.setUint32(4,36+pcm.length,true); w(8,'WAVE'); w(12,'fmt ');
-  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-  v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
-  w(36,'data'); v.setUint32(40,pcm.length,true);
-  return new Blob([h,pcm],{type:'audio/wav'});
-}
-// "네, 말씀하세요" 처럼 매번 똑같이 말하는 문구는 만들어 두고 다시 쓴다.
-// 호출어를 부를 때마다 2초씩 기다리는 게 체감 지연의 큰 몫이었다.
-const _ttsCache=new Map();
-async function _geminiSpeak(text){
-  const cached=_ttsCache.get(text);
-  if(cached) return cached;
-  const res=await Promise.race([
-    geminiProxy('generate',{model:TTS_MODEL,payload:{
-      contents:[{role:'user',parts:[{text}]}],
-      generationConfig:{responseModalities:['AUDIO'],
-        speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:TTS_VOICE}}}}
-    }}),
-    new Promise((_,rej)=>setTimeout(()=>rej(new Error('TTS 지연')),TTS_TIMEOUT))
-  ]);
-  if(!res.ok) throw new Error('TTS HTTP '+res.status);
-  const d=await res.json();
-  const inline=(d?.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData)?.inlineData;
-  if(!inline?.data) throw new Error('오디오 없음');
-  const rate=parseInt((inline.mimeType||'').match(/rate=(\d+)/)?.[1]||'24000',10);
-  const bin=atob(inline.data), bytes=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  const blob=_pcmToWav(bytes,rate);
-  // 짧고 반복되는 문구만 담아둔다(긴 답변까지 쌓으면 메모리만 먹는다)
-  if(text.length<=20){ if(_ttsCache.size>12) _ttsCache.clear(); _ttsCache.set(text,blob); }
-  return blob;
-}
-// 로그인 직후 호출어 응답을 미리 만들어 둔다 — 처음 부를 때부터 바로 나온다
-function prewarmTTS(){ if(naturalTTSOn()) _geminiSpeak('네, 말씀하세요').catch(()=>{}); }
-
-function _browserSpeak(text,done){
-  if(!window.speechSynthesis){ done(); return; }
-  // 1.05는 살짝 빨라 또박또박 읽는 느낌이 강해진다. 조금 늦추면 말투에 가까워진다.
-  const u=new SpeechSynthesisUtterance(text); u.lang='ko-KR'; u.rate=0.98; u.pitch=1.0;
-  if(!_ttsVoice) _pickKoVoice();   // 첫 발화가 목록 로딩보다 빨랐을 수 있다
-  if(_ttsVoice) u.voice=_ttsVoice;
-  u.onend=done; u.onerror=done;
-  window.speechSynthesis.speak(u);
-}
-
-function stopSpeaking(){
-  try{ window.speechSynthesis?.cancel(); }catch(e){}
-  if(_ttsAudio){ try{ _ttsAudio.pause(); }catch(e){} _ttsAudio=null; }
-}
-
-function speakAI(text,onEnd){
-  stopSpeaking();
-  // 자비스 대기 중이면 말하는 동안 마이크를 멈춰 자기 목소리를 명령으로 오인하지 않게 한다
-  if(_jarvisOn){ _jarvisSpeaking=true; try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} }
-  const done=()=>{ if(_jarvisOn){ _jarvisSpeaking=false; _jarvisStartRec(); } onEnd&&onEnd(); };
-  if(!naturalTTSOn()){ _browserSpeak(text,done); return; }
-  _geminiSpeak(text).then(blob=>{
-    const url=URL.createObjectURL(blob);
-    const a=new Audio(url); _ttsAudio=a;
-    const cleanup=()=>{ URL.revokeObjectURL(url); if(_ttsAudio===a) _ttsAudio=null; };
-    a.onended=()=>{ cleanup(); done(); };
-    a.onerror=()=>{ cleanup(); _browserSpeak(text,done); };   // 재생 실패해도 말은 해야 한다
-    a.play().catch(()=>{ cleanup(); _browserSpeak(text,done); });
-  }).catch(e=>{ console.warn('[TTS]',e.message,'— 내장 음성으로 대체'); _browserSpeak(text,done); });
-}
-
-function updateMicBtn(on){ const btn=document.getElementById('voice-mic-btn'); if(!btn) return; btn.classList.toggle('listening',on); btn.innerHTML=on?'⏹':'🎙'; btn.title=on?'음성 입력 중지':'음성으로 말하기'; }
-
-// ═══════════════════════════════════════════════
-// 🦾 자비스 모드 — 호출어 "자비스"로 깨우는 항상-대기 음성 비서
-// ═══════════════════════════════════════════════
-let _jarvisOn=false, _jarvisRec=null, _jarvisSpeaking=false, _jarvisAwaiting=false, _jarvisRestartTimer=null;
-const _JARVIS_RE=/(?:자비스|자버스|자비쓰|jarvis)[\s,!.]*([\s\S]*)$/i;
-
-function toggleJarvis(){ if(_jarvisOn) stopJarvis(true); else startJarvis(true); }
-
-function startJarvis(userAction){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ if(userAction) toast('이 브라우저는 음성 인식을 지원하지 않습니다 (Chrome 권장)','error'); return; }
-  if(_jarvisOn) return;
-  if(_isListening) stopVoiceInput();   // 푸시투토크와 충돌 방지
-  _jarvisOn=true;
-  // 설정(localStorage)은 '사용자 의도'만 기록 — 권한 오류 등 내부 중지로 자동시작이 꺼지지 않게 한다
-  if(userAction && currentUser) localStorage.setItem('wl_jarvis_'+currentUser.사원번호,'1');
-  updateJarvisBtn();
-  _jarvisStartRec();
-  if(userAction) toast('🟢 자비스 대기 중 — "자비스"라고 부르세요');
-}
-function stopJarvis(userAction){
-  _jarvisOn=false; _jarvisAwaiting=false; _jarvisSpeaking=false;
-  clearTimeout(_jarvisRestartTimer);
-  try{ _jarvisRec&&_jarvisRec.stop(); }catch(e){} _jarvisRec=null;
-  window.speechSynthesis?.cancel();
-  if(userAction && currentUser) localStorage.setItem('wl_jarvis_'+currentUser.사원번호,'0');
-  updateJarvisBtn();
-  if(userAction) toast('자비스 모드를 껐습니다');
-}
-function _jarvisStartRec(){
-  if(!_jarvisOn||_jarvisSpeaking) return;
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return;
-  try{
-    _jarvisRec=new SR(); _jarvisRec.lang='ko-KR'; _jarvisRec.continuous=true; _jarvisRec.interimResults=false;
-    _jarvisRec.onresult=_jarvisOnResult;
-    _jarvisRec.onerror=(e)=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ toast('마이크 권한을 허용해야 자비스를 쓸 수 있어요','error'); stopJarvis(false); } };
-    _jarvisRec.onend=()=>{ if(_jarvisOn&&!_jarvisSpeaking){ clearTimeout(_jarvisRestartTimer); _jarvisRestartTimer=setTimeout(_jarvisStartRec,400); } };
-    _jarvisRec.start();
-  }catch(e){ /* 이미 시작됨 — 무시 */ }
-}
-function _jarvisOnResult(e){
-  if(_jarvisSpeaking) return;
-  let txt=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) txt+=e.results[i][0].transcript; }
-  txt=txt.trim(); if(!txt) return;
-  if(_jarvisAwaiting){ _jarvisAwaiting=false; _jarvisHandle(txt); return; }
-  const m=txt.match(_JARVIS_RE);
-  if(!m) return;                                   // 호출어 없으면 무시(대기 유지)
-  const cmd=(m[1]||'').trim();
-  if(cmd) _jarvisHandle(cmd);
-  else { _jarvisAwaiting=true; speakAI('네, 말씀하세요'); }   // "자비스"만 부른 경우
-}
-async function _jarvisHandle(text){
-  if(!text) return;
-  const panel=document.getElementById('ai-chat-panel');
-  if(panel && !panel.classList.contains('open')) toggleAIChat();
-  const f=document.getElementById('ai-chat-field'); if(f) f.value=text;
-  await sendAIChat('jarvis');
-}
-function updateJarvisBtn(){
-  const btn=document.getElementById('jarvis-btn');
-  const mic=document.getElementById('voice-mic-btn');
-  if(mic) mic.style.display=_jarvisOn?'none':'';   // 자비스 ON이면 단발 마이크 숨김(중복 방지)
-  if(!btn) return;
-  btn.classList.toggle('on',_jarvisOn);
-  btn.title=_jarvisOn?'자비스 끄기 (대기 중)':'자비스 켜기';
-}
-// 앱 진입 시 저장된 설정대로 자동 대기 (마이크 권한이 있으면 바로, 없으면 첫 클릭 때 허용)
-function initJarvis(){
-  if(!currentUser) return;
-  updateJarvisBtn();
-  const pref=localStorage.getItem('wl_jarvis_'+currentUser.사원번호);
-  if(pref!=='0'){ startJarvis(false); }   // 기본 ON (명시적으로 끈 적 없으면)
-}
-
-// ── 멀티스텝 에이전트 코어 ──
-function _aiSystemPrompt(){
-  const nextDay=new Date(); nextDay.setDate(nextDay.getDate()+1);
-  return `당신은 WorkLog 업무관리 앱의 AI 어시스턴트입니다.
-오늘: ${today()} / 내일: ${nextDay.toISOString().slice(0,10)} / 사용자: ${currentUser?.시설명||''} (${currentUser?.사원번호||''})
-- 요청을 끝까지 처리하기 위해 필요한 함수를 순서대로 호출하세요. 여러 단계가 필요하면 단계마다 함수를 호출하고, 모든 작업이 끝나면 결과를 한국어 1~2문장으로 요약하세요.
-- "옮기기/정리/모아서" 같은 복합 작업은 먼저 list_todos로 대상을 조회한 뒤 처리하세요.
-- 업로드된 자료·문서·매뉴얼·규정의 내용을 묻는 질문이면 먼저 search_knowledge로 근거를 가져와 [S번호] 인용과 함께 답하세요.
-- 정보가 부족하면 한 문장으로 짧게 되물어보세요.
-- 날짜 표현(오늘, 내일, 이번주 금요일 등)을 YYYY-MM-DD로 변환하세요.
-- 할 일과 일정을 구분하세요. 시각이 정해진 약속·회의·방문은 add_calendar_event(캘린더), 시각 없이 처리해야 할 업무는 add_todo(할 일)입니다. 애매하면 시각이 언급됐는지로 판단하세요.
-
-[답할 때]
-답은 소리 내어 읽힙니다. 눈으로 읽는 글이 아니라 옆에서 말해주는 것처럼 쓰세요.
-- 목록 기호(*, -, 1.)와 마크다운(**굵게**, # 제목)을 쓰지 마세요. 소리로는 읽히지 않거나 어색하게 읽힙니다.
-- 여러 건은 줄을 나누지 말고 문장으로 이어서 말하세요. "오늘은 두 건 있어요. 아침 아홉 시 간부회의, 오후 두 시 안전점검입니다."
-- 시각은 말로 읽으세요. 09:00 → "아침 아홉 시", 14:00 → "오후 두 시", 2026-09-05 → "내일" 또는 "9월 5일".
-- 두세 문장으로 짧게. 다 읽어주려 하지 말고 중요한 것부터 말하고, 많으면 "그 외에 몇 건 더 있어요"로 줄이세요.
-- 업무 동료에게 말하듯 자연스러운 높임말을 쓰세요. 보고서 문체("~하였습니다", "~요망")나 딱딱한 안내문 투는 피하세요.
-- 이미 처리한 일은 담백하게 알리세요. "할 일에 넣었어요" 정도면 충분합니다.`;
-}
-const _TOOL_LABELS={add_todo:'할 일 추가',complete_todo:'완료 처리',add_daily_log:'일지 기록',navigate_page:'페이지 이동',search_todos:'검색',show_today_summary:'오늘 요약',list_todos:'할 일 조회',update_todo_due:'마감일 변경',get_goal_progress:'목표 조회',weekly_report:'주간 집계',query_energy:'에너지 조회',get_today_logs:'일지 조회',search_knowledge:'지식자료 검색',add_calendar_event:'일정 추가',list_calendar_events:'일정 조회',delete_calendar_event:'일정 삭제'};
-
 // 모든 Gemini 호출은 /api/gemini 프록시 경유 (키 노출 방지).
 // 하이브리드: 사용자 개인 키가 있으면 함께 보내 서버가 우선 사용, 없으면 서버 공용 키.
 async function geminiProxy(action,{model,payload}={},_retry=0){
@@ -13157,14 +12694,6 @@ async function geminiProxy(action,{model,payload}={},_retry=0){
     return geminiProxy(action,{model,payload},_retry+1);
   }
   return res;
-}
-// 어떤 모델이 답했는지 헤더에 표시 — 무료 한도가 소진돼 Claude로 넘어갔는지 눈으로 확인된다.
-let _lastProvider='';
-function _setProviderTag(prov,model){
-  const el=document.getElementById('ai-provider-tag'); if(!el) return;
-  if(prov==='claude') el.textContent='· Claude 폴백';
-  else if(prov==='gemini') el.textContent='· '+(model||'').replace(/^gemini-/,'Gemini ');
-  else el.textContent='';
 }
 const _SLOW_MS=8000;   // 이보다 느리면 대화가 끊긴 느낌이 든다
 async function geminiGenerate(model,payload,_modelRetry=0){
@@ -13189,306 +12718,10 @@ async function geminiGenerate(model,payload,_modelRetry=0){
   // 느리게 답한 모델은 잠시 후보에서 빼 다음 요청이 빠른 쪽으로 가게 한다.
   const took=Date.now()-t0;
   if(took>_SLOW_MS){ _markGeminiBad(model,_BAD_TTL_BUSY); _forgetGeminiModel(); }
-  _lastProvider=res.headers.get('x-ai-provider')||'';
-  _setProviderTag(_lastProvider,model);
   return res.json();
 }
 
-// 멀티스텝 루프: 함수 호출 → 결과 반영 → 다음 단계 … → 최종 텍스트
-// 토큰 절약용 트림. 그냥 slice(-16)하면 functionCall과 그 응답 쌍이 갈라져
-// Claude 폴백이 "tool_result에 짝이 없다"며 400을 낸다 — 진짜 사용자 발화에서 시작하도록 자른다.
-function _trimConvHistory(max=16){
-  if(_convHistory.length<=max) return;
-  let i=_convHistory.length-max;
-  while(i<_convHistory.length && !(_convHistory[i].role==='user' && (_convHistory[i].parts||[]).some(p=>p.text!=null))) i++;
-  if(i>=_convHistory.length) return;   // 안전하게 자를 지점이 없으면 그대로 둔다
-  _convHistory=_convHistory.slice(i);
-}
-
-async function runAgent(userText,{onUpdate}={}){
-  _trimConvHistory(16);
-  const snapshot=_convHistory.slice();   // 실패 시 되돌릴 지점 (통째로 날리지 않는다)
-  _convHistory.push({role:'user',parts:[{text:userText}]});
-  const sys=_aiSystemPrompt();
-  try{
-    for(let step=0;step<6;step++){
-      const model=await getGeminiModel();   // 스텝마다 조회(캐시 히트) — 중간에 모델이 바뀌어도 따라간다
-      const data=await geminiGenerate(model,{system_instruction:{parts:[{text:sys}]},contents:_convHistory,tools:[{functionDeclarations:GEMINI_TOOLS}],tool_config:{function_calling_config:{mode:'AUTO'}}});
-      const parts=data.candidates?.[0]?.content?.parts||[];
-      const calls=parts.filter(p=>p.functionCall).map(p=>p.functionCall);
-      if(calls.length){
-        // 모델이 돌려준 파트를 그대로 싣는다. functionCall 만 뽑아 새로 만들면
-        // 그 옆에 붙어 있는 thoughtSignature 가 사라지는데, Gemini 3 계열은 그 값을
-        // 다음 요청에 되돌려받기를 요구한다("Function call is missing a
-        // thought_signature"). 도구 실행에는 calls 를 쓰고, 히스토리에는 원본을 넣는다.
-        _convHistory.push({role:'model',parts});
-        const responses=[];
-        for(const fc of calls){
-          onUpdate&&onUpdate('step',`${_TOOL_LABELS[fc.name]||fc.name}…`);
-          let result; try{ result=await executeAITool(fc.name,fc.args||{}); }catch(e){ result='오류: '+e.message; }
-          responses.push({functionResponse:{name:fc.name,response:{result}}});
-        }
-        _convHistory.push({role:'user',parts:responses});
-        continue;
-      }
-      const aiText=parts.find(p=>p.text)?.text||'완료했습니다';
-      _convHistory.push({role:'model',parts:[{text:aiText}]});
-      onUpdate&&onUpdate('done',aiText);
-      return aiText;
-    }
-    // 6스텝을 다 쓰면 히스토리 끝이 '응답 대기 중인 도구 호출'로 남는다 —
-    // 그대로 두면 다음 질문이 짝 없는 tool_result 위에 얹혀 Claude 폴백이 깨진다. 깔끔한 쌍으로 되돌린다.
-    const capMsg='여러 단계를 처리했습니다';
-    _convHistory=snapshot.concat([{role:'user',parts:[{text:userText}]},{role:'model',parts:[{text:capMsg}]}]);
-    onUpdate&&onUpdate('done',capMsg);
-    return null;
-  }catch(e){ console.error('[AI Agent]',e); _convHistory=snapshot; onUpdate&&onUpdate('error',e.message); return null; }
-}
-
-async function executeAITool(toolName,input){
-  switch(toolName){
-    case 'add_todo':{ const todo={id:uid(),title:input.title,category:input.category||'업무',priority:input.priority||'mid',status:'todo',startDate:today(),dueDate:input.dueDate||null,memo:input.memo||'',isRecurring:false,recurringDays:[],completedDates:[],completedDate:null}; await DB.upsertTodo(currentUser.사원번호,todo); if(currentPage==='todo') await renderTodos(); return `"${todo.title}" 할 일 추가됨 (마감 ${todo.dueDate||'없음'})`; }
-    case 'complete_todo':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)&&t.status!=='done'); if(!t) return `"${input.keyword}" 일치하는 미완료 할 일을 찾지 못함`; await DB.upsertTodo(currentUser.사원번호,{...t,status:'done',completedDate:today()}); if(currentPage==='todo') await renderTodos(); return `"${t.title}" 완료 처리됨`; }
-    case 'add_daily_log':{ const act={id:uid(),title:input.title,content:input.content||'',time:input.time||'',linked:'',reflection:''}; await DB.upsertActivity(currentUser.사원번호,today(),act); if(currentPage==='daily') await renderDailyPage(); return `업무 일지 "${act.title}" 기록됨`; }
-    case 'navigate_page':{ navigate(input.page); const names={home:'홈',todo:'할 일',daily:'업무',personal:'개인',exercise:'운동',admin:'관리'}; return `${names[input.page]||input.page} 페이지로 이동`; }
-    case 'search_todos':{ navigate('todo'); const el=document.getElementById('todo-search'); if(el){ el.value=input.keyword; await renderTodos(); } return `"${input.keyword}" 검색 결과 표시`; }
-    case 'show_today_summary':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); const list=todos.filter(td=>todayVisible(td,t)); const done=list.filter(td=>isDoneOnDate(td,t)).length; return `오늘 할 일 ${list.length}개 — 완료 ${done}개, 미완료 ${list.length-done}개`; }
-    case 'list_todos':{ const todos=await DB.getTodos(currentUser.사원번호); const t=today(); let list=todos; if(input.onlyToday==='yes') list=list.filter(td=>todayVisible(td,t)); if(input.status==='todo') list=list.filter(td=>td.status!=='done'); else if(input.status==='done') list=list.filter(td=>td.status==='done'); if(!list.length) return '해당하는 할 일이 없습니다'; return list.slice(0,30).map(td=>`• ${td.title} [${td.status==='done'?'완료':'미완료'}, 마감 ${td.dueDate||'없음'}]`).join('\n'); }
-    case 'update_todo_due':{ const todos=await DB.getTodos(currentUser.사원번호); const t=todos.find(t=>t.title.includes(input.keyword)); if(!t) return `"${input.keyword}" 일치하는 할 일을 찾지 못함`; await DB.upsertTodo(currentUser.사원번호,{...t,dueDate:input.dueDate}); if(currentPage==='todo') await renderTodos(); return `"${t.title}" 마감일 → ${input.dueDate}`; }
-    case 'get_goal_progress':{ const sc=input.scope||'all'; const out=[]; if(sc==='all'||sc==='personal'){ const pg=await DB.getPersonalGoals(currentUser.사원번호); if(pg.length) out.push('[개인 목표]\n'+pg.map(g=>`• ${g.goal} — ${g.progress||0}%`).join('\n')); } if(sc==='all'||sc==='facility'){ const fg=await DB.getFacilityGoals(currentUser.시설명); if(fg.length) out.push('[시설 목표]\n'+fg.map(g=>`• ${g.goal} — ${g.progress||0}%`).join('\n')); } return out.join('\n\n')||'등록된 목표가 없습니다'; }
-    case 'weekly_report':{ const todos=await DB.getTodos(currentUser.사원번호); const base=new Date(today()); const dow=(base.getDay()+6)%7; const mon=new Date(base); mon.setDate(base.getDate()-dow); let done=0,due=0; const days=[]; for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); const ds=d.toISOString().slice(0,10); const dn=todos.filter(td=>isDoneOnDate(td,ds)).length; done+=dn; due+=todos.filter(td=>td.dueDate===ds).length; days.push(`${ds.slice(5)} 완료 ${dn}`); } return `이번 주 완료 ${done}건, 마감 예정 ${due}건\n`+days.join(' / '); }
-    case 'query_energy':{ const filters={}; if(input.energyType) filters.energyType=input.energyType; if(input.month){ filters.startDate=input.month+'-01'; filters.endDate=input.month+'-28'; } let recs; try{ recs=await _emEnergyQuery(filters); }catch(e){ return '에너지 데이터 조회 권한이 없거나 오류가 발생했습니다'; } if(!recs||!recs.length) return '해당 조건의 에너지 기록이 없습니다'; const byType={}; for(const r of recs){ const k=r.energy_type||'기타'; byType[k]=byType[k]||{usage:0,cost:0,n:0}; byType[k].usage+=parseFloat(r.usage_amount)||0; byType[k].cost+=parseFloat(r.usage_cost)||0; byType[k].n++; } return Object.entries(byType).map(([k,v])=>`${k}: 사용량 ${v.usage.toLocaleString('ko-KR')}, 요금 ${Math.round(v.cost).toLocaleString('ko-KR')}원 (${v.n}건)`).join('\n'); }
-    case 'get_today_logs':{ const date=input.date||today(); const acts=await DB.getDailyActivities(currentUser.사원번호,date); if(!acts.length) return `${date} 기록된 일지가 없습니다`; return `[${date} 일지]\n`+acts.map(a=>`• ${a.time?a.time+' ':''}${a.title}${a.content?' — '+a.content:''}`).join('\n'); }
-    case 'search_knowledge': return await ksSearchForAgent(input.query);
-
-    // ── 구글 캘린더 ──────────────────────────────────────────────
-    // 토큰이 클릭으로만 갱신되므로(무음 갱신 불가), 끊겼을 때는 무엇을 해야 하는지
-    // 사용자에게 그대로 돌려준다. 어시스턴트가 "실패했습니다"로 뭉개면 손쓸 수가 없다.
-    case 'add_calendar_event': {
-      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다. 업무 → 일일업무 화면에서 구글 연동을 눌러 연결한 뒤 다시 말씀해 주세요.';
-      try{
-        if(!gcalCalendars.length) await fetchGcalCalendarList();
-        const want=(input.calendar||'').trim();
-        const cal = (want && gcalCalendars.find(c=>(c.summary||'').includes(want)))
-                 || gcalCalendars.find(c=>/업무/.test(c.summary||''))
-                 || gcalCalendars.find(c=>c.primary) || gcalCalendars[0];
-        if(!cal) return '쓸 수 있는 캘린더를 찾지 못했습니다.';
-        const date=input.date, endDate=input.endDate||input.date;
-        let start,end;
-        if(input.startTime){
-          const st=input.startTime;
-          let et=input.endTime;
-          if(!et){ const [h,m]=st.split(':').map(Number); et=`${String((h+1)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}`; }
-          start={dateTime:`${date}T${st}:00`,timeZone:'Asia/Seoul'};
-          end={dateTime:`${endDate}T${et}:00`,timeZone:'Asia/Seoul'};
-        } else {
-          // 종일 일정은 end가 exclusive라 하루를 더해야 그날 하루로 잡힌다
-          start={date}; end={date:gcalEndDateToApi(endDate)};
-        }
-        const body={summary:input.title,start,end,
-          ...(input.description&&{description:input.description}),
-          ...(input.location&&{location:input.location})};
-        const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`,{
-          method:'POST',headers:{'Authorization':`Bearer ${gcalToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
-        if(res.status===401){ gcalToken=null; gcalCalendars=[]; sessionStorage.removeItem(_gcalTokenKey()); updateGcalConnectionUI(false,''); return '구글 인증이 만료됐습니다. 다시 연결한 뒤 말씀해 주세요.'; }
-        if(!res.ok){ const e=await res.json().catch(()=>({})); return `일정 추가 실패: ${e.error?.message||res.status}`; }
-        if(currentPage==='daily' && gcalToken) renderCustomCalendar();
-        const when=input.startTime?`${date} ${input.startTime}`:`${date} 종일`;
-        return `"${input.title}" 일정 추가됨 (${when}, ${cal.summary})`;
-      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 추가 중 오류: ${e.message}`; }
-    }
-    case 'list_calendar_events': {
-      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다. 업무 → 일일업무 화면에서 구글 연동을 눌러 연결해 주세요.';
-      try{
-        const d0=input.date||today(), d1=input.endDate||d0;
-        const evs=await fetchGcalEventsBetween(new Date(`${d0}T00:00:00`).toISOString(), new Date(`${d1}T23:59:59`).toISOString());
-        if(!evs.length) return d0===d1 ? `${d0} 등록된 일정이 없습니다` : `${d0}~${d1} 등록된 일정이 없습니다`;
-        return evs.slice(0,30).map(ev=>{
-          const day=(ev.start?.dateTime||ev.start?.date||'').slice(0,10);
-          return `• ${d0===d1?'':day+' '}${_gcalEventLine(ev)}${ev.location?` @${ev.location}`:''}`;
-        }).join('\n');
-      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 조회 중 오류: ${e.message}`; }
-    }
-    case 'delete_calendar_event': {
-      if(!gcalToken) return '구글 캘린더가 연결돼 있지 않습니다.';
-      try{
-        const d=input.date||today();
-        const evs=await fetchGcalEventsOn(d);
-        const hit=evs.find(ev=>(ev.summary||'').includes(input.keyword));
-        if(!hit) return `${d}에 "${input.keyword}"가 들어간 일정을 찾지 못했습니다`;
-        const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(hit._calId)}/events/${encodeURIComponent(hit.id)}`,{
-          method:'DELETE',headers:{'Authorization':`Bearer ${gcalToken}`}});
-        if(!res.ok && res.status!==410) return `일정 삭제 실패: ${res.status}`;
-        if(currentPage==='daily' && gcalToken) renderCustomCalendar();
-        return `"${hit.summary}" 일정 삭제됨 (${d})`;
-      }catch(e){ return e.message==='401' ? '구글 인증이 만료됐습니다. 다시 연결해 주세요.' : `일정 삭제 중 오류: ${e.message}`; }
-    }
-    default: return '알 수 없는 명령입니다';
-  }
-}
-
-// ═══════════════════════════════════════════════
-// 📚 AI 지식자료 (관리자 업로드 → 전체 공용, AI 어시스턴트가 근거로 활용)
-// ═══════════════════════════════════════════════
-let _ksFileText='', _ksFileType='file';
-function ksToggleType(v){
-  document.getElementById('ks-file-group').style.display=v==='file'?'':'none';
-  document.getElementById('ks-url-group').style.display=v==='url'?'':'none';
-  document.getElementById('ks-text-group').style.display=v==='text'?'':'none';
-}
-async function ksExtractPdf(file){
-  if(!window.pdfjsLib) throw new Error('PDF 라이브러리 로딩 중 — 잠시 후 다시 시도하세요');
-  const buf=await file.arrayBuffer();
-  const pdf=await pdfjsLib.getDocument({data:buf,...PDFJS_CMAP}).promise;
-  let text=''; const max=Math.min(pdf.numPages,80);
-  for(let i=1;i<=max;i++){ const page=await pdf.getPage(i); const c=await page.getTextContent(); text+=c.items.map(it=>it.str).join(' ')+'\n'; }
-  return text.replace(/\n{3,}/g,'\n\n').trim();
-}
-async function ksFetchUrl(url){
-  const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
-  const html=await r.text();
-  const doc=new DOMParser().parseFromString(html,'text/html');
-  doc.querySelectorAll('script,style,noscript,nav,footer,header,svg,iframe').forEach(e=>e.remove());
-  return (doc.body?.textContent||'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
-}
-async function ksOnFileChange(input){
-  const file=input.files&&input.files[0]; if(!file) return;
-  const status=document.getElementById('ks-file-status');
-  const titleEl=document.getElementById('ks-title');
-  if(!titleEl.value.trim()) titleEl.value=file.name.replace(/\.[^.]+$/,'');
-  status.textContent='읽는 중…'; _ksFileText='';
-  try{
-    if(/\.pdf$/i.test(file.name)){ _ksFileType='pdf'; _ksFileText=await ksExtractPdf(file); }
-    else { _ksFileType='file'; _ksFileText=await file.text(); }
-    status.textContent=`✅ ${_ksFileText.length.toLocaleString('ko-KR')}자 추출됨`;
-    if(!_ksFileText.trim()) status.textContent='⚠️ 텍스트를 추출하지 못했습니다 (스캔 PDF일 수 있어요)';
-  }catch(e){ console.error(e); status.textContent='⚠️ '+(e.message||'읽기 실패'); }
-}
-async function ksSaveSource(){
-  const type=document.getElementById('ks-type').value;
-  let title=document.getElementById('ks-title').value.trim();
-  let content='', src_type=type;
-  const btn=document.getElementById('ks-save-btn');
-  btn.disabled=true;
-  try{
-    if(type==='text'){ content=document.getElementById('ks-text').value.trim(); src_type='text'; }
-    else if(type==='file'){ content=_ksFileText; src_type=_ksFileType; }
-    else if(type==='url'){ const url=document.getElementById('ks-url').value.trim(); if(!url) throw new Error('URL을 입력하세요'); if(!title) title=url; btn.textContent='가져오는 중…'; content=await ksFetchUrl(url); }
-    if(!content||!content.trim()) throw new Error('내용이 비어 있습니다');
-    if(!title) title=content.slice(0,24).replace(/\n/g,' ')+'…';
-    if(content.length>120000) content=content.slice(0,120000);
-    await DB.addKnowledge(currentUser.사원번호,{title,src_type,content});
-    document.getElementById('ks-text').value='';
-    document.getElementById('ks-url').value='';
-    document.getElementById('ks-title').value='';
-    const fi=document.getElementById('ks-file'); if(fi) fi.value='';
-    document.getElementById('ks-file-status').textContent=''; _ksFileText='';
-    await ksRenderList();
-    toast('지식자료를 추가했습니다');
-  }catch(e){ console.error(e); toast('추가 실패: '+(e.message||''),'error'); }
-  finally{ btn.disabled=false; btn.textContent='자료 추가'; }
-}
-async function ksDeleteSource(id){
-  if(!confirm('이 지식자료를 삭제할까요?')) return;
-  try{ await DB.deleteKnowledge(id); await ksRenderList(); toast('삭제되었습니다'); }
-  catch(e){ console.error(e); toast('삭제 실패','error'); }
-}
-function ksFmtDate(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'}); }catch(e){ return ''; } }
-async function ksRenderList(){
-  const body=document.getElementById('ks-list-body'); const cnt=document.getElementById('ks-count');
-  if(!body) return;
-  let list=[];
-  try{ list=await DB.getKnowledge(); }
-  catch(e){ console.error(e); toast('지식자료를 불러오지 못했습니다. SQL 테이블을 확인하세요.','error'); }
-  if(cnt) cnt.textContent=list.length?`· 총 ${list.length}건`:'';
-  const typeIcon={text:'✍️',file:'📎',pdf:'📕',url:'🔗'};
-  if(!list.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:24px;">등록된 지식자료가 없습니다. 위에서 자료를 올리세요.</td></tr>'; return; }
-  body.innerHTML=list.map(s=>{
-    const len=(s.content||'').length;
-    return `<tr>
-      <td>${esc(s.title)}</td>
-      <td>${typeIcon[s.src_type]||'📄'} ${esc(s.src_type||'file')}</td>
-      <td>${len.toLocaleString('ko-KR')}자</td>
-      <td>${ksFmtDate(s.created_at)}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="ksDeleteSource('${s.id}')">삭제</button></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── 지식자료 검색 (AI 어시스턴트 도구용) — 키워드로 관련 자료를 근거 텍스트로 반환 ──
-async function ksSearchForAgent(query){
-  let srcs; try{ srcs=await DB.getKnowledge(); }catch(e){ return '지식자료를 불러올 수 없습니다(테이블 미설정).'; }
-  if(!srcs||!srcs.length) return '업로드된 지식자료가 없습니다. 관리자 페이지 > 📚 AI 지식자료에서 자료를 먼저 올려야 합니다.';
-  const q=(query||'').toLowerCase().trim();
-  let chosen=srcs;
-  if(q){
-    const terms=q.split(/\s+/).filter(w=>w.length>1);
-    if(terms.length){
-      const scored=srcs.map(s=>{ const t=((s.title||'')+' '+(s.content||'')).toLowerCase(); let sc=0; terms.forEach(w=>{ if(t.includes(w)) sc++; }); return {s,sc}; });
-      const hit=scored.filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc);
-      if(hit.length) chosen=hit.map(x=>x.s);
-    }
-  }
-  const MAX=40000; let total=0; const parts=[];
-  for(const s of chosen){
-    const idx=srcs.indexOf(s)+1;
-    let body=s.content||'';
-    const budget=Math.max(2000,Math.floor(MAX/chosen.length));
-    if(body.length>budget) body=body.slice(0,budget)+'…(이하 생략)';
-    if(total+body.length>MAX) break;
-    parts.push(`[S${idx}] 제목: ${s.title}\n${body}`);
-    total+=body.length;
-  }
-  return `아래 '지식자료'만을 근거로 한국어로 답하세요. 자료에 없는 내용은 지어내지 말고 "제공된 자료에서 찾을 수 없습니다"라고 하세요. 근거가 된 자료는 [S번호]로 표기하세요.\n\n=== 지식자료 시작 ===\n${parts.join('\n\n---\n\n')}\n=== 지식자료 끝 ===`;
-}
-
-// ═══════════════════════════════════════════════
-// ── 텍스트 채팅 UI ──
-let _chatStarted=false;
-function toggleAIChat(){
-  const p=document.getElementById('ai-chat-panel'); if(!p) return;
-  const open=!p.classList.contains('open');
-  p.classList.toggle('open',open);
-  if(open){
-    if(!_chatStarted){ _chatBot('안녕하세요! 할 일 추가·완료, 일지 기록, 목표·에너지 조회 등을 도와드려요. 예: "내일까지 보고서 작성 추가하고 오늘 안 끝낸 일 알려줘"'); _chatStarted=true; }
-    setTimeout(()=>document.getElementById('ai-chat-field')?.focus(),50);
-  }
-}
-function clearAIChat(){ _convHistory=[]; const m=document.getElementById('ai-chat-msgs'); if(m) m.innerHTML=''; _chatStarted=false; _setProviderTag(''); _chatBot('대화를 초기화했습니다.'); }
-function _chatAppend(role,text,cls){ const m=document.getElementById('ai-chat-msgs'); if(!m) return null; const d=document.createElement('div'); d.className='ai-msg '+role+(cls?' '+cls:''); d.textContent=text; m.appendChild(d); m.scrollTop=m.scrollHeight; return d; }
-function _chatUser(t){ return _chatAppend('user',t); }
-function _chatBot(t){ return _chatAppend('bot',t); }
-async function sendAIChat(speak){
-  // speak===true(푸시투토크) 또는 'jarvis'(자비스 모드) → 답을 TTS로 읽어준다
-  const fromJarvis = speak==='jarvis';
-  const voice = speak===true || fromJarvis || _voiceMode; _voiceMode=false;
-  const f=document.getElementById('ai-chat-field'); const btn=document.getElementById('ai-chat-send');
-  const text=(f.value||'').trim(); if(!text) return;
-  f.value=''; btn.disabled=true; f.disabled=true;
-  _chatUser(text);
-  const thinking=_chatBot('생각 중…'); thinking.classList.add('thinking');
-  const reply=await runAgent(text,{onUpdate:(state,msg)=>{
-    if(state==='step'){ thinking.textContent=msg; }
-    else if(state==='done'){ thinking.classList.remove('thinking'); thinking.textContent=msg; }
-    else if(state==='error'){ thinking.classList.remove('thinking'); thinking.textContent='⚠️ '+msg; }
-  }});
-  _hideAIIfUnavailable();   // 양쪽 제공자가 다 막혔다면 버튼을 치운다
-  const m=document.getElementById('ai-chat-msgs'); if(m) m.scrollTop=m.scrollHeight;
-  btn.disabled=false; f.disabled=false;
-  if(voice && reply){
-    const isQ=/[?？]\s*$/.test(reply.trim());
-    if(fromJarvis){
-      // 자비스: 되묻는 답이면 호출어 없이 다음 말을 명령으로 받음 (계속 청취 중이므로 재시작 불필요)
-      if(isQ) _jarvisAwaiting=true;
-      speakAI(reply);
-    } else {
-      speakAI(reply, isQ?()=>{ if(!_isListening) startVoiceInput(); }:null);
-    }
-  }
-  else if(!fromJarvis) f.focus();
-}
-
-// ── 능동형 브리핑 (로컬 계산, 토큰 0) ──
+// ── 홈 브리핑 (로컬 계산) ──
 async function buildDailyBriefing(){
   try{
     if(!currentUser?.사원번호) return null;
@@ -13668,17 +12901,6 @@ function testNotification(){
   showLocalNotification('WorkLog 알림 테스트','이렇게 도착합니다 🔔','test');
 }
 
-function updateTTSUI(){
-  const b=document.getElementById('tts-natural-btn'); if(!b) return;
-  const on=naturalTTSOn();
-  b.textContent=on?'🎙 자연스러운 음성 켜짐':'🔈 기본 음성 사용 중';
-  b.className='btn btn-sm '+(on?'btn-primary':'btn-secondary');
-  const d=document.getElementById('tts-natural-desc');
-  if(d) d.textContent=on
-    ? '사람 목소리에 가깝지만 말하기 전 1~4초 걸리고, API 한도를 빠르게 씁니다.'
-    : '브라우저 내장 음성 — 즉시 말하고 API 한도를 쓰지 않습니다.';
-}
-
 function updateNotifyUI(){
   const on=document.getElementById('notify-enable-btn'), off=document.getElementById('notify-off-btn'),
         test=document.getElementById('notify-test-btn'), st=document.getElementById('notify-status');
@@ -13775,24 +12997,6 @@ async function _initBuildWatch(){
 }
 window.addEventListener('load', _initBuildWatch);
 </script>
-
-<!-- AI 어시스턴트 (음성+텍스트 통합) -->
-<button id="ai-chat-btn" onclick="toggleAIChat()" title="AI 어시스턴트"><img src="/assistant.png" alt="AI 어시스턴트" /></button>
-<div id="ai-chat-panel">
-  <div class="ai-chat-head">
-    <span class="title"><img class="ai-avatar" src="/assistant.png" alt="" /> AI 어시스턴트</span>
-    <span id="ai-provider-tag" class="ai-prov" title="이번 답을 만든 모델"></span>
-    <button onclick="clearAIChat()" title="대화 초기화">🗑</button>
-    <button onclick="toggleAIChat()" title="닫기">✕</button>
-  </div>
-  <div id="ai-chat-msgs"></div>
-  <div class="ai-chat-input">
-    <button id="jarvis-btn" onclick="toggleJarvis()" title="자비스 켜기">🦾</button>
-    <button id="voice-mic-btn" onclick="toggleVoiceInput()" title="음성으로 말하기">🎙</button>
-    <input type="text" id="ai-chat-field" placeholder="무엇이든 물어보세요…" onkeydown="if(event.key==='Enter')sendAIChat()" autocomplete="off" />
-    <button id="ai-chat-send" onclick="sendAIChat()">전송</button>
-  </div>
-</div>
 
 <script>
 // =========================================================
