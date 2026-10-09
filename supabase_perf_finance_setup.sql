@@ -36,6 +36,15 @@ ALTER TABLE public.perf_finance ADD CONSTRAINT perf_finance_period CHECK (
   OR (kind = 'expense' AND ((year <= 2025 AND month = 0) OR (year >= 2026 AND month BETWEEN 1 AND 12))));
 CREATE INDEX IF NOT EXISTS idx_perf_finance_kind_year ON public.perf_finance (kind, year);
 
+-- 금액 대신 시설 상태 — 사업수입 칸에 '무수익시설' · '위탁 전' · '위탁 종료' 를 적을 수 있다.
+-- 한 칸에는 금액이나 상태 중 하나만 들어간다.
+ALTER TABLE public.perf_finance ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE public.perf_finance ALTER COLUMN amount DROP NOT NULL;
+ALTER TABLE public.perf_finance DROP CONSTRAINT IF EXISTS perf_finance_note;
+ALTER TABLE public.perf_finance ADD CONSTRAINT perf_finance_note CHECK (
+  (note IS NULL AND amount IS NOT NULL)
+  OR (amount IS NULL AND kind = 'revenue' AND note IN ('무수익시설', '위탁 전', '위탁 종료')));
+
 -- ── 시설 범위 ───────────────────────────────────────────────
 -- 토큰의 wl_fac(로그인 시설)과 그 하위 조직(재귀)이면 true. admin 은 전부.
 -- users 는 RLS 가 걸려 있어 정책 안에서 그대로 읽으면 막힐 수 있으므로 SECURITY DEFINER.
