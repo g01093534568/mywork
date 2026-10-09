@@ -6074,14 +6074,15 @@ function _pfYears(){ const ys=[]; for(let y=new Date().getFullYear(); y>=PF_FIRS
 
 // 조직도에는 없고 경영실적에만 있는 행 — after 바로 아래에 같은 깊이로 끼운다(after 가 없으면 맨 아래).
 // 입력 권한은 parent 를 따른다(DB 의 wl_can_fac 에도 같은 짝이 있다). parent 가 없으면 본사관리자만.
-// until 이 있으면 그 해까지만 보인다 — 2025년까지 운영한 복지관들.
+// from·until 이 있으면 그 기간에만 보인다 — 2025년까지 운영한 복지관들, 2014~2020년 문화시설.
 const PF_EXTRA_ROWS=[
   {name:'울주군립야영장(입장료 등)', after:'울주군립야영장(달빛)', parent:'울주군립야영장'},
   ...['서부종합사회복지관','남부종합사회복지관','중부종합사회복지관',
       '서부장애인복지관','중부장애인복지관',
       '서부노인복지관','남부노인복지관','중부노인복지관'].map(name=>({name, until:2025})),
+  ...['울주문화예술회관','온양문화복지센터'].map(name=>({name, from:2014, until:2020})),
 ];
-const _pfInYear=(f,y)=>!f.until || y<=f.until;
+const _pfInYear=(f,y)=>(!f.from || y>=f.from) && (!f.until || y<=f.until);
 
 // 조직도 순서의 시설 목록 [{name, depth, team}] — 이사장·본부장 자리는 빼고 팀부터
 async function _pfFacilities(){
@@ -6103,7 +6104,7 @@ async function _pfFacilities(){
   walk('이사장',0);
   PF_EXTRA_ROWS.forEach(x=>{
     if(out.some(f=>f.name===x.name)) return;
-    const row={name:x.name, depth:0, team:false, parent:x.parent, until:x.until};
+    const row={name:x.name, depth:0, team:false, parent:x.parent, from:x.from, until:x.until};
     const at=x.after?out.findIndex(f=>f.name===x.after):-1;
     if(at>=0) out.splice(at+1, 0, {...row, depth:out[at].depth});
     else if(!x.after) out.push(row);
