@@ -1573,6 +1573,14 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
       </div><!-- /daily-sub-work -->
 
       <div id="daily-sub-perf" style="display:none">
+        <div class="em-tab-bar" style="margin-bottom:14px">
+          <button class="em-tab active" id="perf-tab-main" onclick="switchPerfTab('main')">1️⃣ main</button>
+          <button class="em-tab" id="perf-tab-revenue" onclick="switchPerfTab('revenue')">2️⃣ 세외수입</button>
+          <button class="em-tab" id="perf-tab-visitors" onclick="switchPerfTab('visitors')">3️⃣ 이용인원</button>
+        </div>
+
+        <!-- 1. main (기존 경영실적 입력) -->
+        <div id="perf-pane-main">
         <div class="perf-head">
           <div style="min-width:0">
             <div style="font-size:14px;font-weight:700;color:var(--blue)">📈 경영실적 입력</div>
@@ -1581,6 +1589,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
           <button class="btn btn-primary" style="flex-shrink:0" onclick="savePerfActuals()">💾 실적 저장</button>
         </div>
         <div id="perf-list"></div>
+        </div><!-- /perf-pane-main -->
+
+        <!-- 2. 세외수입 -->
+        <div id="perf-pane-revenue" style="display:none">
+          <div class="empty-state"><div class="icon">💰</div><p>세외수입 입력 화면은 준비 중입니다.</p></div>
+        </div>
+
+        <!-- 3. 이용인원 -->
+        <div id="perf-pane-visitors" style="display:none">
+          <div class="empty-state"><div class="icon">👥</div><p>이용인원 입력 화면은 준비 중입니다.</p></div>
+        </div>
       </div><!-- /daily-sub-perf -->
 
     </div>
@@ -4479,7 +4498,7 @@ function switchDailyTab(tab){
     if(gcalToken) renderCustomCalendar(); else restoreGcalToken();
   } else if(tab==='perf'){
     stopGcalAutoRefresh();
-    renderPerfPage();
+    switchPerfTab(_perfTab);
   } else {
     stopGcalAutoRefresh();
     initEnergyMgmt();
@@ -5953,6 +5972,18 @@ async function uploadHrExcel(ev){
 // 목표값은 설정에서 정하고, 여기서는 실적만 채운다.
 // ═══════════════════════════════════════════════
 let _perfGoals = [];
+
+// 경영실적 입력 하위 탭 — 1. main(시설목표 실적) · 2. 세외수입 · 3. 이용인원
+var _perfTab='main';   // var — 첫 화면 복원 때 선언보다 먼저 불려도 TDZ 오류가 나지 않게
+function switchPerfTab(t){
+  _perfTab=['main','revenue','visitors'].includes(t)?t:'main';
+  ['main','revenue','visitors'].forEach(k=>{
+    document.getElementById('perf-tab-'+k)?.classList.toggle('active',_perfTab===k);
+    const pane=document.getElementById('perf-pane-'+k);
+    if(pane) pane.style.display=_perfTab===k?'':'none';
+  });
+  if(_perfTab==='main') renderPerfPage();
+}
 
 async function renderPerfPage(){
   const cont=document.getElementById('perf-list');
