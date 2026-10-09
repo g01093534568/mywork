@@ -47,6 +47,7 @@ ALTER TABLE public.perf_finance ADD CONSTRAINT perf_finance_note CHECK (
 
 -- ── 시설 범위 ───────────────────────────────────────────────
 -- 토큰의 wl_fac(로그인 시설)과 그 하위 조직(재귀)이면 true. admin 은 전부.
+-- 다시 실행하면 함수만 새로 바뀐다(데이터는 그대로).
 -- users 는 RLS 가 걸려 있어 정책 안에서 그대로 읽으면 막힐 수 있으므로 SECURITY DEFINER.
 CREATE OR REPLACE FUNCTION public.wl_can_fac(name TEXT)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
@@ -56,7 +57,13 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
       UNION
       SELECT u.시설명 FROM public.users u JOIN sub s ON u.parent_facility = s.n
     )
-    SELECT 1 FROM sub WHERE sub.n = name AND sub.n <> ''
+    -- 조직도에 없는 경영실적 전용 행은 짝지은 상위 시설의 권한을 따른다
+    -- (앱의 PF_EXTRA_ROWS 와 같은 목록 — 행을 더하면 두 곳 모두 고친다)
+    SELECT 1 FROM sub
+     WHERE sub.n <> ''
+       AND sub.n = coalesce((SELECT v.p FROM (VALUES
+             ('울주군립야영장(입장료 등)', '울주군립야영장')
+           ) AS v(c, p) WHERE v.c = name), name)
   )
 $$;
 REVOKE ALL ON FUNCTION public.wl_can_fac(TEXT) FROM PUBLIC, anon;
