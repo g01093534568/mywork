@@ -5,7 +5,8 @@
 --
 -- 무엇을 담는가:
 --   시설별·연도별 사업수입(revenue)과 지출(expense) 금액(원).
---   2012~2025년은 연 단위 한 칸(month = 0), 2026년부터는 매월(month = 1~12).
+--   사업수입은 2012년부터 매월(month = 1~12).
+--   지출은 2012~2025년 연 단위 한 칸(month = 0), 2026년부터 매월(month = 1~12).
 --
 -- 누가 쓰는가:
 --   본사관리자(admin)는 전 시설, 그 밖에는 자기 시설(시설관리자는 자기 + 하위 조직)만.
@@ -24,11 +25,15 @@ CREATE TABLE IF NOT EXISTS public.perf_finance (
   amount      BIGINT NOT NULL,
   updated_by  TEXT,                                 -- 저장한 계정 시설명(감사용)
   updated_at  TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (시설명, kind, year, month),
-  -- 2025년까지는 연간 한 칸, 2026년부터는 월별
-  CONSTRAINT perf_finance_period CHECK (
-    (year <= 2025 AND month = 0) OR (year >= 2026 AND month BETWEEN 1 AND 12))
+  UNIQUE (시설명, kind, year, month)
 );
+
+-- 입력 단위 — 사업수입은 늘 월별, 지출은 2025년까지 연간 한 칸·2026년부터 월별
+-- (처음 버전은 두 구분 모두 2025년까지 연간이었다. 다시 실행하면 새 규칙으로 바뀐다)
+ALTER TABLE public.perf_finance DROP CONSTRAINT IF EXISTS perf_finance_period;
+ALTER TABLE public.perf_finance ADD CONSTRAINT perf_finance_period CHECK (
+  (kind = 'revenue' AND month BETWEEN 1 AND 12)
+  OR (kind = 'expense' AND ((year <= 2025 AND month = 0) OR (year >= 2026 AND month BETWEEN 1 AND 12))));
 CREATE INDEX IF NOT EXISTS idx_perf_finance_kind_year ON public.perf_finance (kind, year);
 
 -- ── 시설 범위 ───────────────────────────────────────────────

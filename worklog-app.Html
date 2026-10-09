@@ -6032,7 +6032,7 @@ function switchPerfTab(t){
 
 // ═══════════════════════════════════════════════
 // 경영실적 — 2. 사업수입 · 3. 지출
-// 2012~2025년은 연 단위 한 칸(month 0), 2026년부터는 매월(1~12) 입력한다.
+// 사업수입은 2012년부터 매월(1~12). 지출은 2012~2025년 연 단위 한 칸(month 0), 2026년부터 매월.
 // 시설은 조직도(이사장 아래) 순서. 본사관리자는 전 시설, 그 밖에는 자기 + 하위 조직만.
 // ═══════════════════════════════════════════════
 const PF_FIRST_YEAR=2012, PF_MONTHLY_FROM=2026;
@@ -6040,7 +6040,8 @@ const PF_KIND={revenue:'사업수입', expense:'지출'};
 var _pf={};   // kind → {facs, rows:Map('시설|연|월' → {id,amount}), year, dirty}
 
 const _pfKey=(f,y,m)=>`${f}|${y}|${m}`;
-const _pfMonths=y=>y>=PF_MONTHLY_FROM?[1,2,3,4,5,6,7,8,9,10,11,12]:[0];
+const _pfMonthly=(kind,y)=>kind==='revenue' || y>=PF_MONTHLY_FROM;
+const _pfMonths=(kind,y)=>_pfMonthly(kind,y)?[1,2,3,4,5,6,7,8,9,10,11,12]:[0];
 const _pfFmt=n=>(n===null||n===undefined||n==='')?'':Number(n).toLocaleString('ko-KR');
 function _pfParse(v){
   const t=String(v??'').replace(/[^\d-]/g,'');
@@ -6099,7 +6100,7 @@ async function renderPerfFinance(kind, keepYear){
 
 function _pfDraw(kind){
   const st=_pf[kind], cont=document.getElementById('pf-'+kind);
-  const y=st.year, months=_pfMonths(y), monthly=y>=PF_MONTHLY_FROM, label=PF_KIND[kind];
+  const y=st.year, months=_pfMonths(kind,y), monthly=_pfMonthly(kind,y), label=PF_KIND[kind];
   const scope=currentUser.role==='admin'?'전 시설':`${currentUser.시설명}${st.facs.length>1?' 및 하위 조직':''}`;
   const head=monthly
     ? `<th style="text-align:left">시설</th>${months.map(m=>`<th>${m}월</th>`).join('')}<th>합계</th>`
@@ -6116,7 +6117,7 @@ function _pfDraw(kind){
   cont.innerHTML=`
     <div class="pf-bar">
       <select onchange="_pfSetYear('${kind}',this)">${_pfYears().map(v=>`<option value="${v}"${v===y?' selected':''}>${v}년</option>`).join('')}</select>
-      <div class="pf-hint">${esc(scope)} · ${monthly?'2026년부터 매월 입력':'2025년까지 연 단위 입력'} · 금액(원). 칸을 비우고 저장하면 지워집니다</div>
+      <div class="pf-hint">${esc(scope)} · ${kind==='revenue'?'매월 입력':monthly?'2026년부터 매월 입력':'2025년까지 연 단위 입력'} · 금액(원). 칸을 비우고 저장하면 지워집니다</div>
       <button class="btn btn-secondary btn-sm" onclick="downloadPerfFinance('${kind}')">⬇️ 엑셀 다운로드</button>
       <button class="btn btn-secondary btn-sm" onclick="document.getElementById('pf-${kind}-file').click()">⬆️ 엑셀 업로드</button>
       <input type="file" id="pf-${kind}-file" accept=".xlsx,.xls" style="display:none" onchange="uploadPerfFinance('${kind}',event)">
@@ -6130,7 +6131,7 @@ function _pfDraw(kind){
 function _pfOnInput(kind, el){ _pf[kind].dirty=true; _pfSums(kind); }
 
 function _pfSums(kind){
-  const st=_pf[kind], months=_pfMonths(st.year);
+  const st=_pf[kind], months=_pfMonths(kind,st.year);
   const ins=[...document.querySelectorAll(`#pf-${kind} .pf-in`)];
   const col={}, row={}; let all=0;
   ins.forEach(el=>{
@@ -6167,17 +6168,20 @@ async function savePerfFinance(kind){
   }catch(e){ console.error(e); toast('저장 실패: '+(e.message||e),'error'); }
 }
 
-// 엑셀 — '연간' 시트(2012~2025년이 열) + 2026년부터 연도별 시트(1~12월이 열)
+// 엑셀 — 연도별 시트(1~12월이 열). 지출은 2025년까지를 '연간' 시트(연도가 열) 한 장에 모은다
 function downloadPerfFinance(kind){
   const st=_pf[kind]; if(!st) return;
   const label=PF_KIND[kind], last=new Date().getFullYear(), wb=XLSX.utils.book_new();
   const val=(f,y,m)=>{ const r=st.rows.get(_pfKey(f,y,m)); return r?r.amount:''; };
-  const annYears=[]; for(let y=PF_FIRST_YEAR; y<PF_MONTHLY_FROM && y<=last; y++) annYears.push(y);
-  const ann=[['시설명',...annYears.map(String)], ...st.facs.map(f=>[f.name,...annYears.map(y=>val(f.name,y,0))])];
-  const ws=XLSX.utils.aoa_to_sheet(ann); ws['!cols']=[{wch:26},...annYears.map(()=>({wch:14}))];
-  XLSX.utils.book_append_sheet(wb, ws, '연간');
-  for(let y=PF_MONTHLY_FROM; y<=last; y++){
-    const ms=_pfMonths(y);
+  const annYears=[]; for(let y=PF_FIRST_YEAR; y<=last; y++) if(!_pfMonthly(kind,y)) annYears.push(y);
+  if(annYears.length){
+    const ann=[['시설명',...annYears.map(String)], ...st.facs.map(f=>[f.name,...annYears.map(y=>val(f.name,y,0))])];
+    const ws=XLSX.utils.aoa_to_sheet(ann); ws['!cols']=[{wch:26},...annYears.map(()=>({wch:14}))];
+    XLSX.utils.book_append_sheet(wb, ws, '연간');
+  }
+  for(let y=last; y>=PF_FIRST_YEAR; y--){
+    if(!_pfMonthly(kind,y)) continue;
+    const ms=_pfMonths(kind,y);
     const aoa=[['시설명',...ms.map(m=>m+'월')], ...st.facs.map(f=>[f.name,...ms.map(m=>val(f.name,y,m))])];
     const w=XLSX.utils.aoa_to_sheet(aoa); w['!cols']=[{wch:26},...ms.map(()=>({wch:13}))];
     XLSX.utils.book_append_sheet(wb, w, String(y));
@@ -6205,14 +6209,14 @@ async function uploadPerfFinance(kind, ev){
     wb.SheetNames.forEach(name=>{
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''});
       const sheetYear=/^\d{4}$/.test(name.trim())?parseInt(name,10):null;
-      if(name.trim()!=='연간' && !(sheetYear>=PF_MONTHLY_FROM && sheetYear<=last)) return;
+      if(name.trim()!=='연간' && !(sheetYear>=PF_FIRST_YEAR && sheetYear<=last && _pfMonthly(kind,sheetYear))) return;
       rows.forEach(r=>{
         const fac=String(r['시설명']||'').trim(); if(!fac) return;
         if(!allowed.has(fac)){ skipped.add(fac); return; }
         Object.keys(r).forEach(col=>{
           const c=String(col).trim();
           if(sheetYear){ const m=parseInt(c,10); if(/^\d{1,2}월$/.test(c) && m>=1 && m<=12) take(fac,sheetYear,m,r[col]); }
-          else if(/^\d{4}$/.test(c)){ const y=+c; if(y>=PF_FIRST_YEAR && y<PF_MONTHLY_FROM) take(fac,y,0,r[col]); }
+          else if(/^\d{4}$/.test(c)){ const y=+c; if(y>=PF_FIRST_YEAR && y<=last && !_pfMonthly(kind,y)) take(fac,y,0,r[col]); }
         });
       });
     });
