@@ -382,6 +382,19 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 .perf-actual{width:96px;flex-shrink:0;font-size:12px;padding:6px 8px;text-align:right;}
 .perf-kpi-rate{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:44px;text-align:right;}
 @media(max-width:600px){.perf-kpi{flex-wrap:wrap;}.perf-kpi-name{flex:1 1 100%;}}
+/* 경영실적 — 사업수입·지출 */
+.pf-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.pf-bar select{width:110px;padding:6px 10px;font-size:13px;}
+.pf-hint{font-size:11px;color:var(--t3);flex:1;min-width:180px;}
+.pf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.pf-table td{padding:4px 6px;vertical-align:middle;}
+.pf-table th{padding:8px 6px;text-align:center;white-space:nowrap;}
+.pf-table td.pf-fac{white-space:nowrap;font-size:12px;min-width:150px;position:sticky;left:0;background:var(--card);z-index:1;}
+.pf-table td.pf-fac.pf-team{font-weight:700;color:var(--blue);}
+.pf-in{width:100px;font-size:12px;padding:5px 6px;text-align:right;}
+.pf-table.pf-annual .pf-in{width:160px;}
+.pf-sum{font-size:12px;font-weight:700;text-align:right;white-space:nowrap;padding-right:10px !important;}
+.pf-table tr.pf-total td{background:rgba(255,255,255,0.035);font-weight:700;}
 /* 섹션 뱃지 헤더 */
 .section-badge{font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:6px;}
 .section-badge-blue{color:var(--blue);background:rgba(61,142,240,0.12);border:1px solid rgba(61,142,240,0.28);}
@@ -1594,12 +1607,12 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none;transition:va
 
         <!-- 2. 사업수입 -->
         <div id="perf-pane-revenue" style="display:none">
-          <div class="empty-state"><div class="icon">💰</div><p>사업수입 입력 화면은 준비 중입니다.</p></div>
+          <div id="pf-revenue"></div>
         </div>
 
         <!-- 3. 지출 -->
         <div id="perf-pane-expense" style="display:none">
-          <div class="empty-state"><div class="icon">💸</div><p>지출 입력 화면은 준비 중입니다.</p></div>
+          <div id="pf-expense"></div>
         </div>
 
         <!-- 4. 이용인원 -->
@@ -3870,6 +3883,31 @@ const DB = {
     const d=data[0];
     return _cs(k,{mission:d.mission||'',vision:d.vision||'',전략목표:d.전략목표||[],전략과제:d.전략과제||[]});
   },
+  // 경영실적 — 사업수입·지출. 행이 시설 × (연도 + 월) 만큼 쌓여 1,000행 제한을 넘으므로 나눠 읽는다.
+  // 읽기·쓰기 범위(전 시설 / 자기+하위)는 DB 정책(wl_can_fac)이 정한다.
+  async getPerfFinance(kind){
+    const out=[], step=1000;
+    for(let from=0;;from+=step){
+      const {data,error}=await SB.from('perf_finance').select('id,시설명,year,month,amount')
+        .eq('kind',kind).order('id').range(from,from+step-1);
+      if(error) throw error;
+      out.push(...(data||[]));
+      if(!data || data.length<step) break;
+    }
+    return out;
+  },
+  async savePerfFinance(kind, upserts, deleteIds){
+    const by=currentUser?.시설명||'', now=new Date().toISOString();
+    for(let i=0;i<upserts.length;i+=500){
+      const rows=upserts.slice(i,i+500).map(r=>({시설명:r.시설명, kind, year:r.year, month:r.month, amount:r.amount, updated_by:by, updated_at:now}));
+      const {error}=await SB.from('perf_finance').upsert(rows,{onConflict:'시설명,kind,year,month'});
+      if(error) throw error;
+    }
+    for(let i=0;i<deleteIds.length;i+=200){
+      const {error}=await SB.from('perf_finance').delete().in('id',deleteIds.slice(i,i+200));
+      if(error) throw error;
+    }
+  },
   async setOrg(o){ const {error}=await SB.from('org_goals').upsert({id:1,mission:o.mission,vision:o.vision,전략목표:o.전략목표,전략과제:o.전략과제,updated_at:new Date().toISOString()}); if(error)throw error; _cd('org'); },
 
   async getTodos(uid){
@@ -5989,6 +6027,204 @@ function switchPerfTab(t){
     if(pane) pane.style.display=_perfTab===k?'':'none';
   });
   if(_perfTab==='main') renderPerfPage();
+  else if(_perfTab==='revenue'||_perfTab==='expense') renderPerfFinance(_perfTab);
+}
+
+// ═══════════════════════════════════════════════
+// 경영실적 — 2. 사업수입 · 3. 지출
+// 2012~2025년은 연 단위 한 칸(month 0), 2026년부터는 매월(1~12) 입력한다.
+// 시설은 조직도(이사장 아래) 순서. 본사관리자는 전 시설, 그 밖에는 자기 + 하위 조직만.
+// ═══════════════════════════════════════════════
+const PF_FIRST_YEAR=2012, PF_MONTHLY_FROM=2026;
+const PF_KIND={revenue:'사업수입', expense:'지출'};
+var _pf={};   // kind → {facs, rows:Map('시설|연|월' → {id,amount}), year, dirty}
+
+const _pfKey=(f,y,m)=>`${f}|${y}|${m}`;
+const _pfMonths=y=>y>=PF_MONTHLY_FROM?[1,2,3,4,5,6,7,8,9,10,11,12]:[0];
+const _pfFmt=n=>(n===null||n===undefined||n==='')?'':Number(n).toLocaleString('ko-KR');
+function _pfParse(v){
+  const t=String(v??'').replace(/[^\d-]/g,'');
+  if(t===''||t==='-') return null;
+  const n=parseInt(t,10);
+  return Number.isFinite(n)?n:null;
+}
+function _pfYears(){ const ys=[]; for(let y=new Date().getFullYear(); y>=PF_FIRST_YEAR; y--) ys.push(y); return ys; }
+
+// 조직도 순서의 시설 목록 [{name, depth, team}] — 이사장·본부장 자리는 빼고 팀부터
+async function _pfFacilities(){
+  const users=await DB.getUsers();
+  const names=new Set(users.map(u=>u.시설명));
+  const kids={};
+  users.forEach(u=>{ const p=(u.parent_facility&&names.has(u.parent_facility))?u.parent_facility:''; (kids[p]=kids[p]||[]).push(u); });
+  Object.values(kids).forEach(l=>l.sort(_orgSort));
+  const SKIP=new Set(['이사장','본부장']);
+  const out=[], seen=new Set();
+  const walk=(name,depth)=>{
+    (kids[name]||[]).forEach(u=>{
+      if(seen.has(u.시설명)) return; seen.add(u.시설명);
+      const skip=SKIP.has(u.시설명);
+      if(!skip) out.push({name:u.시설명, depth, team:!!(kids[u.시설명]||[]).length});
+      walk(u.시설명, skip?depth:depth+1);
+    });
+  };
+  walk('이사장',0);
+  if(currentUser.role==='admin') return out;
+  const mine=new Set(await _getManagedFacilityNames(currentUser.시설명));
+  const list=out.filter(f=>mine.has(f.name));
+  // 조직도 밖 계정(별개 시설)이어도 자기 시설은 입력할 수 있게 한다
+  if(!list.some(f=>f.name===currentUser.시설명)) list.unshift({name:currentUser.시설명, depth:0, team:false});
+  const base=Math.min(...list.map(f=>f.depth));
+  return list.map(f=>({...f, depth:f.depth-base}));
+}
+
+async function renderPerfFinance(kind, keepYear){
+  const cont=document.getElementById('pf-'+kind);
+  if(!cont) return;
+  const st=_pf[kind]=_pf[kind]||{year:new Date().getFullYear(), dirty:false};
+  if(!keepYear) st.dirty=false;
+  cont.innerHTML='<div class="empty-state"><div class="icon">⏳</div><p>불러오는 중...</p></div>';
+  try{
+    const [facs, rows]=await Promise.all([_pfFacilities(), DB.getPerfFinance(kind)]);
+    st.facs=facs;
+    st.rows=new Map(rows.map(r=>[_pfKey(r.시설명,r.year,r.month),{id:r.id, amount:Number(r.amount)}]));
+  }catch(e){
+    console.error('[perf_finance]',e);
+    cont.innerHTML=_isMissingTable(e)
+      ? '<div class="empty-state"><div class="icon">🛠️</div><p>저장할 표가 아직 없습니다. Supabase SQL Editor 에서 <b>supabase_perf_finance_setup.sql</b> 을 먼저 실행하세요.</p></div>'
+      : `<div class="empty-state"><div class="icon">⚠️</div><p>불러오지 못했습니다: ${esc(e.message||String(e))}</p></div>`;
+    return;
+  }
+  _pfDraw(kind);
+}
+
+function _pfDraw(kind){
+  const st=_pf[kind], cont=document.getElementById('pf-'+kind);
+  const y=st.year, months=_pfMonths(y), monthly=y>=PF_MONTHLY_FROM, label=PF_KIND[kind];
+  const scope=currentUser.role==='admin'?'전 시설':`${currentUser.시설명}${st.facs.length>1?' 및 하위 조직':''}`;
+  const head=monthly
+    ? `<th style="text-align:left">시설</th>${months.map(m=>`<th>${m}월</th>`).join('')}<th>합계</th>`
+    : `<th style="text-align:left">시설</th><th>${y}년 ${label}(원)</th>`;
+  const body=st.facs.map((f,i)=>{
+    const cells=months.map(m=>{
+      const v=st.rows.get(_pfKey(f.name,y,m));
+      return `<td><input class="pf-in" inputmode="numeric" data-i="${i}" data-m="${m}" value="${_pfFmt(v?.amount)}"
+        oninput="_pfOnInput('${kind}',this)" onblur="this.value=_pfFmt(_pfParse(this.value))"></td>`;
+    }).join('');
+    return `<tr><td class="pf-fac${f.team?' pf-team':''}" style="padding-left:${8+f.depth*14}px" title="${esc(f.name)}">${esc(f.name)}</td>${cells}${monthly?`<td class="pf-sum" id="pf-${kind}-r${i}"></td>`:''}</tr>`;
+  }).join('');
+  const foot=`<tr class="pf-total"><td class="pf-fac">합계</td>${months.map(m=>`<td class="pf-sum" id="pf-${kind}-c${m}"></td>`).join('')}${monthly?`<td class="pf-sum" id="pf-${kind}-all"></td>`:''}</tr>`;
+  cont.innerHTML=`
+    <div class="pf-bar">
+      <select onchange="_pfSetYear('${kind}',this)">${_pfYears().map(v=>`<option value="${v}"${v===y?' selected':''}>${v}년</option>`).join('')}</select>
+      <div class="pf-hint">${esc(scope)} · ${monthly?'2026년부터 매월 입력':'2025년까지 연 단위 입력'} · 금액(원). 칸을 비우고 저장하면 지워집니다</div>
+      <button class="btn btn-secondary btn-sm" onclick="downloadPerfFinance('${kind}')">⬇️ 엑셀 다운로드</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('pf-${kind}-file').click()">⬆️ 엑셀 업로드</button>
+      <input type="file" id="pf-${kind}-file" accept=".xlsx,.xls" style="display:none" onchange="uploadPerfFinance('${kind}',event)">
+      <button class="btn btn-primary btn-sm" onclick="savePerfFinance('${kind}')">💾 ${label} 저장</button>
+    </div>
+    ${st.facs.length?`<div class="pf-wrap"><table class="hr-table pf-table${monthly?'':' pf-annual'}"><thead><tr>${head}</tr></thead><tbody>${body}${foot}</tbody></table></div>`
+      :'<div class="empty-state"><div class="icon">🏢</div><p>입력할 수 있는 시설이 없습니다.</p></div>'}`;
+  _pfSums(kind);
+}
+
+function _pfOnInput(kind, el){ _pf[kind].dirty=true; _pfSums(kind); }
+
+function _pfSums(kind){
+  const st=_pf[kind], months=_pfMonths(st.year);
+  const ins=[...document.querySelectorAll(`#pf-${kind} .pf-in`)];
+  const col={}, row={}; let all=0;
+  ins.forEach(el=>{
+    const n=_pfParse(el.value)||0, i=el.dataset.i, m=el.dataset.m;
+    col[m]=(col[m]||0)+n; row[i]=(row[i]||0)+n; all+=n;
+  });
+  months.forEach(m=>{ const c=document.getElementById(`pf-${kind}-c${m}`); if(c) c.textContent=_pfFmt(col[m]||0); });
+  st.facs.forEach((f,i)=>{ const r=document.getElementById(`pf-${kind}-r${i}`); if(r) r.textContent=_pfFmt(row[i]||0); });
+  const a=document.getElementById(`pf-${kind}-all`); if(a) a.textContent=_pfFmt(all);
+}
+
+function _pfSetYear(kind, sel){
+  const st=_pf[kind];
+  if(st.dirty && !confirm('저장하지 않은 입력이 있습니다. 버리고 연도를 바꿀까요?')){ sel.value=st.year; return; }
+  st.year=parseInt(sel.value,10); st.dirty=false;
+  _pfDraw(kind);
+}
+
+// 화면의 값과 저장된 값을 견주어 바뀐 것만 보낸다
+async function savePerfFinance(kind){
+  const st=_pf[kind]; if(!st) return;
+  const ups=[], dels=[];
+  document.querySelectorAll(`#pf-${kind} .pf-in`).forEach(el=>{
+    const f=st.facs[+el.dataset.i], m=+el.dataset.m, v=_pfParse(el.value);
+    const had=st.rows.get(_pfKey(f.name,st.year,m));
+    if(v===null){ if(had) dels.push(had.id); }
+    else if(!had || had.amount!==v) ups.push({시설명:f.name, year:st.year, month:m, amount:v});
+  });
+  if(!ups.length && !dels.length){ toast('바뀐 내용이 없습니다'); return; }
+  try{
+    await DB.savePerfFinance(kind, ups, dels);
+    toast(`${PF_KIND[kind]} ${st.year}년 저장 완료 (${ups.length+dels.length}칸)`);
+    await renderPerfFinance(kind, true);
+  }catch(e){ console.error(e); toast('저장 실패: '+(e.message||e),'error'); }
+}
+
+// 엑셀 — '연간' 시트(2012~2025년이 열) + 2026년부터 연도별 시트(1~12월이 열)
+function downloadPerfFinance(kind){
+  const st=_pf[kind]; if(!st) return;
+  const label=PF_KIND[kind], last=new Date().getFullYear(), wb=XLSX.utils.book_new();
+  const val=(f,y,m)=>{ const r=st.rows.get(_pfKey(f,y,m)); return r?r.amount:''; };
+  const annYears=[]; for(let y=PF_FIRST_YEAR; y<PF_MONTHLY_FROM && y<=last; y++) annYears.push(y);
+  const ann=[['시설명',...annYears.map(String)], ...st.facs.map(f=>[f.name,...annYears.map(y=>val(f.name,y,0))])];
+  const ws=XLSX.utils.aoa_to_sheet(ann); ws['!cols']=[{wch:26},...annYears.map(()=>({wch:14}))];
+  XLSX.utils.book_append_sheet(wb, ws, '연간');
+  for(let y=PF_MONTHLY_FROM; y<=last; y++){
+    const ms=_pfMonths(y);
+    const aoa=[['시설명',...ms.map(m=>m+'월')], ...st.facs.map(f=>[f.name,...ms.map(m=>val(f.name,y,m))])];
+    const w=XLSX.utils.aoa_to_sheet(aoa); w['!cols']=[{wch:26},...ms.map(()=>({wch:13}))];
+    XLSX.utils.book_append_sheet(wb, w, String(y));
+  }
+  XLSX.writeFile(wb, `경영실적_${label}_${today()}.xlsx`);
+}
+
+// 받은 양식을 채워 올린다. 빈 칸은 건드리지 않는다(지우기는 화면에서 칸을 비우고 저장).
+// 내가 입력할 수 없는 시설 행은 건너뛴다.
+async function uploadPerfFinance(kind, ev){
+  const file=ev.target.files?.[0]; if(!file) return;
+  ev.target.value='';
+  const st=_pf[kind]; if(!st) return;
+  if(st.dirty && !confirm('화면에 저장하지 않은 입력이 있습니다. 버리고 엑셀을 올릴까요?')) return;
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const allowed=new Set(st.facs.map(f=>f.name)), last=new Date().getFullYear();
+    const ups=[], skipped=new Set(); let bad=0;
+    const take=(fac,y,m,raw)=>{
+      if(raw===''||raw===null||raw===undefined) return;
+      const v=_pfParse(raw); if(v===null){ bad++; return; }
+      const had=st.rows.get(_pfKey(fac,y,m));
+      if(!had || had.amount!==v) ups.push({시설명:fac, year:y, month:m, amount:v});
+    };
+    wb.SheetNames.forEach(name=>{
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''});
+      const sheetYear=/^\d{4}$/.test(name.trim())?parseInt(name,10):null;
+      if(name.trim()!=='연간' && !(sheetYear>=PF_MONTHLY_FROM && sheetYear<=last)) return;
+      rows.forEach(r=>{
+        const fac=String(r['시설명']||'').trim(); if(!fac) return;
+        if(!allowed.has(fac)){ skipped.add(fac); return; }
+        Object.keys(r).forEach(col=>{
+          const c=String(col).trim();
+          if(sheetYear){ const m=parseInt(c,10); if(/^\d{1,2}월$/.test(c) && m>=1 && m<=12) take(fac,sheetYear,m,r[col]); }
+          else if(/^\d{4}$/.test(c)){ const y=+c; if(y>=PF_FIRST_YEAR && y<PF_MONTHLY_FROM) take(fac,y,0,r[col]); }
+        });
+      });
+    });
+    if(!ups.length){ toast(`바뀐 값이 없습니다${skipped.size?` (입력 권한 밖 시설 ${skipped.size}곳 건너뜀)`:''}`); return; }
+    const msg=`${PF_KIND[kind]} ${ups.length}칸을 저장합니다.`
+      +(skipped.size?`\n입력 권한이 없거나 조직도에 없는 시설 ${skipped.size}곳은 건너뜁니다: ${[...skipped].slice(0,5).join(', ')}${skipped.size>5?' 외':''}`:'')
+      +(bad?`\n숫자가 아닌 칸 ${bad}개는 건너뜁니다.`:'');
+    if(!confirm(msg)) return;
+    await DB.savePerfFinance(kind, ups, []);
+    toast(`엑셀 업로드 완료 (${ups.length}칸)`);
+    await renderPerfFinance(kind, true);
+  }catch(e){ console.error(e); toast('엑셀 업로드 실패: '+(e.message||e),'error'); }
 }
 
 async function renderPerfPage(){
